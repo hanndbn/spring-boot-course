@@ -1057,6 +1057,187 @@ Flag là NỢ: mỗi flag = 2 nhánh code phải test, hiểu, duy trì. Quy t�
 `
     },
     {
+      id: "1-7",
+      type: "lesson",
+      title: "AOP & Bean Lifecycle — cross-cutting không lặp code, lifecycle không bất ngờ",
+      minutes: 50,
+      content: `
+## Cùng 1 đoạn log timing copy-paste 47 method — và bean prototype inject vào singleton biến mất
+
+Hai vấn đề kinh điển: (1) logging/audit/metrics/timing là nghiệp vụ cắt ngang MỌI layer — viết tay trong từng method là 47 chỗ copy-paste lỗi nhất quán; (2) bean @Prototype inject vào @Singleton "biến mất" — luôn CÙNG instance dù đúng annotation. AOP giải bài toán (1), hiểu sâu lifecycle giải bài toán (2).
+---
+
+## 1. Vấn đề cross-cutting — code lặp không phải nghiệp vụ
+
+~~~text
+@Service class RedeemService {
+    public RedeemResult redeem(cmd) {
+        long t0 = System.currentTimeMillis();     // ← copy-paste
+        log.info("redeem start cif={}", cmd.cif()); // ← copy-paste
+        try {
+            RedeemResult r = doRedeem(cmd);
+            log.info("redeem done in {}ms", ...);  // ← copy-paste
+            metrics.increment("redeem.ok");        // ← copy-paste
+            return r;
+        } catch (Exception e) {
+            metrics.increment("redeem.fail");      // ← copy-paste
+            throw e;
+        }
+    }
+}
+// 46 method khác y chang — quên 1 chỗ là méo metrics
+~~~
+
+AOP tách phần cắt ngang thành ASPECT — 1 chỗ viết, áp dụng theo quy tắc (pointcut), không đụng code nghiệp vụ.
+
+## 2. Khái niệm lõi — Aspect, Pointcut, Advice, JoinPoint
+
+| Thuật ngữ | Ý nghĩa | Ví dụ |
+|---|---|---|
+| Aspect | Module hóa mối quan tâm cắt ngang | PerformanceAspect, AuditAspect |
+| JoinPoint | Điểm có thể chèn code (method call trong Spring) | redeemService.redeem() |
+| Pointcut | Biểu thức CHỌN joinpoint nào | execution(* vn.addpay..service.*.*(..)) |
+| Advice | Code chạy tại điểm chèn | @Around, @Before, @AfterThrowing |
+
+## 3. @Aspect thực chiến — timing + audit log
+
+~~~xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aop</artifactId>
+</dependency>
+~~~
+
+~~~java
+@Aspect
+@Component
+public class PerformanceAspect {
+
+    private static final Logger log =
+        LoggerFactory.getLogger("perf");
+
+    // Pointcut: mọi method public của mọi @Service
+    @Pointcut("execution(public * vn.addpay.loyalty..service..*(..))")
+    public void serviceLayer() {}
+
+    @Around("serviceLayer()")
+    public Object timing(ProceedingJoinPoint jp) throws Throwable {
+        long t0 = System.nanoTime();
+        try {
+            return jp.proceed();                 // CHẠY method gốc
+        } finally {
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            log.info("{}.{} took {}ms",
+                jp.getTarget().getClass().getSimpleName(),
+                jp.getSignature().getName(), ms);
+        }
+    }
+}
+~~~
+
+~~~java
+@Aspect
+@Component
+public class AuditAspect {
+
+    // Chỉ method có annotation đánh dấu — pointcut chính xác hơn execution
+    @Around("@annotation(audited)")
+    public Object audit(ProceedingJoinPoint jp, Audited audited)
+            throws Throwable {
+        String action = audited.value();
+        String actor = SecurityContextHelper.currentUser();
+        auditRepo.insert(action, actor, jp.getArgs(),
+            Instant.now(), "RUNNING");
+        try {
+            Object result = jp.proceed();
+            auditRepo.markDone(action, actor);
+            return result;
+        } catch (Exception e) {
+            auditRepo.markFailed(action, actor, e.getMessage());
+            throw e;
+        }
+    }
+}
+~~~
+
+@annotation pointcut là cách idiomat nhất: tự đánh dấu method nào cần audit — không pointcut string mong manh theo package.
+
+## 4. Proxy — cách Spring thực thi AOP (và giới hạn của nó)
+
+Spring AOP là PROXY: container bọc bean trong lớp proxy — caller gọi proxy, proxy chạy advice rồi mới delegate xuống target.
+
+~~~text
+Caller → [PerformanceProxy.redeem()]  ← advice chạy ở đây
+              ↓ delegate
+         RedeemService.redeem()       ← method gốc (KHÔNG qua proxy!)
+~~~
+
+Hệ quả — 3 cái bẫy kinh điển:
+
+1. **Self-invocation**: redeem() gọi this.validate() nội bộ — validate() KHÔNG qua proxy → aspect không chạy
+2. **final method**: proxy không override được → aspect lặng lẽ bỏ qua
+3. **@Prototype trong @Singleton**: inject 1 lần lúc startup — bean prototype "đóng băng" thành 1 instance duy nhất. Muốn mỗi lần dùng instance mới: ObjectProvider<T> hoặc @Lookup
+
+## 5. Bean lifecycle đầy đủ — instantiation → populate → aware → init → ready → destroy
+
+~~~text
+Constructor → Dependency Injection (populate) → Aware callbacks
+→ @PostConstruct → afterPropertiesSet() → custom init-method
+→ [bean READY — sống trong container]
+→ @PreDestroy → destroy() → custom destroy-method
+~~~
+
+~~~java
+@Component
+public class CacheWarmUp {
+
+    @PostConstruct                          // dependency đã inject xong
+    void warmUp() {
+        rules.loadFromDb();                 // an toàn dùng dependency
+    }
+}
+
+@Component
+public class GracefulShutdown {
+
+    @PreDestroy                             // trước khi container tắt
+    void drain() {
+        kafkaConsumer.pause();              // ngừng lấy message mới
+        inFlight.awaitCompletion(30s);      // chờ việc đang chạy
+    }
+}
+~~~
+
+Constructor chạy TRƯỚC injection: dùng dependency trong constructor (trừ constructor injection tự nó) là NPE — @PostConstruct là chỗ đúng cho init logic.
+
+## 6. Scope thực chiến — khi nào loại nào
+
+| Scope | Số instance | Use case |
+|---|---|--- trong container |
+| singleton | 1 / container | Default — 99% service/repository |
+| prototype | 1 / mỗi request getBean | Object tạo mới liên tục (builder có state) |
+| request | 1 / HTTP request | Thông tin per-request (cart tạm) |
+| session | 1 / HTTP session | Không dùng cho REST API — stateless |
+| application | 1 / ServletContext | Chia sẻ toàn app (hiếm) |
+
+:::warn AOP TRên @Transactional KHÔNG HOẠT ĐỘNG TRÊN self-call
+Đây là nguồn bug khó hiểu nhất Spring: method @Transactional gọi method @Transactional KHÁC trong CÙNG class → inner KHÔNG có transaction mới (proxy không nằm giữa). Fix: tách class, hoặc tự inject proxy (self-injection). Cùng cơ chế proxy với aspect — hiểu proxy là hiểu cùng lúc cả AOP lẫn transaction.
+:::
+
+:::laas LAAS dùng pattern tenant context (bài 6-7) chính là aspect: TenantContextAspect @Around chặn mọi method @TenantRequired, set/clear ThreadLocal quanh lời gọi — không method nghiệp vụ nào biết sự tồn tại của nó. Đối chiếu: nếu thấy metrics thiếu cho method nội bộ this.xxx() — đó không phải bug metrics, là self-invocation bỏ qua proxy. Cùng 1 kiến thức: proxy nằm ở RANH GIỚI bean, không nằm bên trong bean.
+:::
+
+:::takeaways
+- Cross-cutting (log/audit/metrics/timing) → aspect 1 chỗ viết, pointcut chọn nơi áp dụng
+- @annotation pointcut chính xác hơn execution(* package..*) — tự đánh dấu, không mong manh
+- Spring AOP = proxy: self-invocation KHÔNG qua proxy — aspect/transaction đều bị bỏ qua
+- @Prototype inject vào @Singleton đóng băng thành 1 instance — dùng ObjectProvider/@Lookup
+- Lifecycle: constructor → DI → @PostConstruct → ready → @PreDestroy — init ở đúng chỗ, không NPE
+- @Transactional self-call mất transaction mới — cùng bẫy proxy với aspect
+:::
+`
+    },
+    {
       id: "1-quiz",
       type: "quiz",
       title: "Quiz Module 1 — Spring Core",
@@ -1272,6 +1453,25 @@ Flag là NỢ: mỗi flag = 2 nhánh code phải test, hiểu, duy trì. Quy t�
             "Dung — abs(MIN_VALUE) la bay kinh dien; floorMod thay abs+% de luon duong va stable",
             "Bucket la ham thuan cua memberId.hashCode() — khong co state cache de expire",
             "Percent chi la nguong so sanh — khong tao race, chi doi ty le user duoc chon"
+          ]
+        },
+        {
+          level: "hard",
+          scenario: "Aspect @Around log timing mọi method @Service. Dev báo cáo: metrics thống kê chỉ thấy redeem() mà KHÔNG thấy validateRisk() — dù cả 2 đều public trong RedeemService. Kiểm tra: validateRisk() được gọi từ redeem() bằng this.validateRisk().",
+          q: "Vì sao aspect bỏ sót và hướng xử lý đúng?",
+          options: [
+            "Bug framework — @Around không hỗ trợ method public",
+            "Self-invocation: this.validateRisk() gọi thẳng target KHÔNG qua proxy — advice không chặn được. Fix: tách validateRisk sang bean khác, hoặc self-inject proxy",
+            "Pointcut thiếu — thêm validateRisk vào biểu thức execution là hết",
+            "Đổi @Around thành @Before là chạy cho mọi method nội bộ"
+          ],
+          answer: 1,
+          explain: "Spring AOP là proxy-based: advice chỉ chạy khi lời gọi ĐI QUA proxy (từ bean khác vào). this.xxx() là gọi nội bộ bên trong target — proxy không nằm giữa, aspect (và cả @Transactional) lặng lẽ không áp dụng. Đây là hành vi thiết kế, không phải bug. Fix chuẩn: tách method sang bean khác để gọi chéo qua proxy; self-injection (@Lazy tự inject) là phương án cục bộ khó đọc hơn.",
+          why: [
+            "@Around hoạt động tốt với public method — khi gọi QUA proxy",
+            "✓ Proxy nằm ở ranh giới bean — this. nội bộ vòng qua nó",
+            "Pointcut đúng cũng không cứu được lời gọi không qua proxy — vấn đề là đường gọi",
+            "Loại advice không liên quan — không lời gọi nào qua proxy để advice chặn"
           ]
         }
       ]

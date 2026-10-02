@@ -1898,6 +1898,165 @@ Bước 6: sau này cần tách service thật — module đã kín, bốc nguy�
 `
     },
     {
+      id: "6-12",
+      type: "lesson",
+      title: "CQRS & Event Sourcing — tách model đọc khỏi model ghi, dữ liệu là dòng sự kiện",
+      minutes: 50,
+      content: `
+## Dashboard đọc 12 bảng JOIN nhau 4 giây — trong khi ghi transaction chỉ cần 3
+
+Read và write có hình dạng dữ liệu khác nhau: ghi cần chuẩn hóa chống mâu thuẫn (OLTP), đọc cần phẳng hóa 1 query (OLAP). Ép 1 model phục vụ 2 chiều là nguồn gốc cả trăm bảng view lồng nhau. CQRS tách đôi: command ghi vào model chuẩn, query đọc từ projection tối ưu sẵn. Event Sourcing đi thêm bước: lưu ĐẦY ĐỦ sự kiện thay vì state cuối.
+---
+
+## 1. Vấn đề — 1 model cho 2 việc khác nhau
+
+~~~text
+WRITE path (chuẩn hóa, bảo toàn):        READ path (phẳng hóa, nhanh):
+  POST /redeem                             GET /dashboard?cif=...
+  → validate + INSERT transaction          → JOIN member, balance,
+  → UPDATE balance                           txn 30 ngày, tier, campaign
+  → INSERT outbox event                     → aggregate 4 giây
+
+Cùng 1 DB model gánh 2 việc: index phục vụ read làm chậm write,
+ràng buộc phục vụ write làm phức tạp read.
+~~~
+
+## 2. CQRS — Command Query Responsibility Segregation
+
+| | Command (ghi) | Query (đọc) |
+|---|---|---|
+| Mục đích | Thay đổi state | Trả lời câu hỏi |
+| Model | Aggregate chuẩn hóa (3NF) | Projection phẳng (denormalized) |
+| Đường | Service → Repository → DB | Read repo → Read store (ES/replica/materialized view) |
+| Tối ưu | Bảo toàn + audit | 1 query không JOIN |
+
+~~~text
+Client → Command API → CommandHandler → DB (source of truth)
+                                          │ outbox event
+                                          ▼
+Client → Query API  ← Projection ← Kafka topic member-stream
+~~~
+
+Projection là bảng/view denormalized dựng lại theo đúng hình query cần — event stream là nguồn cấp dữ liệu. Dashboard giờ là SELECT * FROM member_dashboard WHERE cif=? — 1 bảng, mili-giây.
+
+## 3. Event Sourcing — state là hàm của events
+
+~~~text
+Traditional:  INSERT member (cif, name, tier='GOLD')     ← chỉ còn KẾT QUẢ
+
+Event-sourced: INSERT member_registered (cif, name, tier=SILVER)
+               INSERT tier_upgraded     (cif, GOLD, reason=lifetime)
+               INSERT points_earned     (cif, +15000)
+               ...                                       ← toàn bộ LỊCH SỬ
+
+State hiện tại = replay events theo thứ tự: register → upgrade → earn
+~~~
+
+Lợi ích: audit hoàn hảo (ai đổi gì lúc nào — câu hỏi regulator), time travel (state tại bất kỳ thời điểm), debug (tái hiện đúng chuỗi dẫn tới bug). Chi phí: tư duy khác hẳn, snapshot cho aggregate lớn (replay 1 triệu event chậm), versioning event schema (event cũ vẫn phải đọc được).
+
+## 4. Axon — framework CQRS/ES dành cho Spring
+
+~~~xml
+<dependency>
+    <groupId>org.axonframework</groupId>
+    <artifactId>axon-spring-boot-starter</artifactId>
+    <version>4.10</version>
+</dependency>
+~~~
+
+~~~java
+// Command
+public record RedeemCommand(String cif, long amount) {}
+
+// Aggregate — thuần domain, Axon quản event
+@Aggregate
+public class MemberAggregate {
+
+    @AggregateIdentifier
+    private String cif;
+    private long balance;
+
+    @CommandHandler
+    public MemberAggregate(RegisterMemberCommand cmd) {
+        apply(new MemberRegisteredEvent(cmd.cif(), cmd.name()));
+    }
+
+    @CommandHandler
+    public void handle(RedeemCommand cmd) {
+        if (cmd.amount() > balance)
+            throw new InsufficientPointsException(cif, cmd.amount(), balance);
+        apply(new PointsRedeemedEvent(cif, cmd.amount()));   // KHÔNG set field tay
+    }
+
+    @EventSourcingHandler          // cập nhật state từ event — replay dùng lại code này
+    private void on(PointsRedeemedEvent e) {
+        this.balance -= e.amount();
+    }
+}
+~~~
+
+~~~java
+// Projection — dựng read model từ event stream
+@ProcessingGroup("member-projection")
+public class MemberDashboardProjection {
+
+    private final MemberDashboardRepo repo;
+
+    @EventHandler
+    public void on(MemberRegisteredEvent e) {
+        repo.save(new MemberDashboard(e.cif(), e.name(), 0, "SILVER"));
+    }
+
+    @EventHandler
+    public void on(PointsRedeemedEvent e) {
+        repo.incrementRedeemed(e.cif(), e.amount());
+    }
+}
+~~~
+
+Axon xử: routing command → aggregate, persist event, replay, projection catch-up, snapshotting. Giá: đường cong học tập đáng kể + runtime riêng (Axon Server) nếu muốn distribution.
+
+## 5. CQRS không cần ES — và thường chỉ cần mức nhẹ
+
+| Mức | Cách làm | Khi nào đủ |
+|---|---|---|
+| 0 | Cùng DB, riêng DTO read | Luôn — điển hình nhất, gần như miễn phí |
+| 1 | DB replica read + read-only repo | Read nặng tách tải khỏi master |
+| 2 | Projection table dựng từ outbox (bài 6-2) + Kafka | Dashboard/report phức tạp |
+| 3 | Event Sourcing đầy đủ (Axon) | Audit regulator + time travel là yêu cầu CỨNG |
+
+80% hệ: mức 0-2 đủ. ES là công cụ chuyên biệt — đừng nhập môn kiến trúc bằng mức 3.
+
+## 6. Bẫy chính — eventual consistency lộ diện
+
+~~~text
+POST /redeem → 200 OK
+GET /dashboard NGAY sau → KHÔNG thấy giao dịch vừa rồi
+                            (projection chưa kịp consume event — trễ ~100ms-2s)
+
+Client của bạn có biết điều này không?
+~~~
+
+Fix pattern: (a) UI optimistic — hiển thị ngay từ response POST, khớp lại khi projection bắt kịp; (b) read-your-own-writes — query cùng path ghi cho chính user vừa ghi; (c) chấp nhận + giao tiếp rõ ràng SLA hiển thị. Không quyết định gì thì mặc nhiên giả sử "GET thấy ngay cái mình vừa POST".
+
+:::warn ES LÀ CAM KẾT DỮ LIỆU, KHÔNG PHẢI FEATURE BỔ SUNG
+Sau khi sống với event store, đổi ý quay về table state là rewrite lớn — event schema cũ phải đọc được MÃI (như migration DB nhưng vĩnh viễn). Chỉ vào ES khi yêu cầu audit/time-travel là cứng — không phải vì "nó hay".
+:::
+
+:::laas LAAS thực tế đang là CQRS mức 2 không gọi tên: outbox → Kafka → các bảng tổng hợp đối soát/report dựng lại từ event — chính là projection. Điểm cần đối chiếu: event schema đã versioning chưa? Khi OL51 campaign đổi cấu trúc payload, consumer cũ có vỡ không — đó là câu hỏi upcasting của ES thu nhỏ. Và dashboard admin đã đối phó eventual consistency chưa: refresh trang không thấy giao dịch vừa rồi là hành vi THEO THIẾT KẾ, cần UI optimistic che đi chứ không phải bug.
+:::
+
+:::takeaways
+- CQRS tách model ghi (chuẩn hóa, bảo toàn) khỏi model đọc (phẳng, nhanh) — projection nối 2 bên
+- Event Sourcing: lưu lịch sử sự kiện, state = replay — audit hoàn hảo + time travel, giá là versioning vĩnh viễn
+- Axon: framework CQRS/ES Spring hoàn chỉnh — mạnh nhưng đường cong học tập cao
+- 80% hệ chỉ cần mức 0-2 (DTO riêng / replica / projection từ outbox) — ES là mức chuyên biệt
+- Eventual consistency là hệ quả bắt buộc — UI optimistic hoặc read-your-own-writes, đừng giả sử thấy ngay
+- LAAS đã CQRS mức 2 với outbox + bảng tổng hợp — câu hỏi versioning event schema là việc đáng làm tiếp
+:::
+`
+    },
+    {
       id: "6-quiz",
       type: "quiz",
       title: "Quiz Module 6 — Microservices",
@@ -2186,6 +2345,25 @@ Bước 6: sau này cần tách service thật — module đã kín, bốc nguy�
             "✓ Static analysis trong CI: dependency graph không biết nể ai",
             "Bỏ mở internal là boundary chết — mọi module dần import lẫn nhau quay lại monolith bẩn",
             "Cách inject không đổi bản chất phụ thuộc — dependency graph vẫn thấy"
+          ]
+        },
+        {
+          level: "medium",
+          scenario: "Kiến trúc CQRS mức 2: POST /redeem ghi DB + outbox → Kafka → projection cập nhật bảng dashboard (trễ ~1s). Tester báo bug: redeem xong 200 OK, F5 dashboard ngay — giao dịch biến mất, 2 giây sau mới xuất hiện.",
+          q: "Đây là bug hay hành vi thiết kế — xử lý thế nào cho đúng?",
+          options: [
+            "Bug — giảm lag Kafka consumer về 0ms là hết",
+            "Hành vi thiết kế của eventual consistency. Fix đúng chỗ UI: optimistic update từ response POST, hoặc read-your-own-writes cho chính user vừa ghi",
+            "Bug — dashboard phải đọc thẳng DB transaction thay vì projection",
+            "Bug — thêm cache Redis quanh bảng projection"
+          ],
+          answer: 1,
+          explain: "Chọn CQRS mức projection là CHẤP NHẬN trễ truyền bá — đó là đánh đổi lấy read path phẳng nhanh. 'Sửa' bằng cách đòi lag 0 là phủ nhận chính lý do chọn kiến trúc; đọc thẳng DB giết lợi ích projection. Đúng chỗ xử lý là client: optimistic update (hiển thị từ response, khớp khi projection bắt kịp) hoặc read-your-own-writes — user vừa ghi đi path ghi. Bug nằm ở KỲ VỌNG 'GET thấy ngay', không ở hệ thống.",
+          why: [
+            "Lag 0 đồng nghĩa đồng bộ — mâu thuẫn với mục tiêu tách read/write",
+            "✓ Eventual consistency là hợp đồng — client phải được thiết kế biết điều đó",
+            "Đọc thẳng DB cho dashboard là quay về chính vấn đề CQRS ra đời để giải",
+            "Cache không giảm trễ truyền bá — chỉ đắp thêm lớp phụ"
           ]
         }
       ]

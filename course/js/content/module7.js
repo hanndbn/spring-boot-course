@@ -709,6 +709,141 @@ JFR chi phí <1% overhead — để bật production thường trực. Recording
     {
       id: "7-5",
       type: "lesson",
+      title: "Load Testing — k6, Gatling, JMeter: số liệu trước khi khách cháy",
+      minutes: 45,
+      content: `
+## Load test = 1 user curl thử — đến 2h sáng production cháy với 500 TPS
+
+Mọi thứ nhanh với 1 user. Điều quyết định go-live là hành vi ở ĐỈNH tải: p99 có vượt SLA, DB connection pool có cạn, Redis có stampede, pod có OOM. Load test là đưa câu hỏi đó về máy của bạn — trước khi khách hàng trả lời bằng cách rời đi.
+---
+
+## 1. Ba câu hỏi load test trả lời (và SLA của chúng)
+
+| Chỉ số | Ý nghĩa | SLA điển hình |
+|---|---|---|
+| Throughput (req/s) | Hệ xử lý được bao nhiêu | 500 RPS sustained |
+| p50 / p95 / p99 latency | 50%/95%/99% request nhanh hơn con số này | p99 < 800ms |
+| Error rate | % request thất bại | < 0.1% dưới tải mục tiêu |
+
+Trung bình (mean) gần như vô nghĩa — 1 request 30s bỏ vào giỏ 999 request 100ms vẫn ra mean "ổn". p99 mới là con số khách hàng khó chịu nhất nói về bạn — và là con số SRE dashboard theo dõi.
+
+## 2. Công cụ — k6, Gatling, JMeter
+
+| | k6 | Gatling | JMeter |
+|---|---|---|---|
+| Ngôn ngữ kịch bản | JavaScript (ES6) | Scala/Java (DSL) | XML/GUI |
+| Nên viết bằng | Code — review được, git được | Code | GUI — khó review |
+| Resource để chạy | Rất nhẹ (Go) | Nhẹ (JVM) | Nặng (GUI, thread/mỗi user) |
+| CI-friendly | Xuất sắc | Tốt | Trung bình |
+| Reports | HTML + cloud (Grafana k6) | HTML đẹp sẵn | HTML cơ bản |
+| Chọn khi | API testing, team JS | Team Scala, report đẹp | Kịch bản GUI/legacy |
+
+Khuyến nghị mặc định: k6 — script JS version được như code thường, chạy nhẹ trong CI container, output Prometheus/Grafana trực tiếp.
+
+## 3. k6 — script thực chiến
+
+~~~javascript
+// load-test/redeem.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Trend, Rate } from 'k6/metrics';
+
+const redeemLatency = new Trend('redeem_latency');
+const redeemSuccess = new Rate('redeem_success');
+
+export const options = {
+  scenarios: {
+    ramp_to_target: {
+      executor: 'ramping-arrival-rate',   // targeting RPS, không phải VU
+      startRate: 10,
+      timeUnit: '1s',
+      preAllocatedVUs: 50,
+      maxVUs: 500,
+      stages: [
+        { target: 100, duration: '2m' },   // warm up
+        { target: 500, duration: '5m' },   // tải mục tiêu sustained
+        { target: 700, duration: '3m' },   // VƯỢT tải — tìm điểm gãy
+        { target: 0,   duration: '1m' },   // hạ nhiệt
+      ],
+    },
+  },
+  thresholds: {
+    'redeem_latency': ['p(99)<800'],       // FAIL test nếu p99 > 800ms
+    'redeem_success': ['rate>0.999'],      // FAIL nếu error > 0.1%
+    'http_req_failed': ['rate<0.001'],
+  },
+};
+
+export default function () {
+  const cif = \`CIF-\${__ENV.TENANT}-\${(__VU * __ITER) % 100000}\`;
+  const res = http.post(\`\${__ENV.BASE_URL}/api/v1/redeem\`,
+    JSON.stringify({ cif, amount: 100 }),
+    { headers: { 'Content-Type': 'application/json',
+                 'Authorization': \`Bearer \${__ENV.TOKEN}\` } });
+
+  redeemLatency.add(res.timings.duration);
+  redeemSuccess.add(check(res, { 'status 2xx': r => r.status >= 200 && r.status < 300 }));
+  sleep(0.2);   // think time — mô phỏng người, không phải bot
+}
+~~~
+
+Chạy: k6 run -e BASE_URL=https://sit.internal -e TOKEN=xxx redeem.js — exit code khác 0 khi vượt threshold → CI chặn merge ngay.
+
+## 4. Đọc kết quả — tìm điểm GÃY, không chỉ điểm ĐẠT
+
+~~~text
+RPS    p50    p95    p99    err%   | nhận xét
+100    120ms  210ms  340ms  0.00   | baseline khỏe
+500    145ms  290ms  610ms  0.00   | tải mục tiêu — ĐẠT SLA
+620    210ms  850ms  1900ms 0.4    | ↑đột ngột — knee point gần đây
+700    890ms  3400ms 7200ms 12.3   | SỤP: saturation — queue dồn, timeout dây chuyền
+~~~
+
+Hình dạng quan trọng hơn con số: latency tăng TUYẾN TÍNH với tải là bình thường; tăng VƯỢT CHUẨN (knee) là giới hạn thực — thường trùng pool cạn (Hikari 50 nối hết), thread pool đầy, hoặc GC chứng cư (bài 7-4 JVM). Vượt qua knee: mọi thứ đều chậm, không gì chết — chết dần — nhìn Grafana thấy ngay.
+
+Công thức dùng khi tối ưu: Little's Law — concurrency = throughput × latency. 500 RPS × 0.5s = 250 request in-flight — số đó phải nhỏ hơn pool DB + thread pool, không thì knee nằm đúng ở đó.
+
+## 5. Kịch bản phải GIỐNG production
+
+| Sai thường gặp | Hệ quả |
+|---|---|
+| Test 1 endpoint lặp thuần | Cache hit 100% — production cache miss cháy khác hẳn |
+| Dataset 10 user quay vòng | Dataset lớn mới lộ lock contention, N+1, partition skew |
+| Không think time | Ổ đĩa/CPU throttle không đúng tỷ lệ thật |
+| Token chuẩn bị trước 1000 cái | Token expire giữa test — error rate giả |
+| Test window ngắn | GC tail, Kafka rebalance không kịp lộ |
+
+Luồng dữ liệu test: sinh dataset thật (member, campaign, balance) qua seed script — chạy trong Testcontainers hoặc namespace SIT riêng — KHÔNG chạy load test lên dữ liệu production.
+
+## 6. Vòng lặp tối ưu — đo lường, không đoán
+
+~~~text
+1. Baseline: chạy k6 với tải mục tiêu — ghi p99, err, RPS max
+2. Tìm knee: ramp vượt tải — xác định điểm sụp + corr với Grafana
+   (pool active? GC pause? pod CPU throttle?)
+3. Tối ưu 1 thay đổi duy nhất (batch fetch, index, pool size, cache)
+4. Re-run cùng script — so sánh cùng điều kiện
+5. Lặp — và commit threshold vào CI chặn regression
+~~~
+
+Mỗi tối ưu phải đối chứng cùng kịch bản — "cảm giác nhanh hơn" không phải số liệu. Threshold commit cùng code: regression hiệu năng bị chặn như regression logic.
+
+:::laas Trước go-live Mini-LaaS, kịch bản k6 đáng chạy: (1) redeem 500 RPS sustained — p99 < 800ms, route qua Keycloak token thật không cache; (2) dashboard admin truy vấn bảng tổng hợp 1000 req/lần load — đã projection (bài 6-12) hay còn JOIN nóng; (3) job batch 2h sáng chạy SONG SONG traffic đỉnh — tranh connection pool với API. Cả 3 chỉ số commit vào Jenkins pipeline như verification step — deploy khi vượt p99 là fail build, không đợi 2h sáng khách gọi.
+:::
+
+:::takeaways
+- p99 là chỉ số khách hàng khó chịu nhất — mean che giấu đuôi dài, đừng báo cáo mean
+- k6 mặc định: script JS trong git, threshold là code, exit code chặn CI
+- Tìm KNEE (điểm gãy) quan trọng hơn điểm đạt — ở đó corr với pool/GC/CPU trên Grafana
+- Little's Law: in-flight = RPS × latency — đối chiếu pool DB và thread trước khi tối ưu mù
+- Dataset + think time + token fresh phải giống production — không thì test số đẹp lừa mình
+- Tối ưu 1 thay đổi/lần chạy, đối chứng cùng kịch bản — commit threshold chặn regression vào CI
+:::
+`
+    },
+    {
+      id: "7-6",
+      type: "lesson",
       title: "Dự án tốt nghiệp: Mini-LaaS",
       minutes: 120,
       content: `
@@ -1035,6 +1170,25 @@ Bạn đã chạm **mọi keyword** của LAAS: multi-tenant, idempotency, outbo
             "✓ Đúng — kỷ luật điều tra: sự kiện hạ tầng (describe) + bằng chứng application (logs previous). 2 lệnh này phân loại được 90% trường hợp trước khi chạm bất cứ thứ gì.",
             "Tăng memory 'chắc ăn' là đốt symptom — nếu thực ra là NPE loop thì tăng memory không sửa gì mà che tín hiệu. Chỉ tăng khi OOMKilled được xác nhận.",
             "Rollback an toàn cho user (đúng khi urgent) nhưng phải kèm điều tra root cause — không phải 'rollback xong việc'. Câu hỏi hỏi bước ĐẦU TIÊN điều tra: hiểu trước."
+          ]
+        },
+        {
+          level: "medium",
+          scenario: "Load test k6: 500 RPS đạt p99 600ms — mọi thresholds xanh, team chốt go-live. Đêm đầu production: 400 RPS thực tế nhưng p99 8s, error 5%. Giám sát cho thấy Hikari pool 50/50 active và hàng chục request chờ connection.",
+          q: "Bài học load test nào bị bỏ sót?",
+          options: [
+            "Thiếu test 500 RPS — cần tăng tải test lên 1000 RPS cho chắc",
+            "Chỉ test điểm ĐẠT, không tìm KNEE: pool 50 cạn ở đâu đó giữa 400-500 RPS тест đã dùng dataset nhỏ hơn nên lock ít hơn. Phải ramp vượt tải, corr pool/GC/CPU — và đối chiếu Little's Law: in-flight = RPS × latency vs pool size",
+            "k6 không đủ tin cậy — đổi sang JMeter sẽ ra số đúng",
+            "Production yếu hơn SIT — nâng CPU pod lên là xong"
+          ],
+          answer: 1,
+          explain: "Threshold xanh ở MỘT điểm tải không nói gì về hành vi GẦN giới hạn. Pool 50 connection: 500 RPS × 0.5s = 250 in-flight trung bình ổn, nhưng p99 tail + dataset thật tăng thời gian giữ connection → 400 RPS thực đã bóp cạn pool. Vòng lặp đúng: ramp VƯỢT tải tìm knee, correlate với Grafana (pool active? GC pause? CPU throttle?), áp Little's Law đối chiếu in-flight với pool — thay vì chỉ chốt 'điểm xanh' và rời đi.",
+          why: [
+            "Tăng tải nhưng vẫn chỉ 1 điểm — không hiểu ĐỈNH sụp ở đâu và vì sao",
+            "✓ Knee + Little's Law: dự đoán trước chỗ sụp bằng số, không đợi đêm go-live",
+            "Công cụ không phải biến số — kịch bản + phân tích kết quả mới là",
+            "Nâng CPU không giải pool cạn — giới hạn nằm ở connection config"
           ]
         }
       ]
