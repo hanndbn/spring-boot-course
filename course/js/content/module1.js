@@ -2758,189 +2758,1086 @@ public class PromotionCalculator {
       title: "Tự viết Custom Starter & Đào sâu @Conditional — biến thư viện nội bộ thành plug-and-play",
       minutes: 50,
       content: `
-## 20 microservice cùng copy-paste cấu hình audit log — và bài toán thư viện dùng chung
+## 20 Microservice Cùng Copy-Paste Cấu Hình — Bài Toán Thư Viện Dùng Chung Trong Doanh Nghiệp
 
-Trong một tổ chức có nhiều team hoặc nhiều microservice, các bài toán như: ghi audit log chuẩn, tích hợp hệ thống đo lường (metrics), rate limiting, xử lý common exception hay header tracing thường bị lặp lại. Nếu copy-paste cấu hình thủ công:
-1. Version thư viện phân mảnh, khó nâng cấp đồng loạt.
-2. Mỗi service cấu hình một kiểu, format log/header không đồng nhất.
-3. Rất khó để một service riêng lẻ ghi đè (override) hành vi mặc định khi cần.
+Trong một kiến trúc Microservices phân tán với 20 đến 100 dịch vụ độc lập, các nhu cầu phi chức năng (Cross-Cutting Concerns) xuất hiện ở khắp mọi nơi:
+1. **Audit Logging chuẩn hóa**: Ghi nhận toàn bộ thông tin định danh (Tenant ID, User ID, IP, Request/Response payload, Correlation ID) tuân thủ tiêu chuẩn an toàn thông tin ISO-27001 và PCI-DSS.
+2. **Distributed Rate Limiting**: Ngăn chặn quá tải hệ thống và chống tấn công từ chối dịch vụ (DDoS) đa tầng.
+3. **Observability & Distributed Tracing**: Tự động inject TraceID/SpanID vào MDC (Mapped Diagnostic Context) và truyền tải qua các HTTP headers hoặc Kafka message headers.
+4. **Security Context Propagation**: Truyền tải danh tính người dùng xuyên suốt các lệnh gọi nội bộ qua REST hoặc gRPC.
 
-**Spring Boot Starter** chính là lời giải tiêu chuẩn: đóng gói dependency và auto-configuration thành một gói "cắm là chạy", có thể cấu hình linh hoạt qua <code>application.yml</code>.
+Nếu các team phát triển giải quyết các bài toán trên bằng cách **copy-paste mã nguồn** hoặc tạo ra một thư viện <code>.jar</code> tiện ích thông thường chứa các class <code>@Component</code>, thảm họa vận hành sẽ lập tức xảy ra:
+- **Xung đột phiên bản và phân mảnh cấu hình**: Mỗi service định dạng log một kiểu, service dùng log JSON, service dùng log plain text; khi cần vá lỗ hổng bảo mật khẩn cấp (như sự cố Log4j CVE-2021-44228), toàn bộ 50 repositories phải được sửa code và deploy thủ công.
+- **Mất kiểm soát khởi tạo Bean (Inversion of Control)**: Khi một service cần tùy biến lưu audit log vào Elasticsearch thay vì Kafka, họ không thể ghi đè (override) được bean do các annotation cứng nhắc <code>@Component</code> đã chiếm quyền kiểm soát của Spring Container.
+- **Bắt buộc scan package ngoại lai (@ComponentScan)**: Service cha buộc phải khai báo <code>@ComponentScan("com.enterprise.common")</code>, dẫn đến việc quét bừa bãi hàng trăm class không cần thiết, làm tăng thời gian khởi động container và gây ra xung đột trùng tên bean (*ConflictingBeanDefinitionException*).
+
+**Spring Boot Custom Starter** chính là chuẩn mực kiến trúc số 1 để giải quyết triệt để vấn đề này. Một starter chuẩn enterprise hoạt động theo triết lý **"Zero-Configuration by Default, 100% Customizable on Demand"**: chỉ cần thêm dependency vào <code>pom.xml</code>, toàn bộ tính năng tự động kích hoạt với cấu hình an toàn nhất; nếu microservice muốn tùy biến, họ chỉ việc khai báo một bean cùng tên để thay thế mặc định mà không cần sửa bất kỳ dòng code nào của thư viện.
 
 ---
 
-## 1. Kiến trúc 2 module chuẩn của một Starter
+## 1. Cơ Chế Ngầm của Auto-Configuration Engine (Under the Hood)
 
-Theo chuẩn của Spring Boot team, một Starter chuyên nghiệp thường gồm 2 module:
+Để tự viết một Custom Starter chuyên nghiệp, bạn phải nắm vững vòng đời phát hiện và nạp tự động cấu hình bên trong lõi Spring Boot Container.
 
-~~~text
-mycompany-audit-spring-boot-parent/
-├── mycompany-audit-spring-boot-autoconfigure/   ← Chứa code logic, @AutoConfiguration & @Bean
-└── mycompany-audit-spring-boot-starter/         ← Module rỗng (empty jar), chỉ gom dependency
+### Sơ Đồ Kiến Trúc: Chu Trình Tải & Đánh Giá Điều Kiện Auto-Configuration
+
+~~~mermaid
+flowchart TD
+    A["SpringApplication.run()"] --> B["Khởi động IoC Container & Environment"]
+    B --> C["Kích hoạt AutoConfigurationImportSelector"]
+    C --> D["Đọc tệp META-INF/spring/...AutoConfiguration.imports"]
+    D --> E["Lọc bỏ Exclusions (spring.autoconfigure.exclude)"]
+    E --> F["Sắp xếp thứ tự (Topological Sort theo @AutoConfiguration)"]
+    F --> G["ConditionEvaluator: Đánh giá các @Conditional"]
+    G --> H{"Tất cả điều kiện thỏa mãn?"}
+    H -- "KHÔNG (Negative Matches)" --> I["Ghi log ConditionEvaluationReport & Bỏ qua"]
+    H -- "CÓ (Positive Matches)" --> J["Đăng ký BeanDefinition vào BeanFactory"]
+    J --> K["Khởi tạo Singleton Instance khi Context sẵn sàng"]
+    
+    style A fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style C fill:#1e293b,stroke:#8b5cf6,stroke-width:2px,color:#fff
+    style D fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#fff
+    style G fill:#1e293b,stroke:#ec4899,stroke-width:2px,color:#fff
+    style J fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+    style I fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fff
 ~~~
 
-- **Autoconfigure module**: Chứa code kiểm tra điều kiện (@Conditional), tạo bean, bind cấu hình.
-- **Starter module**: Chỉ chứa file <code>pom.xml</code> khai báo dependency tới module autoconfigure và các thư viện cần thiết. Người dùng cuối chỉ cần thêm **duy nhất** dependency starter này.
-*(Lưu ý: Với các dự án nội bộ vừa và nhỏ, bạn có thể gộp 2 module này thành 1 module duy nhất để đơn giản hóa quá trình build).*
+### Bước Chuyển Mình Lịch Sử: <code>spring.factories</code> vs <code>AutoConfiguration.imports</code>
 
-## 2. Vũ khí tối thượng: Hệ sinh thái @Conditional
+Từ phiên bản Spring Boot 1.0 đến 2.6, cơ chế Service Provider Interface (SPI) của Spring dựa hoàn toàn vào tệp:
+<code>META-INF/spring.factories</code>
 
-Tất cả sự "thông minh" của Spring Boot bắt nguồn từ các annotation điều kiện:
+Tệp này có cấu trúc Properties cổ điển:
+~~~properties
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=  com.enterprise.audit.autoconfigure.AuditAutoConfiguration,  com.enterprise.audit.autoconfigure.AuditSecurityAutoConfiguration
+~~~
 
-| Annotation | Ý nghĩa thực chiến | Trường hợp sử dụng |
-|---|---|---|
-| <code>@ConditionalOnClass(X.class)</code> | Chỉ tạo bean nếu class X có mặt trong classpath | Tích hợp Redis/Kafka khi thư viện client được import |
-| <code>@ConditionalOnMissingBean(X.class)</code> | Chỉ tạo bean nếu người dùng **CHƯA** tự định nghĩa bean này | Cho phép user ghi đè (override) bean mặc định dễ dàng |
-| <code>@ConditionalOnProperty(...)</code> | Bật/tắt theo cấu hình trong application.yml | Feature switch: <code>mastery.audit.enabled=true</code> |
-| <code>@ConditionalOnWebApplication</code> | Chỉ chạy nếu app là web app (Servlet hoặc Reactive) | Filter, Interceptor, Controller advice |
-| <code>@AutoConfigureAfter(X.class)</code> | Đảm bảo starter chạy sau một AutoConfig khác | Đảm bảo DataSourceAutoConfiguration đã chạy trước |
+Tuy nhiên, từ **Spring Boot 2.7** và chính thức loại bỏ cách cũ trong **Spring Boot 3.0+**, Spring chuyển đổi sang định dạng tệp chuyên biệt:
+<code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>
+
+Tệp này liệt kê mỗi class Auto-Configuration trên một dòng độc lập:
+~~~text
+com.enterprise.audit.autoconfigure.AuditAutoConfiguration
+com.enterprise.audit.autoconfigure.AuditSecurityAutoConfiguration
+~~~
+
+#### Vì sao Spring Boot 3 lại khai tử <code>spring.factories</code> cho Auto-Configuration?
+1. **Hiệu Năng Khởi Động (Startup Performance)**: <code>spring.factories</code> là một tệp Properties dùng chung cho hàng chục interface khác nhau (ApplicationContextInitializer, ApplicationListener, FailureAnalyzer...). Spring phải parse toàn bộ tệp vào bộ nhớ dù chỉ cần kiểm tra một tính năng. Với tệp <code>.imports</code>, class loader chỉ đọc đúng dòng tương ứng theo nhu cầu.
+2. **Hỗ Trợ Biên Dịch Trước GraalVM Native Image (AOT Compilation)**: Spring Boot 3 đặt mục tiêu hàng đầu là tương thích với GraalVM Ahead-Of-Time (AOT). Tệp <code>.imports</code> có cấu trúc rõ ràng, cho phép công cụ AOT phân tích tĩnh cây phụ thuộc tại thời điểm compile (build-time), loại bỏ code chết và sinh metadata reflection chính xác 100%.
+
+### Hệ Thống Annotation @Conditional — Trái Tim Của Starter Thông Minh
+
+Một Auto-Configuration không bao giờ được khởi tạo bean một cách mù quáng. Nó phải luôn kiểm tra môi trường ứng dụng thông qua các annotation thuộc họ <code>@Conditional</code>:
+
+| Annotation | Ý nghĩa & Điều kiện kích hoạt | Trường hợp sử dụng thực tế |
+| :--- | :--- | :--- |
+| <code>@ConditionalOnClass</code> | Class chỉ định có mặt trong Classpath runtime | Chỉ bật KafkaAuditPublisher nếu thư viện <code>org.apache.kafka.clients.producer.Producer</code> có trong classpath |
+| <code>@ConditionalOnMissingClass</code> | Class chỉ định vắng mặt trong Classpath | Bật in-memory mock storage nếu không tìm thấy thư viện kết nối cơ sở dữ liệu thật |
+| <code>@ConditionalOnBean</code> | Bean chỉ định đã được khai báo trong Spring Context | Chỉ tạo AuditEventListener khi ApplicationEventMulticaster đã sẵn sàng |
+| <code>@ConditionalOnMissingBean</code> | **Quy tắc vàng của Starter**: Chưa có bean nào thuộc kiểu này tồn tại | Cho phép ứng dụng cha tự cấu hình bean riêng để override bean mặc định của thư viện |
+| <code>@ConditionalOnProperty</code> | Kiểm tra giá trị cấu hình trong <code>application.yml</code> | Cho phép bật/tắt toàn bộ starter qua cờ <code>enterprise.audit.enabled=true/false</code> |
+| <code>@ConditionalOnWebApplication</code> | Ứng dụng là môi trường Web (SERVLET hoặc REACTIVE) | Không đăng ký Servlet Filter nếu ứng dụng chỉ là CLI hoặc Kafka Consumer ngầm |
+
+### Thứ Tự Thực Thi & Giai Đoạn Đánh Giá Điều Kiện (ConditionEvaluation Phases)
+
+Spring Boot chia quá trình đánh giá <code>@Conditional</code> thành hai giai đoạn rõ rệt thông qua enum <code>ConfigurationCondition.ConfigurationPhase</code>:
+
+1. **PARSE_CONFIGURATION**: Đánh giá tại thời điểm Spring đang đọc các class <code>@Configuration</code>. Các điều kiện kiểm tra Classpath (<code>@ConditionalOnClass</code>) hoặc cấu hình thuộc tính (<code>@ConditionalOnProperty</code>) sẽ được đánh giá ở giai đoạn này. Nếu sai, Spring không buồn parse class đó vào bộ nhớ.
+2. **REGISTER_BEAN**: Đánh giá tại thời điểm Spring đã nạp xong tất cả các BeanDefinition của người dùng và bắt đầu đăng ký BeanDefinition từ Auto-Configuration. **Đây chính là lý do vì sao <code>@ConditionalOnMissingBean</code> luôn hoạt động chính xác**: Spring luôn để ứng dụng của người dùng đăng ký bean trước, sau đó Auto-Configuration mới chạy để điền vào những vị trí còn thiếu.
+
+---
+
+## 2. Kiến Trúc & Xây Dựng Production Starter Cấp Doanh Nghiệp (Production-Grade Code)
+
+Chúng ta sẽ thiết kế một Custom Starter hoàn chỉnh theo tiêu chuẩn ngân hàng: **<code>enterprise-audit-spring-boot-starter</code>**.
+Starter này tự động chặn bắt mọi HTTP Request/Response, tự động che mờ thông tin nhạy cảm (PII - mật khẩu, số thẻ tín dụng), trích xuất danh tính đa khách thuê (<code>X-Tenant-ID</code>) và đẩy log kiểm toán sang **Kafka Topic** (hoặc fallback về **Structured JSON Console Log** nếu không có Kafka).
+
+### Chuẩn Kiến Trúc Đóng Gói Multi-Module Maven
+
+Một Starter cấp doanh nghiệp chuẩn mực luôn bao gồm 2 module riêng biệt:
+1. <code>enterprise-audit-spring-boot-autoconfigure</code>: Chứa toàn bộ code logic, ConfigurationProperties, Service, Filter và các class <code>@AutoConfiguration</code>.
+2. <code>enterprise-audit-spring-boot-starter</code>: Một module "rỗng" (chỉ chứa file <code>pom.xml</code>), gom nhóm dependency của module autoconfigure cùng các thư viện cần thiết bên ngoài để người dùng chỉ cần import 1 dependency duy nhất.
+
+### Bước 1: Khai Báo <code>pom.xml</code> Của Module AutoConfigure
+
+~~~xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.enterprise.platform</groupId>
+    <artifactId>enterprise-audit-spring-boot-autoconfigure</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <java.version>17</java.version>
+        <spring-boot.version>3.2.3</spring-boot.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot AutoConfigure API -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <version>\${spring-boot.version}</version>
+        </dependency>
+
+        <!-- Configuration Processor: Tự động sinh metadata JSON cho IDE gợi ý cấu hình yml -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <version>\${spring-boot.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Servlet API cho Http Filter (provided hoặc optional) -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Web: Phục vụ OncePerRequestFilter và Caching Wrappers -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <version>6.1.4</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Optional Dependency: Kafka Template (Chỉ kích hoạt nếu project cha kéo Kafka) -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <version>3.1.2</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Validation API -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <version>3.0.2</version>
+        </dependency>
+
+        <!-- Jackson Databind cho việc serialize AuditPayload -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+
+        <!-- Testing Harness -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <version>\${spring-boot.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+~~~
+
+### Bước 2: Class Cấu Hình Thuộc Tính An Toàn <code>AuditProperties.java</code>
+
+Sử dụng <code>@ConfigurationProperties</code> kết hợp validation chặt chẽ để ngăn chặn cấu hình sai ngay từ lúc boot ứng dụng:
 
 ~~~java
-@AutoConfiguration
-@ConditionalOnClass(AuditManager.class)
-@EnableConfigurationProperties(AuditProperties.class)
-public class AuditAutoConfiguration {
+package com.enterprise.platform.audit.properties;
 
-    @Bean
-    @ConditionalOnMissingBean(AuditRepository.class)
-    public AuditRepository defaultAuditRepository() {
-        return new InMemoryAuditRepository(); // Fallback nếu user không cấu hình DB
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+@Validated
+@ConfigurationProperties(prefix = "enterprise.audit")
+public class AuditProperties {
+
+    /**
+     * Bật hoặc tắt toàn bộ cơ chế tự động ghi log kiểm toán.
+     */
+    private boolean enabled = true;
+
+    /**
+     * Tên định danh của service phát sinh sự kiện kiểm toán (vd: payment-service, core-banking).
+     */
+    @NotBlank(message = "enterprise.audit.service-name không được để trống")
+    private String serviceName = "unknown-service";
+
+    /**
+     * Điểm đích nhận log kiểm toán: KAFKA, HTTP, hoặc CONSOLE_LOG.
+     */
+    @NotNull(message = "enterprise.audit.destination phải được cấu hình")
+    private DestinationType destination = DestinationType.CONSOLE_LOG;
+
+    /**
+     * Cấu hình chi tiết cho Kafka Publisher khi destination = KAFKA.
+     */
+    private KafkaProperties kafka = new KafkaProperties();
+
+    /**
+     * Danh sách các URI pattern cần loại trừ không ghi audit (vd: health check, metrics).
+     */
+    private List<String> excludedPaths = new ArrayList<>(List.of("/actuator/**", "/favicon.ico"));
+
+    /**
+     * Danh sách các trường dữ liệu nhạy cảm cần tự động che mờ (Masking).
+     */
+    private Set<String> maskedFields = Set.of("password", "token", "cardNumber", "cvv", "secret");
+
+    public enum DestinationType {
+        CONSOLE_LOG,
+        KAFKA,
+        HTTP
     }
+
+    public static class KafkaProperties {
+        private String topic = "enterprise.audit.events.v1";
+        private int ackTimeoutMs = 3000;
+
+        public String getTopic() { return topic; }
+        public void setTopic(String topic) { this.topic = topic; }
+        public int getAckTimeoutMs() { return ackTimeoutMs; }
+        public void setAckTimeoutMs(int ackTimeoutMs) { this.ackTimeoutMs = ackTimeoutMs; }
+    }
+
+    // Getters and Setters
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public String getServiceName() { return serviceName; }
+    public void setServiceName(String serviceName) { this.serviceName = serviceName; }
+    public DestinationType getDestination() { return destination; }
+    public void setDestination(DestinationType destination) { this.destination = destination; }
+    public KafkaProperties getKafka() { return kafka; }
+    public void setKafka(KafkaProperties kafka) { this.kafka = kafka; }
+    public List<String> getExcludedPaths() { return excludedPaths; }
+    public void setExcludedPaths(List<String> excludedPaths) { this.excludedPaths = excludedPaths; }
+    public Set<String> getMaskedFields() { return maskedFields; }
+    public void setMaskedFields(Set<String> maskedFields) { this.maskedFields = maskedFields; }
 }
 ~~~
 
-## 3. Đăng ký AutoConfiguration trong Spring Boot 3+
-
-:::warn BƯỚC ĐỆM QUAN TRỌNG TỪ SPRING BOOT 3
-Trước Spring Boot 2.7, cơ chế auto-config được khai báo qua file <code>META-INF/spring.factories</code>.
-Kể từ **Spring Boot 3.0+**, file này **đã bị loại bỏ** cho việc auto-configuration.
-Bạn BẮT BUỘC phải tạo file:
-<code>src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>
-:::
-
-Nội dung file chỉ chứa tên đầy đủ (FQCN) của AutoConfiguration class:
-
-~~~text
-vn.mastery.starter.audit.AuditAutoConfiguration
-~~~
-
-Mỗi dòng một class. Khi ứng dụng khởi động, Spring Boot sẽ tự động quét file này và đưa class vào pipeline đánh giá điều kiện.
-
-## 4. Thực hành: Xây dựng Audit Starter từng bước
-
-### Bước 1: Class cấu hình Type-safe
+### Bước 3: Mô Hình Dữ Liệu Kiểm Toán Bất Biến <code>AuditPayload.java</code>
 
 ~~~java
-@ConfigurationProperties(prefix = "mastery.audit")
-public record AuditProperties(
-    boolean enabled,
+package com.enterprise.platform.audit.model;
+
+import java.time.Instant;
+import java.util.Map;
+
+public record AuditPayload(
+    String auditId,
     String serviceName,
-    int maxQueueSize
-) {
-    public AuditProperties {
-        if (serviceName == null || serviceName.isBlank()) {
-            serviceName = "default-service";
+    String tenantId,
+    String correlationId,
+    String userId,
+    String clientIp,
+    String httpMethod,
+    String uri,
+    int responseStatus,
+    long durationMs,
+    Map<String, String> headers,
+    String requestBodyMasked,
+    String responseBodyMasked,
+    Instant timestamp
+) {}
+~~~
+
+### Bước 4: Hợp Đồng Xuất Bản Log <code>AuditPublisher.java</code> & Các Implementation
+
+Hợp đồng cho phép đa hình hóa việc gửi log kiểm toán. Người dùng có thể cắm bất kỳ hệ thống lưu trữ nào:
+
+~~~java
+package com.enterprise.platform.audit.publisher;
+
+import com.enterprise.platform.audit.model.AuditPayload;
+
+public interface AuditPublisher {
+    void publish(AuditPayload payload);
+}
+~~~
+
+#### Implementation Mặc Định: <code>ConsoleLogAuditPublisher.java</code> (Sử dụng SLF4J Structured Logging)
+
+~~~java
+package com.enterprise.platform.audit.publisher;
+
+import com.enterprise.platform.audit.model.AuditPayload;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class ConsoleLogAuditPublisher implements AuditPublisher {
+
+    private static final Logger log = LoggerFactory.getLogger("ENTERPRISE_AUDIT_LOGGER");
+    private final ObjectMapper objectMapper;
+
+    public ConsoleLogAuditPublisher(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public void publish(AuditPayload payload) {
+        try {
+            String jsonPayload = objectMapper.writeValueAsString(payload);
+            log.info("[AUDIT_RECORD] {}", jsonPayload);
+        } catch (JsonProcessingException e) {
+            log.error("Lỗi tuần tự hóa AuditPayload ID: {}", payload.auditId(), e);
         }
     }
 }
 ~~~
 
-### Bước 2: Service cốt lõi & Interface cho phép mở rộng
+#### Implementation Cấp Cao: <code>KafkaAuditPublisher.java</code> (Sử dụng Spring KafkaTemplate)
 
 ~~~java
-public interface AuditSender {
-    void send(AuditPayload payload);
-}
+package com.enterprise.platform.audit.publisher;
 
-public class HttpAuditSender implements AuditSender {
+import com.enterprise.platform.audit.model.AuditPayload;
+import com.enterprise.platform.audit.properties.AuditProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+
+public class KafkaAuditPublisher implements AuditPublisher {
+
+    private static final Logger log = LoggerFactory.getLogger(KafkaAuditPublisher.class);
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
     private final AuditProperties properties;
-    public HttpAuditSender(AuditProperties properties) { this.properties = properties; }
+    private final ObjectMapper objectMapper;
+
+    public KafkaAuditPublisher(KafkaTemplate<String, String> kafkaTemplate,
+                               AuditProperties properties,
+                               ObjectMapper objectMapper) {
+        this.kafkaTemplate = kafkaTemplate;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
-    public void send(AuditPayload payload) {
-        // Gửi audit log lên server tập trung
+    public void publish(AuditPayload payload) {
+        try {
+            String json = objectMapper.writeValueAsString(payload);
+            String partitionKey = payload.tenantId() != null ? payload.tenantId() : payload.auditId();
+            
+            kafkaTemplate.send(properties.getKafka().getTopic(), partitionKey, json)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Không thể gửi Audit Event sang Kafka topic: {}. Lỗi: {}", 
+                                  properties.getKafka().getTopic(), ex.getMessage());
+                    } else {
+                        log.debug("Audit Event [{}] gửi thành công vào partition {}", 
+                                  payload.auditId(), result.getRecordMetadata().partition());
+                    }
+                });
+        } catch (Exception e) {
+            log.error("Lỗi xử lý Kafka Audit Publisher cho auditId: {}", payload.auditId(), e);
+        }
     }
 }
 ~~~
 
-### Bước 3: Class AutoConfiguration kết nối mọi thứ
+### Bước 5: Bộ Xử Lý Che Mờ Thông Tin Nhạy Cảm <code>AuditDataMasker.java</code>
 
 ~~~java
+package com.enterprise.platform.audit.masking;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
+public class AuditDataMasker {
+
+    private static final String MASK_REPLACEMENT = "******";
+    private final Set<String> maskedFields;
+    private final ObjectMapper objectMapper;
+
+    public AuditDataMasker(Set<String> maskedFields, ObjectMapper objectMapper) {
+        this.maskedFields = maskedFields;
+        this.objectMapper = objectMapper;
+    }
+
+    public String maskJsonPayload(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) {
+            return rawJson;
+        }
+        try {
+            JsonNode rootNode = objectMapper.readTree(rawJson);
+            if (rootNode.isObject()) {
+                maskObject((ObjectNode) rootNode);
+                return objectMapper.writeValueAsString(rootNode);
+            }
+            return rawJson;
+        } catch (Exception e) {
+            // Nếu không phải định dạng JSON hợp lệ, fallback trả về nguyên bản hoặc cảnh báo
+            return "[UNPARSEABLE_PAYLOAD_MASKED]";
+        }
+    }
+
+    private void maskObject(ObjectNode objectNode) {
+        Iterator<Map.Entry<String, JsonNode>> fields = objectNode.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            String fieldName = entry.getKey();
+            JsonNode fieldValue = entry.getValue();
+
+            if (isSensitiveField(fieldName)) {
+                entry.setValue(objectNode.textNode(MASK_REPLACEMENT));
+            } else if (fieldValue.isObject()) {
+                maskObject((ObjectNode) fieldValue);
+            }
+        }
+    }
+
+    private boolean isSensitiveField(String fieldName) {
+        return maskedFields.stream().anyMatch(sensitive -> sensitive.equalsIgnoreCase(fieldName));
+    }
+}
+~~~
+
+### Bước 6: Bộ Lọc Servlet Ghi Vết <code>AuditLoggingFilter.java</code>
+
+Sử dụng <code>ContentCachingRequestWrapper</code> và <code>ContentCachingResponseWrapper</code> để đọc an toàn request body và response body mà không làm cạn kiệt luồng <code>InputStream</code> của downstream controllers:
+
+~~~java
+package com.enterprise.platform.audit.filter;
+
+import com.enterprise.platform.audit.masking.AuditDataMasker;
+import com.enterprise.platform.audit.model.AuditPayload;
+import com.enterprise.platform.audit.properties.AuditProperties;
+import com.enterprise.platform.audit.publisher.AuditPublisher;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingRequestWrapper;
+import org.springframework.web.util.ContentCachingResponseWrapper;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class AuditLoggingFilter extends OncePerRequestFilter {
+
+    private final AuditProperties properties;
+    private final AuditPublisher auditPublisher;
+    private final AuditDataMasker dataMasker;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    public AuditLoggingFilter(AuditProperties properties,
+                              AuditPublisher auditPublisher,
+                              AuditDataMasker dataMasker) {
+        this.properties = properties;
+        this.auditPublisher = auditPublisher;
+        this.dataMasker = dataMasker;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        return properties.getExcludedPaths().stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, uri));
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+
+        long startTime = System.currentTimeMillis();
+        ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
+        ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
+
+        try {
+            filterChain.doFilter(wrappedRequest, wrappedResponse);
+        } finally {
+            long duration = System.currentTimeMillis() - startTime;
+            processAndPublishAudit(wrappedRequest, wrappedResponse, duration);
+            wrappedResponse.copyBodyToResponse(); // QUAN TRỌNG: Ghi ngược dữ liệu về client
+        }
+    }
+
+    private void processAndPublishAudit(ContentCachingRequestWrapper req,
+                                        ContentCachingResponseWrapper res,
+                                        long durationMs) {
+        String rawRequestBody = new String(req.getContentAsByteArray(), StandardCharsets.UTF_8);
+        String rawResponseBody = new String(res.getContentAsByteArray(), StandardCharsets.UTF_8);
+
+        Map<String, String> headers = new HashMap<>();
+        Collections.list(req.getHeaderNames()).forEach(headerName -> 
+            headers.put(headerName, req.getHeader(headerName))
+        );
+
+        String tenantId = req.getHeader("X-Tenant-ID");
+        String correlationId = req.getHeader("X-Correlation-ID");
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = UUID.randomUUID().toString();
+        }
+        String userId = req.getHeader("X-User-ID");
+
+        AuditPayload payload = new AuditPayload(
+            UUID.randomUUID().toString(),
+            properties.getServiceName(),
+            tenantId,
+            correlationId,
+            userId,
+            req.getRemoteAddr(),
+            req.getMethod(),
+            req.getRequestURI(),
+            res.getStatus(),
+            durationMs,
+            headers,
+            dataMasker.maskJsonPayload(rawRequestBody),
+            dataMasker.maskJsonPayload(rawResponseBody),
+            Instant.now()
+        );
+
+        auditPublisher.publish(payload);
+    }
+}
+~~~
+
+### Bước 7: Trái Tim Điều Phối <code>AuditAutoConfiguration.java</code>
+
+Đây là lớp cấu hình trung tâm, sử dụng annotation mới <code>@AutoConfiguration</code> của Spring Boot 3 và phối hợp các điều kiện <code>@Conditional</code>:
+
+~~~java
+package com.enterprise.platform.audit.autoconfigure;
+
+import com.enterprise.platform.audit.filter.AuditLoggingFilter;
+import com.enterprise.platform.audit.masking.AuditDataMasker;
+import com.enterprise.platform.audit.properties.AuditProperties;
+import com.enterprise.platform.audit.publisher.AuditPublisher;
+import com.enterprise.platform.audit.publisher.ConsoleLogAuditPublisher;
+import com.enterprise.platform.audit.publisher.KafkaAuditPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.kafka.core.KafkaTemplate;
+
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "mastery.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(prefix = "enterprise.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditAutoConfiguration {
 
     @Bean
-    @ConditionalOnMissingBean(AuditSender.class)
-    public AuditSender auditSender(AuditProperties properties) {
-        return new HttpAuditSender(properties);
+    @ConditionalOnMissingBean
+    public AuditDataMasker auditDataMasker(AuditProperties properties, ObjectMapper objectMapper) {
+        return new AuditDataMasker(properties.getMaskedFields(), objectMapper);
+    }
+
+    /**
+     * Nhánh 1: Tự động đăng ký KafkaAuditPublisher nếu:
+     * 1. destination = KAFKA
+     * 2. Thư viện KafkaTemplate có mặt trong Classpath
+     * 3. Chưa có bean AuditPublisher nào được người dùng tự khai báo
+     */
+    @Bean
+    @ConditionalOnClass(KafkaTemplate.class)
+    @ConditionalOnProperty(prefix = "enterprise.audit", name = "destination", havingValue = "KAFKA")
+    @ConditionalOnMissingBean(AuditPublisher.class)
+    public AuditPublisher kafkaAuditPublisher(KafkaTemplate<String, String> kafkaTemplate,
+                                              AuditProperties properties,
+                                              ObjectMapper objectMapper) {
+        return new KafkaAuditPublisher(kafkaTemplate, properties, objectMapper);
+    }
+
+    /**
+     * Nhánh 2: Fallback đăng ký ConsoleLogAuditPublisher nếu:
+     * Chưa có bất kỳ bean AuditPublisher nào được nạp (hoặc do destination != KAFKA, hoặc do không có KafkaTemplate).
+     */
+    @Bean
+    @ConditionalOnMissingBean(AuditPublisher.class)
+    public AuditPublisher consoleLogAuditPublisher(ObjectMapper objectMapper) {
+        return new ConsoleLogAuditPublisher(objectMapper);
+    }
+
+    /**
+     * Đăng ký Filter với thứ tự ưu tiên rất cao (Ordered.HIGHEST_PRECEDENCE + 10)
+     * để đo lường chính xác toàn bộ thời gian xử lý của ứng dụng.
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "auditLoggingFilterRegistration")
+    public FilterRegistrationBean<AuditLoggingFilter> auditLoggingFilterRegistration(
+            AuditProperties properties,
+            AuditPublisher auditPublisher,
+            AuditDataMasker dataMasker) {
+
+        AuditLoggingFilter filter = new AuditLoggingFilter(properties, auditPublisher, dataMasker);
+        FilterRegistrationBean<AuditLoggingFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.addUrlPatterns("/*");
+        registration.setName("enterpriseAuditLoggingFilter");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        return registration;
+    }
+}
+~~~
+
+### Bước 8: Đăng Ký SPI Trong <code>AutoConfiguration.imports</code>
+
+Tạo tệp tại đúng vị trí quy chuẩn:
+<code>src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>
+
+Nội dung:
+~~~text
+com.enterprise.platform.audit.autoconfigure.AuditAutoConfiguration
+~~~
+
+---
+
+## 3. Thử Nghiệm Tự Động & Chẩn Đoán Thực Tế (Testing & Actuator Verification)
+
+### Kiểm Thử Bằng <code>ApplicationContextRunner</code> (Không Cần Bật Tomcat Server)
+
+Spring Boot cung cấp công cụ kiểm thử đỉnh cao <code>ApplicationContextRunner</code>. Công cụ này khởi tạo Spring Context thu nhỏ trong bộ nhớ chỉ mất vài mili-giây để kiểm thử toàn diện các nhánh điều kiện <code>@Conditional</code>:
+
+~~~java
+package com.enterprise.platform.audit.test;
+
+import com.enterprise.platform.audit.autoconfigure.AuditAutoConfiguration;
+import com.enterprise.platform.audit.filter.AuditLoggingFilter;
+import com.enterprise.platform.audit.publisher.AuditPublisher;
+import com.enterprise.platform.audit.publisher.ConsoleLogAuditPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaTemplate;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class AuditAutoConfigurationTest {
+
+    private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(AuditAutoConfiguration.class))
+            .withUserConfiguration(BaseTestConfiguration.class);
+
+    @Configuration
+    static class BaseTestConfiguration {
+        @Bean
+        public ObjectMapper objectMapper() {
+            return new ObjectMapper();
+        }
+    }
+
+    @Test
+    @DisplayName("Khi enterprise.audit.enabled=false -> Không có bất kỳ bean nào của Starter được nạp")
+    void shouldNotLoadWhenDisabled() {
+        contextRunner
+                .withPropertyValues("enterprise.audit.enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(AuditPublisher.class);
+                    assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
+                });
+    }
+
+    @Test
+    @DisplayName("Mặc định khi không cấu hình gì -> Khởi tạo ConsoleLogAuditPublisher làm Fallback")
+    void shouldLoadDefaultConsolePublisher() {
+        contextRunner
+                .withPropertyValues("enterprise.audit.service-name=order-service")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(AuditPublisher.class);
+                    assertThat(context).hasSingleBean(ConsoleLogAuditPublisher.class);
+                    assertThat(context).hasBean("auditLoggingFilterRegistration");
+                });
+    }
+
+    @Test
+    @DisplayName("Khi người dùng tự khai báo Custom AuditPublisher -> Bean của Starter tự động nhường đường")
+    void shouldBackOffWhenUserProvidesCustomPublisher() {
+        contextRunner
+                .withUserConfiguration(CustomPublisherConfig.class)
+                .withPropertyValues("enterprise.audit.service-name=order-service")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(AuditPublisher.class);
+                    assertThat(context).doesNotHaveBean(ConsoleLogAuditPublisher.class);
+                    assertThat(context).hasBean("customAuditPublisher");
+                });
+    }
+
+    @Configuration
+    static class CustomPublisherConfig {
+        @Bean
+        public AuditPublisher customAuditPublisher() {
+            return payload -> System.out.println("Ghi vào Elasticsearch riêng: " + payload.auditId());
+        }
+    }
+}
+~~~
+
+### Chẩn Đoán Trực Tiếp Qua Actuator Endpoint: <code>/actuator/conditions</code>
+
+Khi đưa starter vào một microservice thực tế, làm thế nào để biết một Bean có được tạo hay không và vì sao nó bị từ chối? Hãy sử dụng Actuator Conditions Endpoint:
+
+~~~bash
+# Bật Actuator endpoint trong application.yml
+# management.endpoints.web.exposure.include=health,conditions
+
+curl -s http://localhost:8080/actuator/conditions | jq '.contexts.application.positiveMatches.AuditAutoConfiguration'
+~~~
+
+Kết quả JSON trả về thể hiện rõ ràng điều kiện đã khớp (**Positive Matches**):
+
+~~~json
+[
+  {
+    "condition": "OnWebApplicationCondition",
+    "message": "@ConditionalOnWebApplication (required) found StandardServletEnvironment"
+  },
+  {
+    "condition": "OnPropertyCondition",
+    "message": "@ConditionalOnProperty (enterprise.audit.enabled=true) matched"
+  }
+]
+~~~
+
+Và khi kiểm tra điều kiện không khớp (**Negative Matches**):
+
+~~~bash
+curl -s http://localhost:8080/actuator/conditions | jq '.contexts.application.negativeMatches."AuditAutoConfiguration#kafkaAuditPublisher"'
+~~~
+
+~~~json
+[
+  {
+    "condition": "OnPropertyCondition",
+    "message": "@ConditionalOnProperty (enterprise.audit.destination=KAFKA) did not find property 'destination'"
+  }
+]
+~~~
+Dựa vào JSON trên, kỹ sư có thể nhận biết ngay lập tức: <code>kafkaAuditPublisher</code> bị bỏ qua vì biến <code>enterprise.audit.destination</code> chưa được đặt thành <code>KAFKA</code>.
+
+---
+
+## 4. Bốn Cạm Bẫy Chết Người & Bài Học Sự Cố Production (Pitfalls & Post-Mortems)
+
+### Cạm Bẫy 1: Dùng Class Literal Trong <code>@ConditionalOnClass</code> Gây Lỗi <code>NoClassDefFoundError</code>
+
+~~~java
+// NGUY HIỂM CHẾT NGƯỜI:
+@Bean
+@ConditionalOnClass(org.apache.kafka.clients.producer.KafkaProducer.class)
+public KafkaAuditPublisher kafkaPublisher(KafkaTemplate<String, String> kafkaTemplate,
+                                          AuditProperties properties,
+                                          ObjectMapper objectMapper) {
+    return new KafkaAuditPublisher(kafkaTemplate, properties, objectMapper);
+}
+~~~
+
+**Cơ chế sự cố**: Khi JVM nạp class <code>AuditAutoConfiguration</code>, ClassLoader sẽ cố gắng phân giải (resolve) tất cả các import và class literal nằm trong bytecode của class đó. Nếu microservice tiêu thụ starter không kéo thư viện <code>kafka-clients</code> vào pom, JVM sẽ văng ngay ngoại lệ:
+<code>java.lang.NoClassDefFoundError: org/apache/kafka/clients/producer/KafkaProducer</code>
+ngay trước khi Spring Container kịp chạy để kiểm tra <code>@Conditional</code>!
+
+**Giải pháp chuẩn Enterprise**:
+1. Đặt <code>@ConditionalOnClass</code> ở cấp độ class tách biệt (Nested Configuration Class).
+2. Hoặc sử dụng String Literal <code>name = "..."</code>:
+~~~java
+@Bean
+@ConditionalOnClass(name = "org.apache.kafka.clients.producer.KafkaProducer")
+public AuditPublisher kafkaPublisher(KafkaTemplate<String, String> kafkaTemplate,
+                                     AuditProperties properties,
+                                     ObjectMapper objectMapper) {
+    return new KafkaAuditPublisher(kafkaTemplate, properties, objectMapper);
+}
+~~~
+
+### Cạm Bẫy 2: Lạm Dụng <code>@ComponentScan</code> Trong AutoConfiguration Class
+
+Nhiều lập trình viên lười viết các method <code>@Bean</code> nên gắn thẳng annotation:
+~~~java
+// TỐI KỴ TRONG CUSTOM STARTER:
+@AutoConfiguration
+@ComponentScan(basePackages = "com.enterprise.platform.audit")
+public class AuditAutoConfiguration {
+    // Quét package tự động làm phá vỡ toàn bộ cơ chế @Conditional!
+}
+~~~
+
+**Hậu quả**:
+- <code>@ComponentScan</code> sẽ ép Spring quét và nạp toàn bộ các class đánh dấu <code>@Component</code>, <code>@Service</code>, <code>@Repository</code> nằm trong package đó mà **bỏ qua hoàn toàn** các điều kiện <code>@ConditionalOnProperty</code> hay <code>@ConditionalOnMissingBean</code>.
+- Người dùng starter không thể nào tắt tính năng hoặc ghi đè bean được nữa.
+- Làm ô nhiễm ngữ cảnh quét của ứng dụng cha.
+
+### Cạm Bẫy 3: Bẫy Sắp Xếp Thứ Tự Khởi Tạo Bằng <code>@AutoConfigureOrder</code>
+
+Nhiều bạn lầm tưởng <code>@Order(1)</code> hay <code>@AutoConfigureOrder(1)</code> có thể ép một Auto-Configuration chạy trước một class <code>@Configuration</code> thông thường của người dùng.
+- **Thực tế**: Toàn bộ class cấu hình người dùng (<code>@Configuration</code>) luôn luôn được xử lý **TRƯỚC** tất cả các class <code>@AutoConfiguration</code>.
+- <code>@AutoConfigureOrder</code>, <code>@AutoConfigureBefore</code>, <code>@AutoConfigureAfter</code> **chỉ có tác dụng sắp xếp thứ tự giữa các class Auto-Configuration với nhau**!
+- Nếu bạn cần cấu hình của mình chạy trước <code>DataSourceAutoConfiguration</code>, hãy dùng:
+~~~java
+@AutoConfiguration(before = DataSourceAutoConfiguration.class)
+public class CustomDataSourceAutoConfiguration {
+    // Định nghĩa DataSource ưu tiên trước khi Spring Boot tự cấu hình
+}
+~~~
+
+### Cạm Bẫy 4: Bẫy <code>matchIfMissing = true</code> Khi Tích Hợp Hệ Thống Bên Ngoài
+
+~~~java
+@ConditionalOnProperty(prefix = "enterprise.audit.kafka", name = "enabled", havingValue = "true", matchIfMissing = true)
+~~~
+Nếu bạn đặt <code>matchIfMissing = true</code> cho các tài nguyên nặng (như Kafka Broker, AWS SQS, Redis Cluster):
+- Trong môi trường chạy Unit Test nội bộ của team dev (<code>@SpringBootTest</code>), lập trình viên thường không dựng Kafka.
+- Do <code>matchIfMissing = true</code>, starter vẫn cố khởi tạo <code>KafkaTemplate</code> và kết nối tới <code>localhost:9092</code> dẫn đến lỗi <code>TimeoutException</code> làm sập toàn bộ bộ kiểm thử tự động của dự án!
+- **Quy tắc**: Các tài nguyên bên ngoài hoặc có chi phí kết nối mạng phải luôn đặt <code>matchIfMissing = false</code>.
+
+---
+
+## 5. Thử Thách Thực Chiến Cấp Doanh Nghiệp (Hands-on Challenge)
+
+### Đề Bài: Xây Dựng <code>enterprise-ratelimit-spring-boot-starter</code>
+
+Hãy xây dựng một Custom Starter bảo vệ hệ thống:
+1. Cung cấp annotation <code>@EnterpriseRateLimit(key = "...", limit = 10, periodSeconds = 60)</code>. Key hỗ trợ biểu thức SpEL (Spring Expression Language), ví dụ: <code>"#request.remoteAddr"</code> hoặc <code>"#user.tenantId"</code>.
+2. Thiết kế cơ chế đa tầng (Tiered Strategy):
+   - Nếu dự án có <code>StringRedisTemplate</code> trong context và cấu hình <code>enterprise.ratelimit.type=REDIS</code>, sử dụng thuật toán Redis Token Bucket (hoặc Sliding Window).
+   - Nếu không có Redis hoặc cấu hình <code>enterprise.ratelimit.type=IN_MEMORY</code>, tự động fallback sang <code>ConcurrentHashMap</code> lưu trữ token bucket cục bộ.
+3. Nếu người dùng vượt ngưỡng, tự động ném ra ngoại lệ <code>RateLimitExceededException</code> để ControllerAdvice trả về mã lỗi HTTP 429 Too Many Requests kèm header <code>Retry-After</code>.
+
+---
+
+### Lời Giải Chuẩn Kỹ Sư Cấp Cao (Reference Enterprise Implementation)
+
+#### 1. Annotation Giao Diện <code>@EnterpriseRateLimit.java</code>
+
+~~~java
+package com.enterprise.platform.ratelimit.annotation;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EnterpriseRateLimit {
+    /**
+     * Biểu thức SpEL xác định khóa định danh giới hạn (vd: #tenantId, #clientIp).
+     */
+    String key();
+
+    /**
+     * Số lượng request tối đa được phép trong một chu kỳ.
+     */
+    long limit() default 100;
+
+    /**
+     * Độ dài chu kỳ giới hạn (tính bằng giây). Mặc định 60 giây.
+     */
+    long periodSeconds() default 60;
+}
+~~~
+
+#### 2. Lớp Ngoại Lệ <code>RateLimitExceededException.java</code>
+
+~~~java
+package com.enterprise.platform.ratelimit.exception;
+
+public class RateLimitExceededException extends RuntimeException {
+    private final String limitKey;
+    private final long retryAfterSeconds;
+
+    public RateLimitExceededException(String limitKey, long retryAfterSeconds) {
+        super(String.format("Khóa giới hạn [%s] đã vượt quá ngưỡng cho phép. Thử lại sau %d giây.", 
+                            limitKey, retryAfterSeconds));
+        this.limitKey = limitKey;
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public String getLimitKey() { return limitKey; }
+    public long getRetryAfterSeconds() { return retryAfterSeconds; }
+}
+~~~
+
+#### 3. Bộ Quản Lý Token Bucket: Interface & InMemory Implementation
+
+~~~java
+package com.enterprise.platform.ratelimit.limiter;
+
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+public interface RateLimiterManager {
+    boolean tryAcquire(String key, long limit, long periodSeconds);
+}
+~~~
+
+~~~java
+package com.enterprise.platform.ratelimit.limiter;
+
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class InMemoryRateLimiterManager implements RateLimiterManager {
+
+    private static class Bucket {
+        long windowStartEpochSecond;
+        long counter;
+
+        Bucket(long windowStartEpochSecond, long counter) {
+            this.windowStartEpochSecond = windowStartEpochSecond;
+            this.counter = counter;
+        }
+    }
+
+    private final ConcurrentHashMap<String, Bucket> cache = new ConcurrentHashMap<>();
+
+    @Override
+    public boolean tryAcquire(String key, long limit, long periodSeconds) {
+        long currentSecond = Instant.now().getEpochSecond();
+
+        return cache.compute(key, (k, currentBucket) -> {
+            if (currentBucket == null || (currentSecond - currentBucket.windowStartEpochSecond) >= periodSeconds) {
+                return new Bucket(currentSecond, 1);
+            }
+            if (currentBucket.counter < limit) {
+                currentBucket.counter++;
+                return currentBucket;
+            }
+            return currentBucket;
+        }).counter <= limit;
+    }
+}
+~~~
+
+#### 4. Aspect Đánh Chặn & Đánh Giá Biểu Thức SpEL <code>RateLimitAspect.java</code>
+
+~~~java
+package com.enterprise.platform.ratelimit.aspect;
+
+import com.enterprise.platform.ratelimit.annotation.EnterpriseRateLimit;
+import com.enterprise.platform.ratelimit.exception.RateLimitExceededException;
+import com.enterprise.platform.ratelimit.limiter.RateLimiterManager;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.context.expression.MethodBasedEvaluationContext;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+
+import java.lang.reflect.Method;
+
+@Aspect
+public class RateLimitAspect {
+
+    private final RateLimiterManager limiterManager;
+    private final ExpressionParser parser = new SpelExpressionParser();
+    private final DefaultParameterNameDiscoverer nameDiscoverer = new DefaultParameterNameDiscoverer();
+
+    public RateLimitAspect(RateLimiterManager limiterManager) {
+        this.limiterManager = limiterManager;
+    }
+
+    @Around("@annotation(rateLimitAnnotation)")
+    public Object enforceRateLimit(ProceedingJoinPoint joinPoint, 
+                                   EnterpriseRateLimit rateLimitAnnotation) throws Throwable {
+
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
+
+        // Đánh giá biểu thức SpEL dựa trên các tham số của method
+        MethodBasedEvaluationContext context = new MethodBasedEvaluationContext(
+                joinPoint.getTarget(), method, joinPoint.getArgs(), nameDiscoverer);
+
+        String evaluatedKey;
+        try {
+            evaluatedKey = parser.parseExpression(rateLimitAnnotation.key()).getValue(context, String.class);
+        } catch (Exception e) {
+            evaluatedKey = rateLimitAnnotation.key(); // fallback dùng key gốc nếu parse lỗi
+        }
+
+        String fullKey = "rate_limit:" + method.getName() + ":" + evaluatedKey;
+        boolean allowed = limiterManager.tryAcquire(
+                fullKey, rateLimitAnnotation.limit(), rateLimitAnnotation.periodSeconds());
+
+        if (!allowed) {
+            throw new RateLimitExceededException(fullKey, rateLimitAnnotation.periodSeconds());
+        }
+
+        return joinPoint.proceed();
+    }
+}
+~~~
+
+#### 5. AutoConfiguration Toàn Diện Cho Rate Limiter <code>RateLimitAutoConfiguration.java</code>
+
+~~~java
+package com.enterprise.platform.ratelimit.autoconfigure;
+
+import com.enterprise.platform.ratelimit.aspect.RateLimitAspect;
+import com.enterprise.platform.ratelimit.limiter.InMemoryRateLimiterManager;
+import com.enterprise.platform.ratelimit.limiter.RateLimiterManager;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+
+@AutoConfiguration
+@ConditionalOnProperty(prefix = "enterprise.ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
+public class RateLimitAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(RateLimiterManager.class)
+    public RateLimiterManager inMemoryRateLimiterManager() {
+        return new InMemoryRateLimiterManager();
     }
 
     @Bean
-    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-    @ConditionalOnMissingBean(AuditHttpFilter.class)
-    public AuditHttpFilter auditHttpFilter(AuditSender sender, AuditProperties props) {
-        return new AuditHttpFilter(sender, props);
+    @ConditionalOnMissingBean(RateLimitAspect.class)
+    public RateLimitAspect rateLimitAspect(RateLimiterManager limiterManager) {
+        return new RateLimitAspect(limiterManager);
     }
 }
 ~~~
-
-## 5. Kiểm thử AutoConfiguration với ApplicationContextRunner
-
-Không cần khởi động toàn bộ server Tomcat để test starter! Spring Boot Test cung cấp công cụ ApplicationContextRunner cực kỳ mạnh mẽ và chạy trong vài mili-giây:
-
-~~~java
-class AuditAutoConfigurationTest {
-
-    private final ApplicationContextRunner runner = new ApplicationContextRunner()
-        .withConfiguration(AutoConfigurations.of(AuditAutoConfiguration.class));
-
-    @Test
-    void whenEnabled_thenBeansCreated() {
-        runner.withPropertyValues("mastery.audit.enabled=true")
-              .run(context -> {
-                  assertThat(context).hasSingleBean(AuditSender.class);
-                  assertThat(context).hasSingleBean(AuditHttpFilter.class);
-              });
-    }
-
-    @Test
-    void whenDisabled_thenNoBeansCreated() {
-        runner.withPropertyValues("mastery.audit.enabled=false")
-              .run(context -> {
-                  assertThat(context).doesNotHaveBean(AuditSender.class);
-              });
-    }
-
-    @Test
-    void whenCustomBeanProvided_thenAutoConfigBacksOff() {
-        runner.withUserConfiguration(CustomSenderConfig.class)
-              .run(context -> {
-                  assertThat(context).hasSingleBean(AuditSender.class);
-                  assertThat(context).getBean(AuditSender.class).isInstanceOf(CustomAuditSender.class);
-              });
-    }
-}
-~~~
-
-## 6. Ba cạm bẫy sống còn khi viết Starter
-
-1. **Quên @ConditionalOnMissingBean**: Đây là lỗi phổ biến nhất. Nếu thiếu annotation này, khi một service muốn tự viết Custom Sender, Spring sẽ báo lỗi xung đột bean duplicate (NoUniqueBeanDefinitionException).
-2. **Lạm dụng @ComponentScan trong starter**: KHÔNG BAO GIỜ đặt @ComponentScan trong AutoConfiguration class. Nó sẽ quét lan sang package của ứng dụng client, dẫn đến việc inject sai bean hoặc làm hỏng cấu hình của user.
-3. **matchIfMissing = true vs false**: Nếu muốn tính năng mặc định được bật và chỉ tắt khi khai báo rõ ràng, luôn nhớ thuộc tính matchIfMissing = true.
-
-:::laas ĐỐI CHIẾU HỆ THỐNG LAAS
-Tại các hệ thống như LAAS, module common-security hoặc common-logging được xây dựng dưới dạng custom starter. Mọi service chỉ cần thêm dependency là tự động có filter bắt Header JWT, giải mã TenantContext và ghi log theo format JSON thống nhất, không một service nào phải cấu hình lại từ đầu.
-:::
 
 :::takeaways
-- Starter = Dependency bundle + AutoConfiguration class + META-INF registration.
-- Spring Boot 3+ dùng META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports.
-- @ConditionalOnMissingBean là nguyên tắc lịch sự số 1 của Starter: cung cấp mặc định nhưng luôn nhường đường cho người dùng ghi đè.
-- Dùng ApplicationContextRunner để kiểm thử các nhánh @Conditional nhanh chóng mà không cần chạy server.
-- Không dùng @ComponentScan trong các class AutoConfiguration.
+- **Cấu trúc Starter chuẩn Enterprise**: Chia tách rõ ràng giữa module <code>autoconfigure</code> (chứa code & dependency optional) và module <code>starter</code> (chỉ chứa dependency pom kết nối).
+- **Quy chuẩn Spring Boot 3+**: Khai báo SPI tại <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>, thay thế hoàn toàn tệp <code>spring.factories</code> cũ.
+- **Nguyên tắc lịch sự số 1 (@ConditionalOnMissingBean)**: Starter chỉ cung cấp phương án mặc định (Fallback). Luôn cho phép ứng dụng của người dùng ghi đè (override) bean theo nhu cầu nghiệp vụ riêng.
+- **Kiểm thử siêu tốc với ApplicationContextRunner**: Xác thực mọi kịch bản cấu hình và điều kiện <code>@Conditional</code> chỉ trong vài mili-giây mà không cần dựng Tomcat Server thật.
+- **Nghiêm cấm @ComponentScan**: Không bao giờ sử dụng <code>@ComponentScan</code> trong các class <code>@AutoConfiguration</code> để tránh làm hỏng cơ chế nạp bean có điều kiện và ô nhiễm container của ứng dụng.
 :::
+
 `
     },
     {
@@ -3087,7 +3984,7 @@ Tại các hệ thống như LAAS, module common-security hoặc common-logging 
           "level": "medium",
           scenario: "Hai implementation NotificationSender: EmailSender và SmsSender. Service cần SMS cho path A, email cho path B, và default cho mọi path còn lại.",
           q: "Cấu hình inject nào đúng yêu cầu?",
-          code: "@Service\npublic class NotifyService {\n    public NotifyService(\n        ??? NotificationSender sms,      // path A\n        ??? NotificationSender defaultSender  // path B + rest\n    ) { ... }\n}",
+          code: "@Service\npublic class NotifyService {\n    private final NotificationSender sms;\n    private final NotificationSender defaultSender;\n\n    public NotifyService(\n        ??? NotificationSender sms,\n        ??? NotificationSender defaultSender\n    ) {\n        this.sms = sms;\n        this.defaultSender = defaultSender;\n    }\n}",
           options: [
             "@Primary trên SmsSender — rồi inject theo tên field",
             "@Qualifier(\"smsSender\") cho sms + @Primary trên EmailSender cho default",

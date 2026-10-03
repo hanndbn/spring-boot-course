@@ -4858,7 +4858,7 @@ import org.springframework.context.annotation.Configuration;
 public class GraphQlSecurityConfig {
 
     // Giới hạn độ sâu tối đa của cây truy vấn là 5 tầng
-    // Chặn đứng các truy vấn đệ quy nguy hiểm: member { friends { friends { ... } } }
+    // Chặn đứng các truy vấn đệ quy nguy hiểm: member { friends { friends { id } } }
     @Bean
     public MaxQueryDepthInstrumentation maxQueryDepthInstrumentation() {
         return new MaxQueryDepthInstrumentation(5);

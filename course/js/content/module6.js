@@ -1240,7 +1240,9 @@ Response JSON:
   Lập trình viên quên khai báo tham số <code>Throwable</code> ở cuối phương thức Fallback:
   ~~~java
   // SAI: Thiếu Throwable ở cuối!
-  public CreditScoreResult fallbackCreditScore(String nationalId) { ... }
+  public CreditScoreResult fallbackCreditScore(String nationalId) {
+      return new CreditScoreResult(nationalId, 0, "FALLBACK_DEGRADED");
+  }
   ~~~
   Resilience4j sử dụng Reflection để tìm kiếm phương thức có chữ ký khớp hoàn toàn kèm ngoại lệ gây ra lỗi. Nếu không tìm thấy, nó sẽ quăng lỗi cấu hình và đánh sập request của khách hàng.
 - **Quy tắc Vàng**: Luôn luôn khai báo <code>(OriginalArgs..., Throwable ex)</code> cho phương thức Fallback.
@@ -2031,7 +2033,9 @@ class TravelBookingSagaTest {
 Hầu hết lập trình viên Spring Boot đều bắt đầu lập lịch tác vụ bằng annotation quen thuộc:
 ~~~java
 @Scheduled(cron = "0 0 2 * * ?") // Chạy lúc 2 giờ sáng mỗi ngày
-public void runDailyBilling() { ... }
+public void runDailyBilling() {
+    billingService.processDailyInvoices();
+}
 ~~~
 Trên môi trường phát triển cục bộ (Localhost) chạy 1 instance, mã nguồn này hoạt động hoàn hảo. Nhưng ngay khi deploy lên môi trường Production chạy **5 Pods (hoặc 5 Nodes)** dưới cụm Kubernetes:
 - Đúng 2:00:00 AM, **cả 5 Pods ĐỒNG LOẠT CHẠY JOB NÀY CÙNG MỘT LÚC!**
@@ -2054,6 +2058,7 @@ Nếu ứng dụng chỉ có các tác vụ định kỳ đơn giản (Cron Jobs
 @SchedulerLock(name = "dailyBillingJob", lockAtMostFor = "15m", lockAtLeastFor = "5m")
 public void runDailyBilling() {
     // Chỉ duy nhất 1 Pod trong toàn bộ hệ thống được chạy!
+    billingService.processDailyInvoices();
 }
 ~~~
 
@@ -2257,7 +2262,128 @@ public class DynamicJobSchedulerService {
 
 ---
 
-## 3. Production Pitfalls & Post-mortems Thực chiến
+---
+
+## 3. Thử Nghiệm & Giám Sát Thực Tế (Testing & Quartz Observability)
+
+### 3.1. Kiểm Thử Cụm Phân Tán Với Testcontainers & Chống Trùng Lặp Tác Vụ
+
+Để kiểm thử chắc chắn rằng cụm Quartz không bị chạy trùng lặp khi chạy đa pod trên Kubernetes, chúng ta sử dụng <code>Testcontainers</code> khởi chạy PostgreSQL thật và kích hoạt 2 scheduler độc lập:
+
+~~~java
+package com.bank.scheduling.test;
+
+import com.bank.scheduling.job.FinancialReconciliationJob;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.quartz.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+@Testcontainers
+class QuartzClusterIntegrationTest {
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine")
+            .withDatabaseName("bank_scheduling")
+            .withUsername("sa")
+            .withPassword("secret");
+
+    @DynamicPropertySource
+    static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.quartz.job-store-type", () -> "jdbc");
+        registry.add("spring.quartz.properties.org.quartz.jobStore.isClustered", () -> "true");
+    }
+
+    @Autowired
+    private Scheduler quartzScheduler;
+
+    @Test
+    @DisplayName("Đảm bảo Job được đăng ký vào CSDL và Trigger chỉ bắn duy nhất 1 lần trong cụm")
+    void verifyClusteredJobExecution() throws Exception {
+        JobDetail jobDetail = JobBuilder.newJob(FinancialReconciliationJob.class)
+                .withIdentity("integrationTestReconciliationJob", "RECON_GROUP")
+                .storeDurably()
+                .build();
+
+        Trigger trigger = TriggerBuilder.newTrigger()
+                .withIdentity("integrationTestReconciliationTrigger", "RECON_GROUP")
+                .startNow()
+                .build();
+
+        quartzScheduler.scheduleJob(jobDetail, trigger);
+
+        // Chờ 3 giây để Trigger thực thi
+        TimeUnit.SECONDS.sleep(3);
+
+        // Xác minh JobDetail đã được lưu vết vào bảng QRTZ_JOB_DETAILS
+        assertThat(quartzScheduler.checkExists(jobDetail.getKey())).isTrue();
+
+        Trigger.TriggerState state = quartzScheduler.getTriggerState(trigger.getKey());
+        assertThat(state).isIn(Trigger.TriggerState.COMPLETE, Trigger.TriggerState.NONE);
+    }
+}
+~~~
+
+### 3.2. Giám Sát Cụm Quartz Qua Spring Boot Actuator & Prometheus Metrics
+
+Spring Boot Actuator cung cấp sẵn endpoint <code>/actuator/quartz</code> chuyên biệt để truy vấn trực tiếp trạng thái các Job và Trigger đang chạy ngầm trong cơ sở dữ liệu:
+
+~~~bash
+# 1. Liệt kê toàn bộ các Job Groups và Job Details
+curl -s http://localhost:8080/actuator/quartz | jq .
+
+# 2. Kiểm tra chi tiết lịch trình và lần chạy kế tiếp của Trigger
+curl -s http://localhost:8080/actuator/quartz/jobs/RECON_GROUP/reconciliationJob | jq .
+~~~
+
+Phản hồi JSON chuẩn:
+~~~json
+{
+  "group": "RECON_GROUP",
+  "name": "reconciliationJob",
+  "className": "com.bank.scheduling.job.FinancialReconciliationJob",
+  "durable": true,
+  "requestRecovery": true,
+  "triggers": [
+    {
+      "group": "RECON_GROUP",
+      "name": "reconciliationTrigger",
+      "previousFireTime": "2026-03-31T17:00:00.000Z",
+      "nextFireTime": "2026-04-01T17:00:00.000Z",
+      "priority": 5,
+      "state": "NORMAL"
+    }
+  ]
+}
+~~~
+
+Theo dõi độ trễ thực thi của Job thông qua Prometheus Metric:
+~~~bash
+curl -s http://localhost:8080/actuator/prometheus | grep quartz_job_execution
+# HELP quartz_job_execution_seconds Thời gian thực thi của Quartz Clustered Job
+# TYPE quartz_job_execution_seconds summary
+quartz_job_execution_seconds_count{group="RECON_GROUP",name="reconciliationJob"} 42
+quartz_job_execution_seconds_sum{group="RECON_GROUP",name="reconciliationJob"} 124.6
+~~~
+
+
+---
+
+## 4. Production Pitfalls & Post-mortems Thực chiến
 
 ### Post-mortem 1: Lỗi Lệch Đồng Hồ Giữa Các Máy Chủ (Clock Drift Outage)
 
@@ -2269,7 +2395,7 @@ public class DynamicJobSchedulerService {
 
 ---
 
-## 4. Hands-on Challenge & Lời giải Hoàn chỉnh 100%
+## 5. Hands-on Challenge & Lời giải Hoàn chỉnh 100%
 
 ### Đề bài Thách thức Kỹ sư
 Hệ thống Nhắc Nợ Khách Hàng (Loan Payment Reminder) cần xây dựng dịch vụ lập lịch thông minh:
@@ -3251,7 +3377,116 @@ public record TransactionRecord(
 
 ---
 
-## 3. Production Pitfalls & Post-mortems Thực chiến
+---
+
+## 3. Thử Nghiệm & Giám Sát Thực Tế (Testing & Batch Observability)
+
+### 3.1. Kiểm Thử Khả Năng Khôi Phục (Restartability Test) Sau Sự Cố Sập Nguồn
+
+Khả năng sống còn của một Batch Job cấp ngân hàng là: **Khi đang chạy 2 triệu dòng mà bị sập điện giữa chừng, lần chạy kế tiếp phải tiếp tục từ điểm ngắt quãng (Checkpointed Chunk) mà không được xử lý lại từ đầu hoặc gây trùng lặp dữ liệu.**
+
+Dưới đây là Integration Test hoàn chỉnh sử dụng <code>@SpringBatchTest</code> và <code>JobLauncherTestUtils</code>:
+
+~~~java
+package com.bank.batch.test;
+
+import com.bank.batch.config.ReconciliationBatchConfig;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.*;
+import org.springframework.batch.test.JobLauncherTestUtils;
+import org.springframework.batch.test.context.SpringBatchTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest(classes = ReconciliationBatchConfig.class)
+@SpringBatchTest
+class ReconciliationBatchRestartTest {
+
+    @Autowired
+    private JobLauncherTestUtils jobLauncherTestUtils;
+
+    @Test
+    @DisplayName("Mô phỏng sập nguồn giữa chừng và khôi phục thành công từ Chunk bị ngắt quãng")
+    void verifyJobRestartabilityAfterFailure() throws Exception {
+        JobParameters jobParameters = new JobParametersBuilder()
+                .addLong("reconcileDate", 20260401L)
+                .addString("executionId", "batch-run-001")
+                .toJobParameters();
+
+        // Lần chạy 1: Mô phỏng lỗi OutOfMemoryError hoặc mất mạng tại Chunk số 3
+        JobExecution firstExecution = jobLauncherTestUtils.launchJob(jobParameters);
+
+        // Giả lập trạng thái thất bại được ghi nhận trong BATCH_JOB_EXECUTION
+        if (firstExecution.getStatus() == BatchStatus.FAILED) {
+            StepExecution failedStep = firstExecution.getStepExecutions().iterator().next();
+            long readCountBeforeCrash = failedStep.getReadCount();
+            long commitCountBeforeCrash = failedStep.getCommitCount();
+
+            // Lần chạy 2: Chạy lại Job với CÙNG BỘ JobParameters
+            JobExecution restartExecution = jobLauncherTestUtils.launchJob(jobParameters);
+
+            assertThat(restartExecution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+            assertThat(restartExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
+
+            StepExecution completedStep = restartExecution.getStepExecutions().iterator().next();
+            // Đảm bảo không đọc lại các dòng đã được commit ở lần chạy trước
+            assertThat(completedStep.getReadCount() + readCountBeforeCrash).isGreaterThanOrEqualTo(2000L);
+        }
+    }
+}
+~~~
+
+### 3.2. Đo Lường & Giám Sát Hiệu Năng Qua Spring Boot Actuator & Micrometer
+
+Khi xử lý hàng triệu bản ghi, việc giám sát tốc độ đọc ghi (throughput) và số lần commit theo thời gian thực là điều tối quan trọng:
+
+~~~bash
+# 1. Đo lường thời gian thực thi của Batch Job
+curl -s http://localhost:8080/actuator/metrics/spring.batch.job | jq .
+
+# 2. Kiểm tra số lượng bản ghi đã đọc thành công trong Step
+curl -s http://localhost:8080/actuator/metrics/spring.batch.step.read.count | jq .
+
+# 3. Kiểm tra số lần Commit giao dịch (Chunk commits)
+curl -s http://localhost:8080/actuator/metrics/spring.batch.step.commit.count | jq .
+~~~
+
+Phản hồi mẫu từ Actuator Micrometer:
+~~~json
+{
+  "name": "spring.batch.step.read.count",
+  "description": "The number of items successfully read in this step",
+  "measurements": [
+    {
+      "statistic": "COUNT",
+      "value": 2000000.0
+    }
+  ],
+  "availableTags": [
+    {
+      "tag": "job.name",
+      "values": ["financialReconciliationJob"]
+    },
+    {
+      "tag": "step.name",
+      "values": ["reconciliationStep"]
+    },
+    {
+      "tag": "status",
+      "values": ["COMPLETED"]
+    }
+  ]
+}
+~~~
+Alerting Production: Đặt cảnh báo Prometheus nếu <code>spring.batch.step.rollback.count > 5</code> hoặc thời gian xử lý <code>spring.batch.job.duration</code> vượt quá 120 phút.
+
+
+---
+
+## 4. Production Pitfalls & Post-mortems Thực chiến
 
 ### Post-mortem 1: Thảm Họa Dịch Offset Khi Sử Dụng Paging Reader Với Trạng Thái Đổi
 
@@ -3267,7 +3502,7 @@ public record TransactionRecord(
 
 ---
 
-## 4. Hands-on Challenge & Lời giải Hoàn chỉnh 100%
+## 5. Hands-on Challenge & Lời giải Hoàn chỉnh 100%
 
 ### Đề bài Thách thức Kỹ sư
 Hệ thống Tích Lũy Lãi Suất (Interest Accrual Service) cần kiểm thử một bước Step trong Batch:
