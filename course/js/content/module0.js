@@ -60,7 +60,7 @@ Vào <https://start.spring.io> và cấu hình:
 |---|---|
 | Project | **Maven** |
 | Language | **Java** |
-| Spring Boot | **3.4.x** (bản stable mới nhất) |
+| Spring Boot | **3.4.x** (baseline ví dụ của khóa; không phải tuyên bố bản mới nhất) |
 | Group | <code>vn.mastery</code> |
 | Artifact | <code>taskmanager</code> |
 | Packaging | **Jar** |
@@ -138,13 +138,97 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,beans,env
+        include: health
 ~~~
 
 Truy cập <code>http://localhost:8080/actuator/health</code> → <code>{"status":"UP"}</code>.
 
 :::laas ĐỐI CHIẾU LAAS
 Khi bạn debug dịch vụ platform-service không start được trên AWS, **Actuator /actuator/health** chính là endpoint đầu tiên để kiểm tra "service sống chưa". Các hệ thống production luôn expose ít nhất health + info.
+:::
+
+## 6. Từ mã nguồn đến HTTP response — hiểu đường đi trước khi debug
+
+~~~text
+.java → javac → .class → JVM nạp bytecode
+                         ↓
+main() → SpringApplication.run()
+       → tạo ApplicationContext
+       → đăng ký bean + auto-configuration theo điều kiện
+       → khởi động embedded servlet container
+
+GET /hello → Tomcat → DispatcherServlet
+           → tìm handler mapping → HelloController.hello()
+           → HttpMessageConverter → HTTP response
+~~~
+
+JDK chứa công cụ biên dịch và runtime. JVM thực thi bytecode; Maven điều phối build, không thay thế JVM. Spring quản lý object và dependency; Tomcat nhận HTTP. Phân biệt các vai trò này giúp bạn biết lỗi thuộc tầng nào thay vì sửa annotation ngẫu nhiên.
+
+Controller được tìm thấy vì nằm trong package của lớp application hoặc package con. Đặt controller ở package anh em nằm ngoài phạm vi scan có thể khiến ứng dụng khởi động bình thường nhưng endpoint trả 404. Auto-configuration không có nghĩa Spring tự tìm mọi class trên máy.
+
+## 7. Lab Windows — kiểm tra ba nguồn cấu hình Java
+
+Chạy trong thư mục chứa pom.xml bằng PowerShell:
+
+~~~powershell
+Get-Command java | Select-Object Source
+java -version
+javac -version
+$env:JAVA_HOME
+.\u005cmvnw.cmd -version
+~~~
+
+Đối chiếu Java major version trong kết quả Maven với java trên PATH. Sau đó kiểm tra Project SDK và Maven Runner JRE trong IDE. Ba nơi này có thể trỏ tới ba JDK khác nhau. Wrapper cố định Maven, không tự cài hay cố định JDK.
+
+**Kết quả đạt:** terminal và Maven cùng dùng JDK 21; IDE build cùng language level. Nếu Maven báo release version 21 not supported, kiểm tra JVM Maven đang dùng trước khi hạ java.version trong POM.
+
+## 8. Lab đóng gói — chạy không phụ thuộc IDE
+
+~~~powershell
+.\u005cmvnw.cmd clean verify
+Get-ChildItem target -Filter *.jar
+# Thay tên bên dưới bằng đúng artifact vừa được build
+java -jar target/taskmanager-0.0.1-SNAPSHOT.jar --server.port=8081
+~~~
+
+Mở terminal thứ hai:
+
+~~~powershell
+curl.exe -i http://localhost:8081/hello
+curl.exe -i http://localhost:8081/actuator/health
+~~~
+
+Kỳ vọng endpoint hello trả HTTP 200 và chuỗi đã viết; health trả HTTP 200 với status UP khi các health contributor đều khỏe. Tham số dòng lệnh server.port ghi đè giá trị trong file cấu hình. Nếu vẫn gọi cổng 8080, bạn đang kiểm tra sai process hoặc sai URL.
+
+Mở jar bằng công cụ ZIP hoặc chạy jar tf: executable jar của Spring Boot thường có BOOT-INF/classes cho mã ứng dụng và BOOT-INF/lib cho dependency. Jar thông thường không tự chứa toàn bộ dependency. Vì vậy build thành công chưa chứng minh jar đã được repackage để chạy bằng java -jar.
+
+## 9. Thực hành debug có kiểm chứng
+
+1. Đặt breakpoint tại hello(), chạy chế độ Debug rồi gọi curl.exe.
+2. Xác nhận breakpoint dừng đúng một lần cho mỗi request; kiểm tra call stack.
+3. Đổi mapping thành /greeting, rebuild/restart và gọi cả hai URL.
+4. URL cũ phải trả 404, URL mới phải trả 200. Nếu không, kiểm tra process đang giữ cổng.
+5. Chạy hai instance cùng cổng để quan sát lỗi bind; dừng đúng process thử nghiệm, không kill mọi tiến trình Java.
+
+| Triệu chứng | Giả thuyết cần kiểm tra | Bằng chứng cần lấy |
+|---|---|---|
+| Connection refused | App chưa nghe cổng hoặc đã thoát | Log startup, cổng và process |
+| HTTP 404 | Sai URL hoặc controller ngoài component scan | Mapping, package, context path |
+| HTTP 500 | Request đã tới app nhưng xử lý lỗi | Stack trace tại request tương ứng |
+| Port already in use | Có listener khác | Get-NetTCPConnection -LocalPort 8080 |
+| UnsupportedClassVersionError | Runtime cũ hơn bytecode | java -version và JDK build |
+| YAML không parse | Thụt lề hoặc cú pháp sai | Dòng/cột trong exception cấu hình |
+
+## 10. Bài tập cuối bài và tiêu chí hoàn thành
+
+Tạo GET /api/course-info trả về một record có hai field course và javaVersion. Chưa cần DB. Tách controller thành file riêng trong package con của application.
+
+**Nộp bằng chứng:** lệnh build, HTTP status/header/body của endpoint, ảnh breakpoint và ghi chú một lỗi bạn chủ động gây ra rồi sửa. Không đưa token hoặc biến môi trường bí mật vào ảnh.
+
+**Gợi ý lời giải:** @RestController + @GetMapping trả object để Jackson serialize JSON; không tự nối chuỗi JSON. Test lại bằng jar, không chỉ bằng nút Run. Bài đạt khi API trả JSON hợp lệ, hoạt động ở cổng cấu hình và có thể tái lập từ một terminal mới.
+
+:::warn HEALTH KHÔNG ĐỒNG NGHĨA SẴN SÀNG PHỤC VỤ MỌI NGHIỆP VỤ
+Chỉ expose health cho bài nhập môn. beans/env có thể tiết lộ cấu trúc và cấu hình hệ thống; không công khai chúng. Health UP của ứng dụng chưa có DB không chứng minh transaction hay hệ thống downstream hoạt động. Readiness, authentication và kiểm soát management network được học ở module vận hành.
 :::
 
 :::takeaways
@@ -320,6 +404,92 @@ userF.thenCombine(ordersF, (user, orders) ->
 
 Trong Spring, ta sẽ dùng <code>@Async</code> (Module 6) để Spring quản lý thread pool giúp — nhưng bên dưới vẫn là những concept này.
 
+## 5. Đọc pipeline theo từng phần tử, không theo từng vòng lặp
+
+Intermediate operation tạo mô tả phép tính; terminal operation kích hoạt traversal. Với filter → map → findFirst, stream thường xử lý từng phần tử qua các bước cho đến khi tìm được kết quả, không nhất thiết filter toàn bộ collection rồi mới map.
+
+~~~java
+var numbers = List.of(1, 2, 3, 4);
+var result = numbers.stream()
+    .filter(n -> n % 2 == 0)
+    .map(n -> n * 10)
+    .findFirst();
+System.out.println(result); // Optional[20]
+~~~
+
+Trace bằng tay: 1 bị loại; 2 qua filter và thành 20; findFirst kết thúc. sorted là operation có state: thường phải thu và sắp dữ liệu trước khi trả phần tử đầu. Vì vậy thêm limit phía sau sorted không biến việc sort toàn bộ thành miễn phí.
+
+Đừng dùng peek để ghi audit hay sửa database: stream có thể tối ưu bỏ các bước không ảnh hưởng kết quả, và short-circuit không duyệt mọi phần tử. Stream chỉ được tiêu thụ một lần; muốn tính hai kết quả hãy tạo hai stream hoặc thiết kế collector phù hợp.
+
+## 6. Lab thống kê giao dịch — duplicate key là quyết định nghiệp vụ
+
+~~~java
+record Entry(String member, long points) {}
+var entries = List.of(
+    new Entry("A", 100),
+    new Entry("B", 40),
+    new Entry("A", 25)
+);
+Map<String, Long> totals = entries.stream().collect(
+    java.util.stream.Collectors.toMap(
+        Entry::member,
+        Entry::points,
+        (left, right) -> Math.addExact(left, right)
+    )
+);
+System.out.println(totals.get("A")); // 125
+System.out.println(totals.get("B")); // 40
+~~~
+
+Nếu bỏ merge function, member A trùng key sẽ gây IllegalStateException. Chọn cộng, giữ bản đầu hay giữ bản cuối không phải mẹo cú pháp: đó là quy tắc nghiệp vụ. Math.addExact làm overflow hiện thành lỗi thay vì âm thầm đảo dấu. Thứ tự in Map không phải hợp đồng của ví dụ này.
+
+**Bài tập:** thêm Entry với Long.MAX_VALUE cho A. Kỳ vọng ArithmeticException, không phải tổng âm. Với dữ liệu rỗng, kết quả phải là map rỗng. Nếu points có thể âm để biểu diễn hoàn giao dịch, không được tự ý filter bỏ số âm.
+
+## 7. Optional: có giá trị không có nghĩa fallback không chạy
+
+~~~java
+static String fallback() {
+    System.out.println("fallback called");
+    return "guest";
+}
+
+var name = java.util.Optional.of("An");
+System.out.println(name.orElse(fallback()));
+// fallback called, rồi An
+System.out.println(name.orElseGet(() -> fallback()));
+// chỉ An
+~~~
+
+Java đánh giá argument trước khi gọi method: orElse nhận một giá trị đã tính xong. orElseGet nhận Supplier và chỉ gọi khi Optional rỗng. Dùng orElseGet khi fallback có truy vấn DB, tạo object đắt hoặc side effect. Optional.of(null) ném NPE; ofNullable(null) trả empty. map biến đổi T → U; flatMap dùng khi hàm đã trả Optional<U>, tránh Optional lồng nhau.
+
+## 8. CompletableFuture — executor, timeout và lỗi phải được thiết kế
+
+~~~java
+try (var executor = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+    var first = java.util.concurrent.CompletableFuture
+        .supplyAsync(() -> "member-A", executor);
+    var second = java.util.concurrent.CompletableFuture
+        .supplyAsync(() -> 120L, executor);
+    var summary = first.thenCombine(second,
+        (member, points) -> member + ":" + points);
+    System.out.println(summary.join()); // member-A:120
+}
+~~~
+
+Đây là ví dụ độc lập chạy được trên Java 21; trong Spring, executor nên được quản lý như bean, không tạo pool mỗi request. supplyAsync không truyền executor thường dùng common pool. I/O blocking kéo dài có thể chiếm tài nguyên dùng chung. newFixedThreadPool giới hạn thread nhưng hàng đợi mặc định không bị chặn kích thước: ví dụ nhỏ này chưa phải admission control production.
+
+thenApply biến đổi kết quả; thenCompose nối tác vụ trả Future khác; thenCombine kết hợp hai kết quả độc lập. join chờ và bọc lỗi trong CompletionException. exceptionally trả fallback có thể che sự cố: số dư không đọc được không nên tự biến thành 0 rồi dùng cho quyết định tài chính.
+
+orTimeout làm future hoàn tất ngoại lệ khi quá hạn nhưng không đảm bảo dừng network call bên dưới. Cần timeout của HTTP client và giới hạn concurrency riêng. ThreadLocal như tenant, MDC hoặc security context không tự được truyền qua executor tùy ý.
+
+## 9. Bài lab tổng hợp và đáp án định hướng
+
+Viết hàm summarize(List<Entry>) trả tổng điểm theo member, không thay đổi input. Viết ít nhất các test: list rỗng; member lặp; tổng âm hợp lệ; overflow; cùng input cho cùng kết quả.
+
+Tiếp theo viết lookupName trả Optional<String> và một fallback đếm số lần gọi. Test orElse gọi fallback ngay cả khi có name, còn orElseGet không gọi. Cuối cùng tạo một future thất bại có chủ đích và kiểm tra nguyên nhân bên trong CompletionException.
+
+**Tiêu chí đạt:** giải thích được từng output trước khi chạy; không dùng shared mutable ArrayList trong parallelStream; không gọi DB cho từng phần tử rồi gọi đó là tối ưu; phân biệt xử lý collection trong RAM với filter/pagination phải đẩy xuống DB.
+
 :::takeaways
 - 4 functional interface: Function, Predicate, Consumer, Supplier — nền của mọi API hiện đại
 - Stream = pipeline lazy: intermediate (filter/map) + terminal (collect/forEach)
@@ -359,7 +529,7 @@ p.x();          // accessor (không phải getX())
 p.equals(new Point(3, 4));  // true — tự sinh
 ~~~
 
-record tự động có: **constructor chuẩn tắc**, **accessor**, **equals/hashCode/toString**. Và là **immutable** — không thể set lại giá trị.
+record tự động có constructor chuẩn tắc, accessor, equals/hashCode/toString. Các component là final, nhưng tính bất biến chỉ là **bất biến nông**: object mutable bên trong vẫn có thể thay đổi nếu không defensive copy.
 
 ### Record trong Spring — cực kỳ phổ biến
 
@@ -474,8 +644,91 @@ Spring Boot 3.2+ bật virtual threads chỉ bằng 1 dòng: <code>spring.thread
 Mở bất kỳ service LAAS nào và tìm <code>record</code> trong package dto/request — codebase production hiện đại đã dùng record làm DTO chuẩn. Biết đọc nó = đọc được nửa codebase.
 :::
 
+## 6. Record chỉ bất biến nông — thử phá invariant trước khi tin nó
+
+~~~java
+record UnsafeBatch(java.util.List<String> members) {}
+var source = new java.util.ArrayList<String>();
+source.add("A");
+var batch = new UnsafeBatch(source);
+source.add("B");
+System.out.println(batch.members()); // [A, B]
+~~~
+
+Field members là final: không gán lại reference được, nhưng object được tham chiếu vẫn có thể mutable. Nếu DTO đại diện snapshot, phải bảo vệ cả đường vào lẫn đường ra.
+
+~~~java
+record Batch(java.util.List<String> members) {
+    Batch {
+        members = java.util.List.copyOf(members);
+    }
+}
+~~~
+
+Compact constructor chuẩn hóa tham số trước khi compiler gán vào field. copyOf tạo snapshot không cho sửa cấu trúc list và từ chối list/null element. Nó không deep-copy phần tử: List<MutableMember> vẫn có thể chứa member bị sửa. Với String bất biến, ví dụ trên đủ để bảo vệ dữ liệu.
+
+## 7. Equality là hợp đồng domain, không phải chỉ để test tiện
+
+~~~java
+record Amount(java.math.BigDecimal value) {}
+var a = new Amount(new java.math.BigDecimal("1.0"));
+var b = new Amount(new java.math.BigDecimal("1.00"));
+System.out.println(a.equals(b)); // false
+~~~
+
+Record sinh equals dựa trên component; BigDecimal.equals xét cả scale, khác compareTo. Nếu domain coi 1.0 và 1.00 là cùng tiền, cần chọn quy tắc chuẩn hóa scale và rounding rõ ràng trong constructor hoặc một value object chuyên biệt. Không dùng double cho tiền rồi mong record sửa sai số.
+
+Record chứa array cũng không tự có deep equality theo phần tử. Record toString có thể đưa mọi component ra log; không đặt password/token vào DTO rồi log toàn bộ object. Tự sinh boilerplate không thay thế thiết kế bảo mật.
+
+## 8. Sealed + exhaustive switch — làm thay đổi domain thành lỗi compile
+
+Tạo file PaymentDemo.java với toàn bộ ví dụ sau:
+
+~~~java
+public class PaymentDemo {
+    sealed interface Result permits Approved, Rejected {}
+    record Approved(String transactionId) implements Result {}
+    record Rejected(String reason) implements Result {}
+
+    static String describe(Result result) {
+        return switch (result) {
+            case Approved a -> "OK:" + a.transactionId();
+            case Rejected r -> "FAIL:" + r.reason();
+        };
+    }
+
+    public static void main(String[] args) {
+        System.out.println(describe(new Approved("TX-1")));
+        System.out.println(describe(new Rejected("LIMIT")));
+    }
+}
+~~~
+
+Chạy java PaymentDemo.java bằng JDK 21. Output phải là OK:TX-1 và FAIL:LIMIT. Sau đó thêm record Pending implements Result và thêm Pending vào permits nhưng chưa sửa switch: compile phải thất bại vì thiếu case. Đây là lợi ích kiểm tra tĩnh thực sự, không phải giảm vài dòng code.
+
+Thử describe(null): khi không có case null, switch ném NPE. Exhaustive theo các subtype không có nghĩa xử lý null. Có thể từ chối null ở biên API hoặc thêm case null khi domain cho phép; đừng thêm default chỉ để làm compiler im lặng.
+
+## 9. Chọn record hay class trong ứng dụng Spring
+
+| Nhu cầu | Lựa chọn và lý do |
+|---|---|
+| Request/response DTO | Record phù hợp khi payload không cần setter |
+| Configuration binding | Record phù hợp với constructor binding, cần đăng ký properties đúng cách |
+| JPA entity | Class thông thường đáp ứng yêu cầu entity; record không phù hợp làm entity JPA |
+| Kết quả query projection | Record có thể phù hợp, không đồng nghĩa nó là entity |
+| Domain object mutable có lifecycle | Class với method bảo vệ invariant |
+| Event payload | Record tiện, nhưng schema compatibility vẫn phải quản lý |
+
+Bean Validation chỉ chạy khi tích hợp validation được kích hoạt ở biên tương ứng. Đặt @NotBlank lên record không tự làm mọi lời gọi new Record(...) đều được kiểm tra. Constructor tự kiểm tra invariant nếu muốn bảo vệ mọi đường tạo object; validation annotation phục vụ thêm cơ chế validation của framework.
+
+## 10. Bài tập và kiểm chứng
+
+Thiết kế OrderSnapshot có id và danh sách Item. Item gồm sku và quantity dương. Test sửa list đầu vào không đổi snapshot; sửa list từ accessor bị từ chối; quantity bằng 0 bị từ chối; hai snapshot cùng dữ liệu so sánh bằng nhau.
+
+**Hướng giải:** Item là record kiểm tra quantity trong compact constructor; OrderSnapshot dùng List.copyOf và kiểm tra id. Vì Item cũng bất biến, snapshot không lộ object con mutable. Viết một phiên bản sai dùng ArrayList trực tiếp rồi chứng minh test thất bại trước khi sửa.
+
 :::takeaways
-- record cho data class immutable — DTO, config, event message
+- record cho data class bất biến nông — DTO, config, event message
 - sealed + switch pattern = mô hình hóa domain khít như "enum mở rộng"
 - var chỉ cho biến local, khi kiểu hiển nhiên
 - Text block cho SQL/JSON — đừng cộng chuỗi nữa
@@ -533,7 +786,7 @@ Bạn đã từng thêm dependency vào <code>pom.xml</code> (như nimbus-jose-j
 ~~~
 
 :::tip VÌ SAO KHÔNG GHI VERSION?
-<code>spring-boot-starter-parent</code> chứa <code>dependencyManagement</code> cho hàng trăm thư viện tương thích đã test kỹ. Không ghi version = không bao giờ dính "xung đột phiên bản" kinh điển (Jackson vs Hibernate vs SLF4J).
+Parent Spring Boot kế thừa quản lý version cho tập thư viện được phối hợp theo release. Không ghi version giúp dùng baseline đó; override, dependency ngoài BOM hoặc runtime khác vẫn có thể gây xung đột. Luôn kiểm tra effective POM và chạy test.
 :::
 
 ## 2. Dependency scope — ai biên dịch, ai chạy
@@ -544,7 +797,7 @@ Bạn đã từng thêm dependency vào <code>pom.xml</code> (như nimbus-jose-j
 | <code>provided</code> | ✅ | ✅ | ❌ | ❌ (container lo) |
 | <code>runtime</code> | ❌ | ✅ | ✅ | ✅ (VD: JDBC driver) |
 | <code>test</code> | ❌ | ✅ | ❌ | ❌ |
-| <code>optional</code> | ✅ | ✅ | ❌ | ❌ (người dùng tự quyết) |
+| <code>optional=true</code> (không phải scope) | Theo scope | Theo scope | Theo scope | Theo plugin; chủ yếu kiểm soát truyền bắc cầu |
 
 Ví dụ điển hình:
 
@@ -663,8 +916,103 @@ Con (laas-identity) phụ thuộc common:
 ./mvnw versions:set -DnewVersion=1.2.0 # bump version
 ~~~
 
+## 7. Bốn khái niệm Maven dễ bị trộn lẫn
+
+| Khái niệm | Có tác dụng | Không tự làm |
+|---|---|---|
+| dependencies | Thêm dependency vào classpath theo scope | Không đảm bảo thư viện tương thích nghiệp vụ |
+| dependencyManagement | Cung cấp version/scope mặc định và quản lý dependency bắc cầu | Không tự thêm dependency chưa được dùng |
+| pluginManagement | Cung cấp cấu hình/version plugin cho nơi sử dụng | Không tự buộc mọi goal chạy |
+| modules | Chỉ định các project tham gia reactor | Không tự tạo quan hệ kế thừa parent |
+
+Một project có thể vừa là parent vừa aggregator, nhưng hai vai trò độc lập. Dependency giữa module quyết định thứ tự build reactor; thứ tự liệt kê không thay thế quan hệ dependency.
+
+BOM import trong dependencyManagement quản lý dependency version. Kế thừa starter-parent còn nhận cấu hình plugin và build defaults. Nếu công ty bắt buộc parent riêng, import Boot BOM là lựa chọn hợp lý, nhưng phải tự kiểm tra compiler và boot plugin: BOM không tự cấu hình tất cả plugin.
+
+## 8. Lab điều tra dependency — từ triệu chứng tới effective model
+
+Chạy tại thư mục chứa pom.xml:
+
+~~~powershell
+.\u005cmvnw.cmd help:effective-pom -Doutput=effective-pom.xml
+.\u005cmvnw.cmd dependency:tree "-Dincludes=com.fasterxml.jackson.core:*"
+.\u005cmvnw.cmd dependency:tree -Dscope=runtime
+~~~
+
+Effective POM giúp trả lời version đến từ parent, profile hay khai báo local. Dependency tree giúp trả lời ai kéo thư viện vào. Runtime classpath thực tế còn có thể chịu ảnh hưởng của container hoặc jar được triển khai nhầm, vì vậy đừng kết luận mọi NoSuchMethodError đều do hai jar trùng đang tồn tại.
+
+NoSuchMethodError nghĩa là code gọi một method không có ở class được nạp lúc runtime. Điều tra theo thứ tự: xác định class/method trong stack trace; xem version được resolve; kiểm tra BOOT-INF/lib trong jar đã deploy; đối chiếu artifact checksum và cấu hình runtime. Sau đó mới sửa version/exclusion.
+
+Nearest-wins là quy tắc mediation mặc định khi không có quản lý version chi phối; nếu cùng độ sâu, khai báo xuất hiện trước thắng. Đừng rải exclusion ngẫu nhiên: loại dependency bắt buộc có thể biến lỗi method thành ClassNotFoundException.
+
+## 9. Scope không phải chính sách đóng gói duy nhất
+
+Jar Java thông thường chứa class/resources của project, không tự nhét dependency vào jar. Spring Boot repackage tạo executable jar chứa dependency theo quy tắc plugin. Vì vậy phải phân biệt classpath Maven và nội dung artifact cuối cùng.
+
+optional=true không phải scope và không loại dependency khỏi runtime của project khai báo nó. Nó chủ yếu ngăn project tiêu thụ thư viện của bạn nhận dependency đó một cách bắc cầu. Ví dụ A dùng B optional: A vẫn dùng B, nhưng C phụ thuộc A không tự nhận B. Với Lombok, kiểm tra thêm annotation processor và cấu hình loại khỏi executable artifact nếu cần.
+
+provided biểu thị môi trường dự kiến cung cấp dependency khi chạy; cách đóng gói còn phụ thuộc jar/war và plugin. Không suy luận mọi provided dependency chắc chắn biến mất khỏi mọi loại Boot artifact: kiểm tra artifact thực tế.
+
+## 10. Surefire, Failsafe và vì sao verify chưa chắc chạy integration test
+
+~~~text
+Unit test:         test → Surefire → *Test (theo convention mặc định)
+Integration test:  integration-test → Failsafe integration-test
+                   verify → Failsafe verify, đánh giá kết quả
+~~~
+
+Maven chỉ chạy integration test khi plugin/execution đã được cấu hình phù hợp. Chỉ đặt tên file *IT hoặc chạy verify chưa đủ nếu Failsafe chưa được bind.
+
+Thêm vào build/plugins của một dự án dùng parent quản lý version Failsafe:
+
+~~~xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-failsafe-plugin</artifactId>
+    <executions>
+        <execution>
+            <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+~~~
+
+Kiểm tra effective POM để xác nhận plugin có version cụ thể. Tạo SmokeIT với một assertion cố ý sai; clean verify phải thất bại và có failsafe-reports. Sửa assertion rồi chạy lại phải xanh. Đây là cách chứng minh CI thực sự chạy test, không chỉ cấu hình trông đúng.
+
+-DskipTests thường bỏ chạy test nhưng vẫn compile test; -Dmaven.test.skip=true còn bỏ compile test với các plugin chuẩn hỗ trợ thuộc tính này. Không dùng các cờ đó để chứng minh chất lượng release.
+
+## 11. Lab reactor và xử lý lỗi có phạm vi
+
+~~~powershell
+# Chạy từ aggregator; thay artifactId bằng module thật
+.\u005cmvnw.cmd -pl :laas-identity -am verify
+~~~
+
+-pl chọn project cần build; -am đưa các dependency module cần thiết trong reactor vào build. Không dùng install như nghi thức cho mọi thay đổi: trong cùng reactor Maven có thể resolve module dependency mà không cần cài thủ công từng jar vào local repository.
+
+| Lỗi | Điều tra trước | Cách sửa có phạm vi |
+|---|---|---|
+| Could not resolve artifact | Tọa độ, repository, proxy, quyền truy cập | Sửa settings/repository; không đưa credentials vào POM |
+| release version not supported | Maven dùng JDK nào | Sửa JAVA_HOME/Maven Runner |
+| Test xanh nhưng *IT chưa chạy | Log goal, effective POM, reports | Bind Failsafe và test bằng assertion thất bại |
+| Local chạy, CI không tìm module | Reactor và version dependency | Dùng -am, đồng bộ version, kiểm tra module khai báo |
+| Jar không executable | Manifest và Boot repackage execution | Sửa cấu hình plugin, build lại và chạy jar |
+
+Không xóa toàn bộ .m2 làm bước đầu. Chỉ khi có bằng chứng artifact tải hỏng mới xử lý cache đúng artifact; lỗi proxy hoặc sai tọa độ không được chữa bằng tải lại toàn bộ.
+
+## 12. Bài tập cuối bài — chứng minh build tái lập được
+
+Tạo parent với hai module domain và app. App phụ thuộc domain. Chạy -pl :app -am verify tại parent; ghi lại thứ tự reactor. Thêm một unit test và một integration test, làm từng test thất bại để chứng minh pipeline chặn đúng.
+
+**Bằng chứng nộp:** cây dependency đã lọc; đoạn effective POM chỉ ra nguồn version; Surefire/Failsafe reports; executable jar chạy được. Không nộp settings.xml chứa credentials hoặc toàn bộ local repository.
+
+**Câu hỏi tự giải thích:** chỉ khai báo thư viện trong dependencyManagement thì code có import được không? Vì sao optional không đồng nghĩa provided? Tại sao build xanh không chứng minh integration test đã chạy? Nếu chưa trả lời được bằng output thực tế, chưa hoàn thành bài.
+
 :::takeaways
-- BOM parent của Spring Boot = không cần ghi version cho thư viện phổ biến
+- BOM quản lý version dependency, không tự thêm thư viện và không thay thế kiểm thử tương thích
 - Scope: runtime (JDBC driver), optional (Lombok), test (JUnit)
 - <code>dependency:tree</code> là đèn pin khi dính conflict jar
 - Multi-module: parent packaging pom + các module con
