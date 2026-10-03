@@ -26,6 +26,41 @@ Xây dựng một API RESTful trả lời JSON trong Spring Boot dường như r
 
 ## 1. Kiến trúc DispatcherServlet & Vòng đời Xử lý HTTP Request
 
+### Sơ Đồ Mô Phỏng: Hành Trình 1 HTTP Request Qua DispatcherServlet Pipeline
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor User as Client (Browser/Mobile)
+    participant Tomcat as Tomcat Connector (Port 8080)
+    participant Filters as Security / MDC FilterChain
+    participant DS as DispatcherServlet
+    participant Mapping as HandlerMapping
+    participant Interceptor as HandlerInterceptor (preHandle)
+    participant Controller as @RestController Method
+    
+    User->>Tomcat: HTTP POST /api/v1/orders
+    Tomcat->>Filters: doFilter()
+    Note over Filters: JWT Auth & MDC TraceId injection
+    Filters->>DS: doDispatch()
+    DS->>Mapping: getHandler()
+    Mapping-->>DS: HandlerExecutionChain
+    DS->>Interceptor: preHandle()
+    alt preHandle return true
+        DS->>Controller: invoke endpoint method
+        Controller-->>DS: Return ResponseEntity&lt;OrderDto&gt;
+        DS->>Interceptor: postHandle()
+        Note over DS: HttpMessageConverter (Jackson JSON)
+        DS->>Interceptor: afterCompletion()
+        DS-->>Filters: Response OK
+        Filters-->>User: HTTP 201 Created (JSON Body)
+    else preHandle return false
+        Interceptor-->>DS: Blocked
+        DS-->>User: HTTP 403 Forbidden
+    end
+~~~
+
+
 Spring MVC được xây dựng trên mô hình thiết kế **Front Controller Pattern**, trong đó <code>DispatcherServlet</code> đóng vai trò nhạc trưởng tiếp nhận toàn bộ các cuộc gọi đến:
 
 ~~~text
@@ -662,6 +697,23 @@ Bài học này sẽ hướng dẫn bạn thiết lập pháo đài phòng thủ
 ---
 
 ## 1. Kiến trúc Validation & Chuẩn quốc tế RFC 7807 / RFC 9457
+
+### Sơ Đồ Mô Phỏng: Luồng Xử Lý Lỗi Validation & Chuyển Đổi RFC 7807 ProblemDetail
+
+~~~mermaid
+flowchart TD
+    Req["HTTP Request (Invalid JSON Body)"] --> DS["DispatcherServlet"]
+    DS --> Val["Validator (Hibernate Validator Engine)"]
+    Val --> Check{"Hợp lệ không?"}
+    Check -- "Hợp Lệ" --> Ctrl["@RestController Method"]
+    Check -- "Vi Phạm Ràng Buộc (@NotNull, @Size...)" --> Ex["Ném MethodArgumentNotValidException"]
+    Ex --> Adv["@RestControllerAdvice (GlobalExceptionHandler)"]
+    Adv --> MapErr["Trích xuất BindingResult & FieldErrors"]
+    MapErr --> RFC["Đóng gói RFC 7807 ProblemDetail:<br/>- type: https://api.enterprise.com/errors/validation<br/>- title: Bad Request<br/>- status: 400<br/>- invalidParams: [field, message]"]
+    RFC --> Res["HTTP 400 Bad Request + application/problem+json"]
+    style RFC fill:#da3633,stroke:#f85149,color:#fff
+~~~
+
 
 Khi một HTTP Request chứa JSON body bay tới <code>DispatcherServlet</code>, chuỗi xử lý kiểm định diễn ra theo quy trình:
 

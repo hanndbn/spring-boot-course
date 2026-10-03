@@ -43,6 +43,23 @@ Hậu quả tai hại của đoạn code trên trong môi trường doanh nghi�
 
 ## 1. Cơ chế ngầm: Inversion of Control & ApplicationContext Pipeline
 
+### Sơ Đồ Mô Phỏng: 11 Giai Đoạn Vòng Đời Spring Bean (Bean Lifecycle State Machine)
+
+~~~mermaid
+flowchart TD
+    A["1. Nạp BeanDefinition<br/>(@Component, @Bean, XML)"] --> B["2. Instantiation<br/>(Constructor Reflection / CGLIB)"]
+    B --> C["3. Populate Properties<br/>(Dependency Injection @Autowired)"]
+    C --> D["4. Aware Interfaces<br/>(BeanName, BeanFactory, AppContext)"]
+    D --> E["5. BeanPostProcessor<br/>postProcessBeforeInitialization()"]
+    E --> F["6. Initialization Phase<br/>(@PostConstruct -> afterPropertiesSet -> initMethod)"]
+    F --> G["7. BeanPostProcessor<br/>postProcessAfterInitialization() (Tạo AOP Proxy!)"]
+    G --> H["8. BEAN SẴN SÀNG SỬ DỤNG<br/>(In ApplicationContext Container)"]
+    H --> I["9. Destruction Phase<br/>(@PreDestroy -> DisposableBean -> destroyMethod)"]
+    style H fill:#238636,stroke:#2ea043,stroke-width:2px,color:#fff
+    style G fill:#1f6feb,stroke:#388bfd,stroke-width:2px,color:#fff
+~~~
+
+
 **Inversion of Control (IoC - Đảo ngược điều khiển)**: Bạn không tự <code>new</code> đối tượng nữa. Quyền khởi tạo, định cấu hình và quản lý vòng đời của đối tượng được trao toàn quyền cho **Spring IoC Container**.
 
 ~~~text
@@ -884,6 +901,34 @@ Nếu không nắm vững cơ chế Proxy và AOP:
 ---
 
 ## 1. Kiến trúc AOP & Cơ chế hoạt động của Dynamic Proxy
+
+### Sơ Đồ Mô Phỏng: Cơ Chế Đánh Chặn Cuộc Gọi AOP Proxy (Invocation Chain)
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Caller Thread
+    participant Proxy as AOP Proxy (CGLIB / JDK)
+    participant Chain as ReflectiveMethodInvocation
+    participant Interceptor as TransactionInterceptor (@Transactional)
+    participant Target as Real Target Bean Method
+    
+    Client->>Proxy: invoke placeOrder()
+    Proxy->>Chain: proceed()
+    Chain->>Interceptor: invoke()
+    Note over Interceptor: TransactionManager.getTransaction()
+    Interceptor->>Target: invoke target method!
+    alt Method thành công
+        Target-->>Interceptor: return OrderResult
+        Note over Interceptor: TransactionManager.commit()
+    else Exception ném ra
+        Target-->>Interceptor: throw RuntimeException
+        Note over Interceptor: TransactionManager.rollback()
+    end
+    Interceptor-->>Proxy: Return / Re-throw
+    Proxy-->>Client: Result
+~~~
+
 
 AOP không thay thế OOP (Lập trình hướng đối tượng), mà bổ trợ cho OOP bằng cách tách rời các mối quan tâm cắt ngang (cross-cutting concerns) như Logging, Security, Transaction, Metrics ra khỏi logic nghiệp vụ cốt lõi.
 

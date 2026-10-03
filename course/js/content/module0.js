@@ -399,6 +399,24 @@ Bài học này sẽ mổ xẻ cơ chế hoạt động tầng sâu của **Lamb
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: Vòng Đời Stream Pipeline & Spliterator Lazy Execution
+
+~~~mermaid
+flowchart TD
+    DataSource["Data Source: List / Set / I/O Channel"] --> Split["Spliterator: tryAdvance() / trySplit()"]
+    subgraph LazyPipe ["Giai Đoạn Lười Biếng (Lazy Intermediate Pipeline)"]
+        Split --> F1["filter(Predicate): Chưa lọc ngay!"]
+        F1 --> M1["map(Function): Chỉ đăng ký phép biến đổi"]
+        M1 --> D1["distinct() / sorted()"]
+    end
+    LazyPipe --> Term["Terminal Operation: collect(toList) / findFirst()"]
+    Term --> Exec["KÍCH HOẠT DÒNG CHẢY DỮ LIỆU:<br/>Duyệt qua 1 lượt duy nhất (Single-pass O(N))"]
+    Exec --> Out["Result Collection / Value"]
+    style LazyPipe fill:#161b22,stroke:#30363d,color:#fff
+    style Exec fill:#238636,stroke:#2ea043,color:#fff
+~~~
+
+
 ### 1.1. Bản Chất Của Lambda Expression: <code>invokedynamic</code> vs Anonymous Class
 
 Nhiều người lầm tưởng: *"Lambda chỉ là cú pháp viết tắt của Anonymous Inner Class (Lớp nội danh)"*. **Hoàn toàn sai!**
@@ -808,6 +826,32 @@ Bài học này sẽ hướng dẫn bạn làm chủ toàn bộ các vũ khí t�
 ---
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Algebraic Data Types (Sealed Interface + Record Patterns)
+
+~~~mermaid
+flowchart TD
+    Sealed["sealed interface PaymentResult<br/>(Sum Type: Giới hạn toàn bộ trạng thái)"]
+    Sealed --> Rec1["record Success(txnId, amount)"]
+    Sealed --> Rec2["record InsufficientFunds(accId, missing)"]
+    Sealed --> Rec3["record GatewayTimeout(gwName, elapsed)"]
+    Sealed --> Rec4["record FraudRejected(riskScore, rule)"]
+    
+    subgraph PatternMatch ["Java 21 Pattern Matching Deconstruction"]
+        Switch["switch (paymentResult)"]
+        Switch --> C1["case Success(var id, var amt) when amt > 5000 -> VIP Audit"]
+        Switch --> C2["case Success(var id, var amt) -> Dispatch Goods"]
+        Switch --> C3["case InsufficientFunds(var acc, var miss) -> Prompt Topup"]
+        Switch --> C4["case GatewayTimeout -> Enqueue Background Retry"]
+        Switch --> C5["case FraudRejected -> Lock Account & Alert"]
+    end
+    Rec1 -.-> Switch
+    Rec2 -.-> Switch
+    Rec3 -.-> Switch
+    Rec4 -.-> Switch
+    style PatternMatch fill:#161b22,stroke:#1f6feb,color:#fff
+~~~
+
 
 ### 1.1. Bản Chất Tầng Sâu Của <code>record</code>: An Toàn Deserialization & Bất Biến Nông
 
@@ -1253,6 +1297,25 @@ Nhưng trong các hệ thống phần mềm doanh nghiệp lớn (như nền t�
 ---
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Giải Thuật Phân Giải Xung Đột Thư Viện (Nearest-Wins)
+
+~~~mermaid
+flowchart TD
+    MyProject["Dự Án Của Bạn (Root)"]
+    MyProject --> DepA["Dependency A (Độ sâu 1)"]
+    MyProject --> DepB["Dependency B (Độ sâu 1)"]
+    
+    DepA --> LibX1["Library-X v2.15<br/>(Độ sâu 2 - GẦN GỐC HƠN)"]
+    DepB --> SubDepC["Sub-Dependency C (Độ sâu 2)"]
+    SubDepC --> LibX2["Library-X v2.12<br/>(Độ sâu 3 - XA GỐC HƠN)"]
+    
+    LibX1 -- "CHIẾN THẮNG THEO NEAREST-WINS" --> Pack["Được đóng gói vào JAR cuối cùng!"]
+    LibX2 -- "BỊ LOẠI BỎ (OMITTED FOR CONFLICT)" --> Drop["Bị gạch bỏ khỏi Classpath"]
+    style LibX1 fill:#238636,stroke:#2ea043,color:#fff
+    style LibX2 fill:#da3633,stroke:#f85149,color:#fff
+~~~
+
 
 ### 1.1. Ba Vòng Đời Tách Biệt Của Maven (Maven Lifecycles) & Plugin Goals
 

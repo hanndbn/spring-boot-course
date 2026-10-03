@@ -3352,6 +3352,109 @@ Và với **Spring Cloud Stream**, bạn có thể trừu tượng hóa tầng c
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: Redis Distributed Lock & Redisson Watchdog Tự Động Gia Hạn Khóa
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor Worker1 as Worker Pod 1
+    actor Worker2 as Worker Pod 2
+    participant Redis as Redis Server
+    participant Watchdog as Redisson Watchdog Timer
+    
+    Worker1->>Redis: SET lock:order:123 UUID_A NX PX 30000
+    Redis-->>Worker1: OK (Khóa thành công!)
+    
+    Worker1->>Watchdog: Kích hoạt Watchdog (Timeout / 3 = 10s)
+    
+    Worker2->>Redis: SET lock:order:123 UUID_B NX PX 30000
+    Redis-->>Worker2: nil (Khóa thất bại, Worker 2 chờ hoặc retry)
+    
+    Note over Worker1: Worker 1 đang chạy tác vụ nặng (kéo dài 25 giây)...
+    Watchdog->>Redis: Sau 10s: Gia hạn lock thêm 30s (Lease Renewal)
+    Watchdog->>Redis: Sau 20s: Gia hạn lock thêm 30s
+    
+    Note over Worker1: Tác vụ hoàn tất!
+    Worker1->>Redis: Lua Script: if redis.call('get', key) == UUID_A then redis.call('del', key)
+    Redis-->>Worker1: Lock Released (1)
+    Worker1->>Watchdog: Hủy Watchdog Timer
+    
+    Worker2->>Redis: SET lock:order:123 UUID_B NX PX 30000
+    Redis-->>Worker2: OK (Worker 2 chiếm khóa thành công!)
+~~~
+
+
+### Sơ Đồ Mô Phỏng: Máy Trạng Thái Hữu Hạn (FSM) Của Resilience4j Circuit Breaker
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> OPEN: Failure Rate >= 50% trong 100 requests
+    note right of CLOSED
+        Mọi request đi qua bình thường.
+        Đo lường lỗi trong Sliding Window.
+    end note
+    
+    OPEN --> HALF_OPEN: Sau waitDurationInOpenState (10 giây)
+    note right of OPEN
+        Mọi request bị CHẶN NGAY LẬP TỨC.
+        Ném CallNotPermittedException.
+        Chuyển thẳng sang Fallback Method!
+    end note
+    
+    HALF_OPEN --> CLOSED: Probe Requests thành công (Failure Rate < 50%)
+    HALF_OPEN --> OPEN: Probe Requests vẫn lỗi (Failure Rate >= 50%)
+    note right of HALF_OPEN
+        Cho phép 10 requests đi qua thử nghiệm.
+        Đánh giá sức khỏe của service đối tác.
+    end note
+~~~
+
+
+### Sơ Đồ Mô Phỏng: Transactional Outbox Pattern với PostgreSQL FOR UPDATE SKIP LOCKED
+
+~~~mermaid
+flowchart TD
+    Client["Client / API Request"] --> Svc["Order Service"]
+    subgraph LocalTx ["CÙNG MỘ DATABASE TRANSACTION (ACID)"]
+        Svc --> T1["1. INSERT INTO t_orders (Status: PENDING)"]
+        Svc --> T2["2. INSERT INTO t_outbox_events (Status: PENDING)"]
+    end
+    LocalTx --> DB[(PostgreSQL Database)]
+    
+    subgraph AsyncWorker ["OUTBOX PUBLISHER (BẤT ĐỒNG BỘ)"]
+        Poller["Outbox Poller / Debezium CDC"] --> Query["SELECT * FROM t_outbox_events<br/>WHERE status = 'PENDING'<br/>FOR UPDATE SKIP LOCKED LIMIT 50"]
+        Query --> Kafka["Kafka Producer"]
+        Kafka --> Topic["Kafka Topic: orders.v1"]
+        Topic --> Ack["Publish Thành Công"]
+        Ack --> Update["UPDATE t_outbox_events<br/>SET status = 'PUBLISHED'"]
+    end
+    DB <--> Poller
+~~~
+
+
+### Sơ Đồ Mô Phỏng: Kiến Trúc Bộ Đệm 2 Tầng (Caffeine L1 + Redis L2 + Pub/Sub Sync)
+
+~~~mermaid
+flowchart TD
+    Client["Client Request"] --> L1["1. Local Cache L1 (Caffeine: ~0.05ms)"]
+    L1 -- "Hit (90% requests)" --> Ret1["Trả về dữ liệu ngay lập tức"]
+    L1 -- "Miss" --> L2["2. Distributed Cache L2 (Redis: ~1.5ms)"]
+    L2 -- "Hit" --> Pop1["Nạp dữ liệu vào L1"] --> Ret2["Trả về dữ liệu"]
+    L2 -- "Miss" --> DB["3. Database Query (PostgreSQL: ~25ms)"]
+    DB --> Pop2["Cập nhật Redis L2"] --> Pop1
+    
+    subgraph Eviction ["KHI CÓ GIAO DỊCH GHI (UPDATE DATA)"]
+        WriteReq["Write Request"] --> UpDB["1. Update Database"]
+        UpDB --> EvL2["2. Xóa key trong Redis L2"]
+        EvL2 --> Pub["3. Redis PUBLISH channel 'cache:evict' (Key ID)"]
+        Pub --> Sub1["Pod 1: Xóa L1 Caffeine"]
+        Pub --> Sub2["Pod 2: Xóa L1 Caffeine"]
+        Pub --> Sub3["Pod N: Xóa L1 Caffeine"]
+    end
+~~~
+
+
 ### 1.1. AMQP 0-9-1 Protocol & Mô hình Connection / Channel Multiplexing
 
 Trong AMQP 0-9-1, client không tương tác trực tiếp với queue qua các TCP connection riêng rẽ. Thay vào đó, AMQP sử dụng kiến trúc **Channel Multiplexing**:
@@ -4724,6 +4827,28 @@ Khi người dùng đổi số dư từ 100k thành 80k, lệnh <code>UPDATE acc
 ---
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Kiến Trúc Phân Tách CQRS & Event Sourcing Toàn Diện
+
+~~~mermaid
+flowchart LR
+    Client["Client"] --> CmdAPI["Command API"]
+    CmdAPI --> CmdHandler["Command Handler"]
+    CmdHandler --> Rehydrate["Rehydrate Aggregate<br/>(Load Past Events)"]
+    Rehydrate --> Agg["BankAccountAggregate<br/>(Check Invariants)"]
+    Agg --> NewEvt["Generate New Event:<br/>MoneyWithdrawnEvent"]
+    NewEvt --> EvtStore[("Event Store (Append-Only)<br/>PostgreSQL Table")]
+    
+    EvtStore --> EvtBus["Event Bus / Outbox Kafka"]
+    EvtBus --> Projector["AccountSummaryProjector"]
+    Projector --> ReadDB[("Read Database<br/>(Flat View Table / Redis)")]
+    
+    Client --> QueryAPI["Query API"]
+    QueryAPI --> ReadDB
+    style EvtStore fill:#1f6feb,stroke:#388bfd,color:#fff
+    style ReadDB fill:#238636,stroke:#2ea043,color:#fff
+~~~
+
 
 ### 1.1. Luồng hoạt động CQRS & Event Sourcing hoàn chỉnh
 

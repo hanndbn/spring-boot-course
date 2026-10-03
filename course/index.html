@@ -137,6 +137,25 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#0d1117',
+          primaryColor: '#238636',
+          primaryTextColor: '#f0f6fc',
+          primaryBorderColor: '#30363d',
+          lineColor: '#58a6ff',
+          secondaryColor: '#161b22',
+          tertiaryColor: '#21262d'
+        }
+      });
+    }
+  </script>
   <script src="js/content/module0.js"></script>
   <script src="js/content/module1.js"></script>
   <script src="js/content/module2.js"></script>

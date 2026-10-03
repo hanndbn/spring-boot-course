@@ -102,6 +102,9 @@
       i++; // skip closing ~~~
       const code = buf.join("\n");
       const esc = escapeHtml(code);
+      if (lang === "mermaid") {
+        return `<div class="diagram-wrapper"><div class="diagram-header"><span class="diagram-badge">📊 SƠ ĐỒ MÔ PHỎNG KIẾN TRÚC</span></div><div class="mermaid">${esc}</div></div>`;
+      }
       if (lang && window.hljs) {
         try {
           return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code class="language-${lang} hljs">${window.hljs.highlight(code, { language: lang }).value}</code></pre></div>`;
@@ -411,6 +414,18 @@
     $$(".breadcrumb [data-view]", view).forEach((b) =>
       b.addEventListener("click", () => gotoView(b.dataset.view)));
     bindCopyButtons(view);
+    if (window.mermaid) {
+      setTimeout(() => {
+        try {
+          const diagrams = view.querySelectorAll(".mermaid");
+          if (diagrams.length > 0) {
+            window.mermaid.run({ nodes: diagrams });
+          }
+        } catch (e) {
+          console.warn("Mermaid execution error:", e);
+        }
+      }, 50);
+    }
   }
 
   function bindCopyButtons(root) {

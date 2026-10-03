@@ -25,6 +25,24 @@ Bài học này sẽ mổ xẻ tường tận cơ chế hoạt động bên dư�
 
 ## 1. Cơ chế Ngầm của Chuỗi Bộ Lọc Bảo mật (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: Chuỗi Bộ Lọc Bảo Mật Spring Security 6 FilterChain
+
+~~~mermaid
+flowchart TD
+    Req["Client Request"] --> DFP["DelegatingFilterProxy"]
+    DFP --> FCP["FilterChainProxy"]
+    FCP --> F1["1. SecurityContextHolderFilter (Nạp context từ session/MDC)"]
+    F1 --> F2["2. CorsFilter (Kiểm tra W3C Preflight OPTIONS)"]
+    F2 --> F3["3. CsrfFilter (Double Submit Cookie Check)"]
+    F3 --> F4["4. BearerTokenAuthenticationFilter (Giải mã & Verify JWT)"]
+    F4 --> F5["5. ExceptionTranslationFilter (Bắt 401 / 403)"]
+    F5 --> F6["6. AuthorizationFilter (Kiểm tra Role/Authority RBAC)"]
+    F6 --> Dispatcher["DispatcherServlet -> @RestController"]
+    style F4 fill:#1f6feb,stroke:#388bfd,color:#fff
+    style F6 fill:#238636,stroke:#2ea043,color:#fff
+~~~
+
+
 ### DelegatingFilterProxy và FilterChainProxy
 
 Spring Security tích hợp vào Servlet Container (như Apache Tomcat) thông qua một cầu nối duy nhất có tên là <code>DelegatingFilterProxy</code>:
@@ -573,6 +591,32 @@ Bài học này sẽ đi sâu vào cấu trúc toán học của JWT, so sánh �
 ---
 
 ## 1. Cấu Trúc Kỹ Thuật RFC 7519 & Lỗ Hổng Bảo Mật Kinh Điển (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Refresh Token Rotation & Cơ Chế Phát Hiện Đánh Cắp Token (Reuse Detection)
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor User as Người dùng hợp lệ
+    actor Thief as Kẻ trộm (Token Thief)
+    participant Auth as Keycloak / Spring Auth Server
+    participant Redis as Token Family Store
+    
+    User->>Auth: Đổi Token: POST /refresh (Token_A)
+    Auth->>Redis: Kiểm tra Token_A hợp lệ
+    Auth-->>User: Cấp Token_B mới (Đánh dấu Token_A = USED)
+    
+    Note over Thief: Kẻ trộm đã nghe lén được Token_A cũ!
+    Thief->>Auth: Cố tình dùng lại: POST /refresh (Token_A)
+    Auth->>Redis: Phát hiện Token_A ĐÃ BỊ SỬ DỤNG TRƯỚC ĐÓ!
+    Note over Auth: CẢNH BÁO TẤN CÔNG (REUSE DETECTION)!
+    Auth->>Redis: XÓA SẠCH toàn bộ Token Family của User!
+    Auth-->>Thief: HTTP 401 Unauthorized (Bị chặn!)
+    
+    User->>Auth: Lần sau User gửi Token_B
+    Auth-->>User: Bị từ chối vì Token Family đã bị thu hồi do cảnh báo an ninh -> Bắt đăng nhập lại!
+~~~
+
 
 ### Giải phẫu 3 Phần của JWT
 
@@ -2110,6 +2154,32 @@ Bài học này sẽ bóc tách chi tiết toán học và luồng trao đổi c
 ---
 
 ## 1. Bản chất Kỹ thuật của PKCE (Proof Key for Code Exchange — Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Luồng Ủy Quyền OAuth 2.1 với PKCE S256
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor User as Người dùng
+    participant App as Mobile App / SPA (Client)
+    participant Auth as Keycloak / OAuth2 Server
+    participant API as Resource Server (Spring Boot)
+    
+    Note over App: Sinh code_verifier (Random 64 bytes)<br/>code_challenge = SHA256(code_verifier)
+    App->>Auth: GET /oauth/authorize?code_challenge=xyz&code_challenge_method=S256
+    Auth->>User: Hiển thị màn hình Login & Consent
+    User-->>Auth: Nhập Username/Password hợp lệ
+    Auth-->>App: Trả về Authorization Code (auth_code) qua Redirect URI
+    
+    Note over App: Đổi Code lấy Token an toàn
+    App->>Auth: POST /oauth/token?code=auth_code&code_verifier=raw_secret
+    Note over Auth: Verify: SHA256(raw_secret) == code_challenge?
+    Auth-->>App: Trả về Access Token (JWT) + Refresh Token
+    
+    App->>API: Gọi API GET /data (Header: Authorization Bearer JWT)
+    API-->>App: Trả về dữ liệu 200 OK
+~~~
+
 
 ### Vì sao Authorization Code Flow truyền thống vẫn có thể bị Hack trên Mobile?
 

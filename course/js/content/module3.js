@@ -47,6 +47,25 @@ Tuy nhiên, ORM **không phải là phép màu miễn phí**. Nếu không thấ
 
 ## 1. Bản chất Kiến trúc & Cơ chế Tầng Persistence (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: 4 Trạng Thái Của JPA Entity & First-Level Cache Dirty Checking
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> TRANSIENT: new Entity() (Chưa có ID, chưa quản lý)
+    TRANSIENT --> MANAGED: em.persist()
+    MANAGED --> DETACHED: em.detach() / em.clear() / em.close()
+    DETACHED --> MANAGED: em.merge()
+    MANAGED --> REMOVED: em.remove()
+    REMOVED --> [*]: Transaction COMMIT (SQL DELETE)
+    
+    note right of MANAGED
+        Nằm trong First-Level Cache (Persistence Context)
+        Tự động Dirty Checking khi Transaction COMMIT!
+        Không cần gọi repository.save() thủ công!
+    end note
+~~~
+
+
 ### 1.1 Không gian Quản lý Thực thể (Persistence Context) & 4 Trạng thái Vòng đời của Entity
 
 Trái tim của Hibernate là **Persistence Context** — một vùng bộ nhớ tạm (First-Level Cache / L1 Cache) lưu trữ các đối tượng Java mà Hibernate đang theo dõi trong suốt vòng đời của một Transaction.
@@ -1463,6 +1482,31 @@ Bài học này sẽ đi sâu vào bản chất tầng thấp của Spring Trans
 ---
 
 ## 1. Bản chất Kiến trúc & Cơ chế Tầng Mạng (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Cuộc Đua Dữ Liệu (Race Condition) & Optimistic Lock @Version
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor UserA as Khách hàng A (Web)
+    actor UserB as Khách hàng B (App)
+    participant DB as PostgreSQL Database (t_wallets)
+    
+    UserA->>DB: SELECT * FROM t_wallets WHERE id = 1<br/>(Balance: 100$, Version: 1)
+    UserB->>DB: SELECT * FROM t_wallets WHERE id = 1<br/>(Balance: 100$, Version: 1)
+    
+    Note over UserA: Tính toán trừ 30$ -> Số dư mới: 70$
+    Note over UserB: Tính toán trừ 50$ -> Số dư mới: 50$
+    
+    UserA->>DB: UPDATE t_wallets SET balance = 70, version = 2<br/>WHERE id = 1 AND version = 1
+    DB-->>UserA: 1 row updated (SUCCESS!)
+    
+    UserB->>DB: UPDATE t_wallets SET balance = 50, version = 2<br/>WHERE id = 1 AND version = 1
+    Note over DB: Version hiện tại là 2 (Không khớp version = 1!)
+    DB-->>UserB: 0 rows updated!
+    Note over UserB: Hibernate ném OptimisticLockException!<br/>Chống trừ tiền âm thành công 100%!
+~~~
+
 
 ### 1.1 Chuẩn ACID và Cơ chế Hoạt động Nội tại của Database
 Mọi giao dịch đáng tin cậy đều phải tuân thủ 4 thuộc tính ACID:
@@ -5029,6 +5073,26 @@ Bài học này sẽ đi sâu vào bản chất khoa học máy tính của cấ
 ---
 
 ## 1. Bản chất Khoa học Máy tính: B-Tree Index vs Inverted Index (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Pipeline Đồng Bộ CDC Debezium & Outbox Sang Elasticsearch
+
+~~~mermaid
+flowchart LR
+    App["Spring Boot App"] --> LocalTx["Local ACID Transaction"]
+    subgraph DB ["PostgreSQL 16"]
+        LocalTx --> Biz["t_orders"]
+        LocalTx --> Outbox["t_outbox_events"]
+        Outbox --> WAL["Write-Ahead Log (WAL)"]
+    end
+    WAL --> Deb["Debezium CDC Connector"]
+    Deb --> Kafka["Kafka Topic: outbox.events"]
+    Kafka --> Sync["Search Indexer Consumer"]
+    Sync --> ES[("Elasticsearch Cluster")]
+    Client["Search Client"] --> ES
+    style WAL fill:#1f6feb,stroke:#388bfd,color:#fff
+    style ES fill:#238636,stroke:#2ea043,color:#fff
+~~~
+
 
 ### Vì sao LIKE '%keyword%' là "kẻ hủy diệt" cơ sở dữ liệu quan hệ?
 

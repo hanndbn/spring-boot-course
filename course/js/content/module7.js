@@ -378,6 +378,30 @@ Bài học này sẽ hướng dẫn bạn thiết lập:
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: Lan Truyền Distributed Tracing với W3C TraceContext Header
+
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor User as User Request
+    participant GW as API Gateway (traceId: 4bf9, spanId: a1)
+    participant Order as Order Service (traceId: 4bf9, spanId: b2)
+    participant Kafka as Kafka Broker (traceparent in Headers)
+    participant Payment as Payment Service (traceId: 4bf9, spanId: c3)
+    participant Tempo as Grafana Tempo (Collector)
+    
+    User->>GW: POST /api/v1/orders
+    GW->>Order: HTTP POST /orders (Header: traceparent: 00-4bf9-a1-01)
+    Order->>Kafka: Produce OrderPlacedEvent (Header: traceparent: 00-4bf9-b2-01)
+    Kafka->>Payment: Consume Event (Extracts traceId: 4bf9)
+    
+    GW-->>Tempo: Push Span a1 (Latency: 15ms)
+    Order-->>Tempo: Push Span b2 (Latency: 45ms)
+    Payment-->>Tempo: Push Span c3 (Latency: 80ms)
+    Note over Tempo: Tổng hợp thành 1 Trace Tree duy nhất trên Grafana Dashboard!
+~~~
+
+
 ### 1.1. Kiến trúc Luồng CI/CD DevSecOps Hiện Đại
 
 ~~~text
@@ -1508,6 +1532,28 @@ Tuning hiệu năng không phải là phỏng đoán hay chỉnh thông số b�
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
 
+### Sơ Đồ Mô Phỏng: Cơ Chế Tháo Dỡ (Unmounting) Virtual Thread Khi Gặp Blocking I/O
+
+~~~mermaid
+flowchart TD
+    subgraph CarrierPool ["Carrier Thread Pool (ForkJoinPool - 8 OS Threads)"]
+        CT1["Carrier Thread 1 (CPU Core 1)"]
+    end
+    
+    VT1["Virtual Thread #101"] --> CT1
+    Note1["VT #101 Đang chạy code tính toán CPU"]
+    
+    CT1 --> Wait["Gặp tác vụ Blocking I/O<br/>(Socket Read từ Database hoặc HTTP)"]
+    Wait --> Unmount["UNMOUNT MECHANISM:<br/>1. Lưu Call Stack của VT #101 vào Heap Memory<br/>2. Đưa VT #101 vào trạng thái PARKED"]
+    
+    Unmount --> Free["Carrier Thread 1 RẢNH TAY NGAY LẬP TỨC!"]
+    Free --> CT1_Next["Carrier Thread 1 MOUNT Virtual Thread #102 để chạy tiếp!"]
+    
+    DataReady["Hệ điều hành báo dữ liệu Socket đã tới!"] --> Unpark["VT #101 được UNPARK"]
+    Unpark --> Remount["VT #101 được nạp lại vào bất kỳ Carrier Thread nào rảnh để chạy tiếp!"]
+~~~
+
+
 ### 1.1. Bản Đồ Bộ Nhớ JVM Hiện Đại (Java 21)
 
 ~~~text
@@ -2269,6 +2315,38 @@ Hệ thống Mini-LaaS cho phép hàng ngàn đối tác doanh nghiệp (Tenants
 ---
 
 ## 1. Kiến trúc chuyên sâu & Cơ chế hoạt động (Under the Hood)
+
+### Sơ Đồ Mô Phỏng: Kiến Trúc Phân Tán Tổng Thể Đồ Án Mini-LaaS
+
+~~~mermaid
+flowchart TD
+    Client["Client / Frontend SPA"] --> Sec["Spring Security 6 (Keycloak JWT Validation)"]
+    Sec --> Ctrl["LoyaltyRedemptionController (RFC 7807 Validation)"]
+    Ctrl --> RedService["LoyaltyRedemptionService"]
+    
+    subgraph DistributedLock ["Concurrency Control"]
+        RedService --> Lock["Redisson Distributed Lock (lock:tenant:member)"]
+    end
+    
+    subgraph Storage ["PostgreSQL 16 Multi-Tenant ACID Database"]
+        RedService --> MemberTab["t_loyalty_members (@TenantId, @Version)"]
+        RedService --> TxTab["t_loyalty_transactions (Idempotency Key)"]
+        RedService --> OutboxTab["t_outbox_events (Status: PENDING)"]
+    end
+    
+    subgraph CacheLayer ["Caching Layer"]
+        RedService --> RedisCache["Redis L2 Cache (Evict balance)"]
+    end
+    
+    subgraph EventStream ["Asynchronous Event Stream"]
+        Worker["Outbox Worker (SKIP LOCKED)"] --> OutboxTab
+        Worker --> KafkaTopic["Kafka Topic: loyalty.events.v1"]
+    end
+    
+    style Storage fill:#161b22,stroke:#30363d,color:#fff
+    style EventStream fill:#0d1117,stroke:#58a6ff,color:#fff
+~~~
+
 
 ### 1.1. Sơ Đồ Kiến Trúc Tổng Thể Mini-LaaS
 
