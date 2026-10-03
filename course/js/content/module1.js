@@ -10,182 +10,322 @@ window.COURSE_MODULES.push({
     {
       id: "1-1",
       type: "lesson",
-      title: "IoC & Dependency Injection — trái tim Spring",
-      minutes: 45,
+      title: "IoC & Dependency Injection — trái tim Spring Container",
+      minutes: 50,
       content: `
-## Vấn đề mà Spring giải quyết
+## Vấn đề sống còn: Tight Coupling giết chết khả năng mở rộng
+
+Hãy tưởng tượng bạn đang viết code xử lý thanh toán cho hệ thống thương mại điện tử:
 
 ~~~java
-// ❌ Code không có DI — mọi thứ tự new, chằng chịt
-public class OrderService {
-    private final EmailService emailService = new EmailService();      // cứng
-    private final PdfGenerator pdf = new PdfGenerator(new TemplateEngine()); // đan xen
-    private final OrderRepository repo = new JdbcOrderRepository(dataSource); // khó thay
-}
-~~~
+// ❌ Cực kỳ nguy hiểm: Mọi thứ tự "new", gắn chặt vào implementation cứng
+public class OrderCheckoutService {
+    private final EmailService emailService = new EmailService();
+    private final VNPayGateway paymentGateway = new VNPayGateway("KEY_PROD_123");
+    private final JdbcOrderRepository orderRepo = new JdbcOrderRepository(
+        DriverManager.getConnection("jdbc:postgresql://localhost:5432/db")
+    );
 
-Vấn đề: class **tự tạo dependency** → muốn test phải sửa code, muốn đổi implementation phải sửa code, class lớn dần như quả cầu tuyết.
-
-**Inversion of Control (IoC)**: đảo ngược quyền tạo object — container (Spring context) tạo và "tiêm" dependency vào class của bạn.
-
-~~~java
-// ✅ Có DI — class chỉ KHAI BÁO cái mình cần
-@Service
-public class OrderService {
-    private final EmailService emailService;
-    private final OrderRepository repo;
-
-    // Constructor injection — Spring tự inject khi tạo bean OrderService
-    public OrderService(EmailService emailService, OrderRepository repo) {
-        this.emailService = emailService;
-        this.repo = repo;
+    public void checkout(Order order) {
+        orderRepo.save(order);
+        paymentGateway.charge(order.getTotal());
+        emailService.sendReceipt(order);
     }
 }
 ~~~
+
+Hậu quả tai hại của đoạn code trên trong môi trường doanh nghiệp:
+1. **Không thể Unit Test độc lập**: Mỗi lần test <code>checkout()</code>, hệ thống sẽ kết nối thẳng vào database PostgreSQL thật và trừ tiền thật qua cổng VNPay.
+2. **Vi phạm nguyên lý OCP (Open-Closed Principle)**: Khi công ty muốn tích hợp thêm ví MoMo hoặc ZaloPay, bạn buộc phải sửa nát mã nguồn của <code>OrderCheckoutService</code>.
+3. **Quản lý tài nguyên hỗn loạn**: Mỗi service tự <code>new</code> kết nối database riêng dẫn tới cạn kiệt Connection Pool của hệ thống.
 
 ---
 
-## 1. Ba kiểu inject — và why constructor thắng
+## 1. Cơ chế ngầm: Inversion of Control & ApplicationContext Pipeline
 
-| Kiểu | Cách viết | Đánh giá |
-|---|---|---|
-| **Constructor** | 1 constructor duy nhất, Spring tự inject | ⭐ Khuyến nghị — final field, test dễ |
-| Setter | <code>@Autowired</code> lên setter | Chỉ khi dependency tùy chọn |
-| Field | <code>@Autowired</code> lên field | ❌ Tránh — khó test, che giấu dependency |
-
-:::tip VÌ SAO CONSTRUCTOR INJECTION LÀ VUA?
-1. Field có thể <code>final</code> → immutable, thread-safe
-2. Không thể tạo object "thiếu_dependency" — compiler ép bạn truyền đủ
-3. Test thường không cần Spring: <code>new OrderService(mockRepo, mockEmail)</code>
-4. IDE hint ngay khi class có quá nhiều dependency (code smell)
-:::
-
-Từ Spring 4.3: nếu class chỉ có **1 constructor** thì không cần <code>@Autowired</code> — tự inject.
-
-## 2. Các stereotype annotation
-
-~~~java
-@Component   // generic: "đây là bean, Spring quản giúp"
-@Service     // tầng business logic (semantic + rõ nghĩa)
-@Repository  // tầng persistence + translate SQLException → DataAccessException
-@Controller  // tầng web (MVC)
-@RestController  // = @Controller + @ResponseBody (trả JSON)
-~~~
-
-Component scan: <code>@SpringBootApplication</code> quét package của nó + mọi package con. Đặt class ngoài phạm vi quét → bean không được tạo!
-
-## 3. @Bean — đăng ký class ngoài tầm với
-
-Khi cần bean từ **thư viện bên thứ 3** (không thể sửa để thêm @Component):
-
-~~~java
-@Configuration
-public class DataSourceConfig {
-
-    @Bean                      // "tạo object này, Spring quản"
-    public WebClient webClient(WebClient.Builder builder) {
-        return builder
-            .baseUrl("https://api.example.com")
-            .build();
-    }
-}
-~~~
-
-Method <code>@Bean</code> được Spring gọi **đúng 1 lần** — các lần "gọi lại" thực ra trả về instance cũ từ container (CGLIB proxy).
-
-## 4. Xung đột bean & @Primary / @Qualifier
-
-~~~java
-public interface NotificationSender { void send(String to, String msg); }
-
-@Component("emailSender") SmsService... 
-@Component
-@Primary                        // thắng mặc định khi có tranh chấp
-public class EmailSender implements NotificationSender { ... }
-
-@Component("smsSender")
-public class SmsSender implements NotificationSender { ... }
-
-// Inject bằng qualifier khi cần cụ thể
-@Service
-public class NotifyService {
-    public NotifyService(
-        @Qualifier("smsSender") NotificationSender sms,   // chỉ đích danh
-        NotificationSender defaultSender                   // EmailSender (@Primary)
-    ) { ... }
-}
-~~~
-
-## 5. Bean lifecycle — từ sinh đến diệt
+**Inversion of Control (IoC - Đảo ngược điều khiển)**: Bạn không tự <code>new</code> đối tượng nữa. Quyền khởi tạo, định cấu hình và quản lý vòng đời của đối tượng được trao toàn quyền cho **Spring IoC Container**.
 
 ~~~text
-Constructor → Dependency Injection → @PostConstruct → (sử dụng) → @PreDestroy
++---------------------------------------------------------------------------------+
+|                       VÒNG ĐỜI NẠP BEAN TRONG SPRING BOOT                       |
++---------------------------------------------------------------------------------+
+[1. Quét Class]      Quét @Component, @Service, @Configuration trong base package
+        │
+[2. BeanDefinition]  Spring phân tích metadata (Class name, Scope, Lazy, Autowire)
+        │            Lưu vào BeanDefinitionRegistry (chưa tạo object thật)
+        │
+[3. BFPP]            BeanFactoryPostProcessor: Đọc properties, giải mã placeholder
+        │
+[4. Instantiation]   Spring dùng Reflection gọi Constructor phù hợp để tạo Object
+        │
+[5. Populate Bean]   Dependency Injection: Tiêm các dependency vào instance
+        │
+[6. Aware Callbacks] Inject BeanNameAware, ApplicationContextAware (nếu có)
+        │
+[7. BPP (Before)]    BeanPostProcessor: postProcessBeforeInitialization()
+        │
+[8. Init Hooks]      Gọi @PostConstruct -> InitializingBean.afterPropertiesSet()
+        │
+[9. BPP (After)]     BeanPostProcessor: Bọc Dynamic Proxy (CGLIB/JDK Proxy) cho AOP
+        │
+[10. READY]          Đưa vào DefaultSingletonBeanRegistry -> Phục vụ ứng dụng
++---------------------------------------------------------------------------------+
 ~~~
+
+:::tip BEANFACTORY VS APPLICATIONCONTEXT
+<code>BeanFactory</code> là container cấp thấp nhất, chỉ hỗ trợ DI cơ bản và lazy-loading bean.
+<code>ApplicationContext</code> là container cấp cao (kế thừa BeanFactory) mà Spring Boot sử dụng, tích hợp thêm: Internationalization (i18n), Event Publishing, Environment Profiles, và tự động eager-load toàn bộ Singleton beans ngay khi khởi động để phát hiện lỗi sớm (fail-fast).
+:::
+
+## 2. Ba kiểu Dependency Injection — Tại sao Constructor là vị vua tuyệt đối?
+
+| Kiểu Injection | Cú pháp | Đánh giá kiến trúc |
+|---|---|---|
+| **Constructor Injection** | Khai báo <code>final</code> field + constructor | ⭐ **Khuyên dùng 100%**: Bất biến (Immutable), an toàn đa luồng, compiler ép truyền đủ dependency khi unit test |
+| **Setter Injection** | <code>@Autowired</code> trên setter method | Chỉ dùng khi dependency là tùy chọn (optional) hoặc có thể thay đổi lúc runtime |
+| **Field Injection** | <code>@Autowired private Service x;</code> | ❌ **Cấm dùng trong dự án lớn**: Ẩn giấu dependency, NPE khi new thủ công trong test, vi phạm Single Responsibility |
+
+~~~java
+// ✅ CHUẨN PRODUCTION: Constructor Injection kết hợp final fields
+@Service
+public class OrderCheckoutService {
+
+    private final PaymentProcessor paymentProcessor;
+    private final NotificationService notificationService;
+    private final OrderRepository orderRepository;
+
+    // Từ Spring 4.3+, class có 1 constructor DUY NHẤT không cần viết @Autowired
+    public OrderCheckoutService(PaymentProcessor paymentProcessor,
+                                NotificationService notificationService,
+                                OrderRepository orderRepository) {
+        this.paymentProcessor = paymentProcessor;
+        this.notificationService = notificationService;
+        this.orderRepository = orderRepository;
+    }
+}
+~~~
+
+## 3. Code thực chiến hoàn chỉnh: Xử lý đa cổng thanh toán
+
+Trong thực tế, một interface thường có nhiều class triển khai (Implementation). Spring giải quyết xung đột bằng <code>@Primary</code> và <code>@Qualifier</code>:
+
+### Interface và các Implementation:
+
+~~~java
+package vn.mastery.payment;
+
+import java.math.BigDecimal;
+
+public interface PaymentProcessor {
+    PaymentResult charge(String orderId, BigDecimal amount);
+    String getProviderName();
+}
+
+public record PaymentResult(boolean success, String transactionId, String message) {}
+~~~
+
+~~~java
+package vn.mastery.payment.impl;
+
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+import vn.mastery.payment.*;
+import java.math.BigDecimal;
+import java.util.UUID;
+
+@Component("vnpayProcessor")
+public class VNPayPaymentProcessor implements PaymentProcessor {
+    @Override
+    public PaymentResult charge(String orderId, BigDecimal amount) {
+        // Giả lập gọi cổng VNPay
+        return new PaymentResult(true, "VNP-" + UUID.randomUUID(), "Thanh toán VNPay thành công");
+    }
+
+    @Override
+    public String getProviderName() { return "VNPAY"; }
+}
+
+@Component("momoProcessor")
+@Primary // Mặc định ưu tiên nếu không chỉ định rõ
+public class MomoPaymentProcessor implements PaymentProcessor {
+    @Override
+    public PaymentResult charge(String orderId, BigDecimal amount) {
+        // Giả lập gọi cổng MoMo
+        return new PaymentResult(true, "MOMO-" + UUID.randomUUID(), "Thanh toán MoMo thành công");
+    }
+
+    @Override
+    public String getProviderName() { return "MOMO"; }
+}
+~~~
+
+### Service sử dụng linh hoạt:
+
+~~~java
+package vn.mastery.service;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import vn.mastery.payment.*;
+import java.math.BigDecimal;
+
+@Service
+public class CheckoutService {
+
+    private final PaymentProcessor defaultProcessor;  // Sẽ inject MomoPaymentProcessor (@Primary)
+    private final PaymentProcessor specificProcessor; // Sẽ inject VNPayPaymentProcessor (@Qualifier)
+
+    public CheckoutService(PaymentProcessor defaultProcessor,
+                           @Qualifier("vnpayProcessor") PaymentProcessor specificProcessor) {
+        this.defaultProcessor = defaultProcessor;
+        this.specificProcessor = specificProcessor;
+    }
+
+    public PaymentResult processOrder(String orderId, BigDecimal amount, boolean useVnPay) {
+        if (useVnPay) {
+            return specificProcessor.charge(orderId, amount);
+        }
+        return defaultProcessor.charge(orderId, amount);
+    }
+}
+~~~
+
+## 4. Đào sâu Bean Scopes & Cạm bẫy "Prototype trong Singleton"
+
+Spring hỗ trợ 6 loại scope:
+1. <code>singleton</code> (Mặc định): Duy nhất 1 instance trên toàn bộ Spring Container (ApplicationContext).
+2. <code>prototype</code>: Mỗi lần được inject hoặc gọi <code>getBean()</code> là một instance hoàn toàn mới.
+3. <code>request</code>, <code>session</code>, <code>application</code>, <code>websocket</code>: Dành riêng cho ứng dụng Web.
+
+:::danger CẠM BẪY CHẾT NGƯỜI: INJECT PROTOTYPE VÀO SINGLETON
+Một bean Singleton (như <code>OrderService</code>) chỉ được Spring khởi tạo **ĐÚNG 1 LẦN** lúc startup.
+Nếu bạn inject một bean Prototype (như <code>ReportBuilder</code>) vào Singleton qua Constructor, bean Prototype đó cũng chỉ được inject **1 LẦN DUY NHẤT**!
+Kết quả: Prototype bị "đóng băng" thành Singleton, dữ liệu request trước tích tụ sang request sau gây sai lệch nghiêm trọng!
+:::
+
+### 3 cách giải quyết chuẩn kỹ thuật:
+
+~~~java
+// CÁCH 1 (Khuyên dùng): Dùng ObjectProvider<T> — Lazy retrieval
+@Service
+public class ReportScheduler {
+    private final ObjectProvider<ReportBuilder> reportBuilderProvider;
+
+    public ReportScheduler(ObjectProvider<ReportBuilder> reportBuilderProvider) {
+        this.reportBuilderProvider = reportBuilderProvider;
+    }
+
+    public void runDailyReport() {
+        // Mỗi lần gọi getObject() sẽ yêu cầu Container sinh ra instance Prototype mới tinh!
+        ReportBuilder builder = reportBuilderProvider.getObject();
+        builder.buildAndExport();
+    }
+}
+
+// CÁCH 2: Dùng @Lookup Method Injection
+@Service
+public abstract class InvoiceManager {
+    public void generateInvoice() {
+        InvoiceBuilder builder = getInvoiceBuilder(); // Spring CGLIB override method này
+        builder.render();
+    }
+
+    @Lookup
+    protected abstract InvoiceBuilder getInvoiceBuilder();
+}
+
+// CÁCH 3: Scoped Proxy trên bean Prototype
+@Component
+@Scope(value = ConfigurableBeanFactory.SCOPE_PROTOTYPE, proxyMode = ScopedProxyMode.TARGET_CLASS)
+public class RequestSessionContext {
+    // Spring tạo proxy CGLIB bọc ngoài, mỗi method call sẽ resolve instance theo thread/context
+}
+~~~
+
+## 5. Cạm bẫy Circular Dependencies (Vòng tròn phụ thuộc)
+
+Điều gì xảy ra khi Service A cần Service B, và Service B lại cần Service A qua Constructor?
+
+~~~text
+┌─────────────────┐       injects       ┌─────────────────┐
+│   OrderService  │ ──────────────────> │  PaymentService │
+└─────────────────┘                     └─────────────────┘
+         ^                                       │
+         └───────────────────────────────────────┘
+                        injects
+~~~
+
+Lúc này, Spring Container không thể quyết định tạo class nào trước. Kết quả: ứng dụng **CRASH NGAY LẬP TỨC** khi khởi động:
+<code>BeanCurrentlyInCreationException: Error creating bean with name 'orderService'... requested bean is currently in creation</code>
+
+:::warn CƠ CHẾ BẢO VỆ TỪ SPRING BOOT 2.6+
+Từ Spring Boot 2.6 trở lên, tính năng cho phép Circular Dependency **mặc định bị TẮT HOÀN TOÀN**.
+Đừng bao giờ bật <code>spring.main.allow-circular-references=true</code> để che giấu lỗi! Đó là "mùi hôi của code" (Code Smell).
+Hãy tái cấu trúc bằng 1 trong 2 cách:
+1. **Tách class**: Đưa logic phụ thuộc chung sang một Service thứ 3 (ví dụ: <code>OrderPaymentOrchestrator</code>).
+2. **Dùng Spring ApplicationEvent**: Khi Order hoàn thành, bắn ra <code>OrderCreatedEvent</code>; <code>PaymentService</code> lắng nghe event này mà không cần inject trực tiếp <code>OrderService</code>.
+:::
+
+## 6. Bài tập thực hành thử thách (Hands-on Challenge)
+
+### Đề bài:
+Hệ thống cần ghi nhận vết kiểm toán tác vụ (Audit Trail). Hãy thiết kế:
+1. Interface <code>AuditContext</code> với scope <code>prototype</code> chứa danh sách các bước thao tác (<code>List<String> actions</code>).
+2. Bean Singleton <code>AuditManager</code> có method <code>recordUserAction(String userId, String action)</code>. Đảm bảo mỗi user session độc lập không bị dính vết của user khác.
+3. Sử dụng <code>@PostConstruct</code> và <code>@PreDestroy</code> để log thông báo khi một audit context được cấp phát và giải phóng.
+
+### Lời giải tham khảo:
 
 ~~~java
 @Component
-public class CacheWarmer {
-    @PostConstruct              // chạy SAU khi inject xong — khởi tạo an toàn
-    void warmUp() {
-        System.out.println("Nạp cache ban đầu...");
+@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
+public class UserAuditSession {
+    private final List<String> steps = new ArrayList<>();
+    private final String sessionId = UUID.randomUUID().toString();
+
+    @PostConstruct
+    public void init() {
+        System.out.println("[AUDIT START] Session khởi tạo: " + sessionId);
     }
 
-    @PreDestroy                 // trước khi shutdown — dọn dẹp tài nguyên
-    void cleanup() {
-        System.out.println("Đóng kết nối...");
+    public void addStep(String action) {
+        steps.add(Instant.now() + " - " + action);
+    }
+
+    public List<String> getSteps() { return Collections.unmodifiableList(steps); }
+
+    @PreDestroy
+    public void cleanup() {
+        System.out.println("[AUDIT END] Đóng session và dọn dẹp: " + sessionId);
+        steps.clear();
     }
 }
-~~~
 
-:::danger BẪY LỚN: LOGIC TRONG CONSTRUCTOR
-Đừng gọi method của dependency trong **constructor** — dependency chưa chắc đã được inject/triển khai. Dùng <code>@PostConstruct</code>.
-:::
-
-## 6. Scopes
-
-| Scope | Mô tả |
-|---|---|
-| <code>singleton</code> (mặc định) | 1 instance duy nhất cho toàn app |
-| <code>prototype</code> | Mỗi lần inject/request = instance mới |
-| <code>request</code> | 1 instance per HTTP request (web) |
-| <code>session</code> | 1 instance per HTTP session (web) |
-
-~~~java
-@Component @Scope("prototype")
-public class ReportBuilder { ... }
-~~~
-
-## 7. SPA — quan trọng để đọc hiểu code Spring
-
-Giả sử tương lai bạn cần: ServiceA → (prototype) ServiceB → (singleton) ServiceC. Spring inject ServiceC vào ServiceB như bình thường. Nhưng nếu singleton ServiceA cần prototype ServiceB?
-
-~~~java
 @Service
-public class ServiceA {
-    private final ObjectProvider<ServiceB> serviceBProvider;
+public class AuditManager {
+    private final ObjectProvider<UserAuditSession> sessionProvider;
 
-    public ServiceA(ObjectProvider<ServiceB> serviceBProvider) {
-        this.serviceBProvider = serviceBProvider;
+    public AuditManager(ObjectProvider<UserAuditSession> sessionProvider) {
+        this.sessionProvider = sessionProvider;
     }
 
-    public void doWork() {
-        // Mỗi lần getObject() = instance prototype mới
-        ServiceB b = serviceBProvider.getObject();
-        b.process();
+    public void executeAuditedWorkflow(Consumer<UserAuditSession> workflow) {
+        UserAuditSession session = sessionProvider.getObject();
+        try {
+            workflow.accept(session);
+        } finally {
+            System.out.println("Tổng số action đã thực hiện: " + session.getSteps().size());
+        }
     }
 }
 ~~~
-
-:::laas ĐỐI CHIẾU LAAS
-Mở LAAS và grep <code>@ConfigurationProperties</code> — bạn sẽ thấy hàng loạt class bind config từ YAML. Đó chính là DI + externalized configuration mà ta học ở bài sau.
-:::
 
 :::takeaways
-- IoC = container tạo & tiêm dependency; bạn chỉ khai báo
-- Constructor injection là mặc định lựa chọn — final + testable
-- @Component/@Service/@Repository/@Controller — stereotype đánh dấu bean
-- @Bean trong @Configuration cho class thư viện
-- @PostConstruct/@PreDestroy — hook khởi tạo/dọn dẹp an toàn
+- IoC Container đảo ngược quyền tạo object, biến class thành các module độc lập, dễ test.
+- Constructor Injection là tiêu chuẩn bắt buộc: đảm bảo immutability và fail-fast lúc biên dịch.
+- Xung đột bean được giải quyết tường minh qua @Primary (mặc định) và @Qualifier (chỉ định).
+- Prototype inject vào Singleton bị đóng băng -> Giải pháp chuẩn là ObjectProvider<T>.
+- Circular Dependency bị chặn từ Spring Boot 2.6+ -> Tách service hoặc dùng Event Decoupling.
 :::
 `
     },
@@ -193,1047 +333,2568 @@ Mở LAAS và grep <code>@ConfigurationProperties</code> — bạn sẽ thấy h
       id: "1-2",
       type: "lesson",
       title: "Auto-configuration & Starters — ma thuật được giải thích",
-      minutes: 40,
+      minutes: 45,
       content: `
-## "Ma thuật" của Spring Boot thực chất là...
+## "Ma thuật" của Spring Boot thực chất là gì?
 
-Spring Boot = Spring Framework + **Quy ước cấu hình tự động (convention over configuration)**. Câu thần chú nổi tiếng:
+Mọi lập trình viên Spring Boot đều từng trải nghiệm khoảnh khắc này: bạn thêm duy nhất một dòng dependency <code>spring-boot-starter-web</code> vào <code>pom.xml</code>, và ngay khi chạy hàm <code>main()</code>, một web server Tomcat nhúng đã khởi động ở cổng 8080, Jackson JSON serializer đã sẵn sàng, và các endpoint REST lập tức xử lý request.
 
-> "Bạn thêm spring-boot-starter-web vào classpath, đột nhiên app của bạn chạy web server."
+Không có file XML nào. Không cần cấu hình web.xml phức tạp như thời Spring Framework 3/4. Nhiều người gọi đó là **"ma thuật" (magic)**. Nhưng trong kỹ thuật phần mềm cấp cao, không có ma thuật — chỉ có **quy ước cấu hình tự động (Convention over Configuration)** được điều khiển bởi một cỗ máy Reflection và Conditional Evaluation cực kỳ tinh xảo.
 
-Bài này gỡ rối: **cái gì xảy ra khi bạn bấm Run**.
+Hiểu sâu cơ chế này là lằn ranh phân biệt giữa một Junior "chỉ biết copy starter từ trang start.spring.io" và một Senior/Tech Lead có khả năng debug các lỗi xung đột bean lúc khởi động, tối ưu thời gian startup container, và tự thiết kế các framework/starter dùng chung cho toàn bộ tập đoàn.
 
 ---
 
-## 1. @SpringBootApplication = 3 trong 1
+## 1. Vòng đời khởi động của SpringApplication & Cỗ máy Auto-configuration
 
-~~~java
-@SpringBootApplication
-// Thực chất là:
-// @SpringBootConfiguration  → đây là 1 @Configuration (có @Bean bên trong)
-// @EnableAutoConfiguration  → bật auto-config (đọc META-INF)
-// @ComponentScan            → quét package hiện tại + con
-public class App { ... }
-~~~
-
-## 2. Auto-configuration pipeline
+Khi bạn bấm Run hoặc chạy lệnh <code>java -jar app.jar</code>, phương thức <code>SpringApplication.run(App.class, args)</code> kích hoạt một chuỗi 7 giai đoạn cốt lõi:
 
 ~~~text
-1. App start
-2. @EnableAutoConfiguration đọc file:
-   META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
-   (chứa ~150 auto-configuration class của Spring Boot)
-3. TỪNG class được đánh giá qua @Conditional*
-4. Class nào thỏa mãn điều kiện → các @Bean trong đó được tạo
-5. Bean của bạn (user config) ghi đè auto-config bean (backing off)
+                     SPRINGAPPLICATION BOOTSTRAP LIFECYCLE
+                     
+  [1] main() → SpringApplication.run()
+        │
+        ▼
+  [2] Phát hiện WebApplicationType (SERVLET, REACTIVE, hoặc NONE)
+        │
+        ▼
+  [3] Kích hoạt SpringApplicationRunListeners
+        │  • Phát sự kiện ApplicationStartingEvent
+        ▼
+  [4] Chuẩn bị Environment (ConfigDataEnvironmentPostProcessor)
+        │  • Đọc application.yml, system properties, biến môi trường (OS env)
+        │  • Phát sự kiện ApplicationEnvironmentPreparedEvent
+        ▼
+  [5] Khởi tạo ApplicationContext (AnnotationConfigServletWebServerApplicationContext)
+        │
+        ▼
+  [6] ConfigurationClassPostProcessor thực thi:
+        │  ├── (A) Quét các bean do lập trình viên định nghĩa (@ComponentScan)
+        │  └── (B) AutoConfigurationImportSelector quét META-INF/spring/...
+        │        │
+        │        ├── Đánh giá các điều kiện @ConditionalOn*
+        │        ├── Sắp xếp thứ tự bằng AutoConfigurationSorter (@AutoConfigureOrder)
+        │        └── Đăng ký BeanDefinition của các starter thỏa mãn điều kiện
+        ▼
+  [7] Context Refresh: Khởi tạo Bean, Embedded Tomcat start()
+        │  • Phát sự kiện ApplicationReadyEvent
+        ▼
+  [ỨNG DỤNG SẴN SÀNG NHẬN REQUEST]
 ~~~
 
-### Các điều kiện @Conditional phổ biến
+### Điểm mấu chốt: Sự chuyển dịch từ Spring Boot 2.x sang Spring Boot 3.x
+- **Spring Boot 2.x**: Danh sách các class auto-configuration được lưu trong file:
+  <code>META-INF/spring.factories</code> dưới key <code>org.springframework.boot.autoconfigure.EnableAutoConfiguration</code>.
+- **Spring Boot 3.x**: Để hỗ trợ Spring AOT (Ahead-of-Time) và GraalVM Native Image, cấu trúc này được tách riêng sang file:
+  <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>.
+  Mỗi dòng trong file này là một tên class đủ điều kiện (FQN) của một class cấu hình tự động.
 
-| Annotation | Ý nghĩa |
-|---|---|
-| <code>@ConditionalOnClass</code> | Class X có trên classpath? |
-| <code>@ConditionalOnMissingBean</code> | Chưa có bean loại này? (để không ghi đè của user) |
-| <code>@ConditionalOnProperty</code> | Property bật? |
-| <code>@ConditionalOnWebApplication</code> | Là web app? |
+---
 
-Ví dụ auto-config thật (đơn giản hóa):
+## 2. Giải mã bên trong AutoConfiguration — Bộ tứ @Conditional
+
+Một class auto-configuration chuẩn mực trông như thế nào? Hãy mổ xẻ cấu trúc của một class nội bộ trong Spring Boot:
 
 ~~~java
-@AutoConfiguration
-@ConditionalOnClass(DispatcherServlet.class)
+package org.springframework.boot.autoconfigure.web.servlet;
+
+@AutoConfiguration(after = { DispatcherServletAutoConfiguration.class })
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnClass({ Servlet.class, DispatcherServlet.class, WebMvcConfigurer.class })
+@ConditionalOnMissingBean(WebMvcConfigurationSupport.class)
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE + 10)
 public class WebMvcAutoConfiguration {
 
     @Bean
-    @ConditionalOnMissingBean        // chỉ tạo NẾU user chưa tự định nghĩa
-    public DispatcherServlet dispatcherServlet() {
-        return new DispatcherServlet();
+    @ConditionalOnMissingBean(InternalResourceViewResolver.class)
+    public InternalResourceViewResolver defaultViewResolver() {
+        InternalResourceViewResolver resolver = new InternalResourceViewResolver();
+        resolver.setPrefix("/WEB-INF/");
+        resolver.setSuffix(".jsp");
+        return resolver;
     }
 }
 ~~~
 
-:::tip HIỂU QUA VÍ DỤ CỤ THỂ
-Vì sao thêm spring-boot-starter-data-jpa là có EntityManagerFactory? Vì: (1) class JPA có trên classpath → @ConditionalOnClass thỏa → (2) datasource được cấu hình → (3) auto-config tạo LocalContainerEntityManagerFactoryBean. **Classpath quyết định hành vi!**
+### Bảng tra cứu các annotation @Conditional cốt lõi
+
+| Annotation | Cơ chế kiểm tra | Kịch bản áp dụng |
+|---|---|---|
+| <code>@ConditionalOnClass(X.class)</code> | Dùng ClassLoader thử tải class X. Nếu ném <code>ClassNotFoundException</code> → Bỏ qua toàn bộ config. | Kiểm tra xem developer có kéo thư viện MySQL Driver hay Redis Client vào classpath hay không. |
+| <code>@ConditionalOnMissingBean(X.class)</code> | Kiểm tra trong BeanFactory xem đã có bean loại X chưa. | **Nền tảng của tính linh hoạt**: Cung cấp bean mặc định, nhưng nếu user tự viết một bean X thì bean mặc định lập tức lùi bước (backing off). |
+| <code>@ConditionalOnProperty(...)</code> | Đọc giá trị cấu hình trong <code>application.yml</code> hoặc biến môi trường. | Bật/tắt tính năng theo cờ cấu hình (feature toggling). |
+| <code>@ConditionalOnWebApplication</code> | Kiểm tra xem ứng dụng có đang chạy Servlet container (Tomcat) hay WebFlux Reactive hay không. | Tránh khởi tạo các Web Filter trong các ứng dụng CLI/Worker không có HTTP server. |
+| <code>@ConditionalOnBean(X.class)</code> | Chỉ khởi tạo nếu bean X ĐÃ TỒN TẠI trong Context. | Thường dùng cho các bean phụ thuộc, ví dụ <code>TransactionManager</code> chỉ tạo khi đã có <code>DataSource</code>. |
+
+:::danger QUY TẮC SỐNG CÒN CỦA @ConditionalOnMissingBean
+Luôn đặt <code>@ConditionalOnMissingBean</code> trên các phương thức <code>@Bean</code> của class AutoConfiguration, **KHÔNG ĐƯỢC** đặt trên class cấu hình của ứng dụng thông thường do bạn viết.
+Lý do: Class AutoConfiguration được thiết kế để chạy **sau cùng** (sau khi toàn bộ user beans đã được nạp). Nếu đặt trên class thông thường, thứ tự scan không đoán trước được sẽ khiến bean bị mất ngẫu nhiên!
 :::
 
-## 3. Starters — dependency combo nhỏ gọn
+---
 
-Starter = gói dependency được tuyển chọn + auto-config tương ứng.
+## 3. Kiến trúc Sản xuất: Xây dựng Dynamic Storage Provider
 
-| Starter | Mang lại |
-|---|---|
-| <code>spring-boot-starter-web</code> | Spring MVC + embedded Tomcat + Jackson |
-| <code>spring-boot-starter-data-jpa</code> | JPA/Hibernate + HikariCP |
-| <code>spring-boot-starter-security</code> | Security filter chain |
-| <code>spring-boot-starter-test</code> | JUnit 5 + Mockito + AssertJ + Spring Test |
-| <code>spring-boot-starter-validation</code> | Bean Validation (Hibernate Validator) |
-| <code>spring-boot-starter-actuator</code> | health, metrics, info endpoints |
-| <code>spring-boot-starter-oauth2-resource-server</code> | JWT validation |
+Để hiểu thấu đáo cách Starter hoạt động, hãy xem một hệ thống quản lý tệp tin đa môi trường trong dự án thực tế: Khi chạy ở Local/Dev, hệ thống lưu file vào ổ cứng cục bộ (Local Storage). Khi deploy lên Cloud (SIT, UAT, Production), hệ thống tự động kích hoạt AWS S3 Storage mà **không cần sửa một dòng code business nào**.
 
-## 4. Externalized configuration — application.yml
-
-Thứ tự ưu tiên (thấp → cao):
-1. <code>application.yml</code> trong jar
-2. <code>application-{profile}.yml</code>
-3. **Biến môi trường** (env vars)
-4. **Command-line args** (java -jar app.jar --server.port=9090)
-
-~~~yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/taskdb
-    username: dev
-    password: dev123
-  jpa:
-    hibernate:
-      ddl-auto: none          # production: luôn none — để Flyway lo!
-app:
-  notification:
-    api-url: https://api.example.com
-    max-retries: 3
-~~~
-
-## 5. @ConfigurationProperties — bind config type-safe
+### Bước 1: Interface dùng chung & Data Contract
 
 ~~~java
-// Cách 1: record + @ConfigurationProperties (hiện đại, ngắn nhất)
-@ConfigurationProperties(prefix = "app.notification")
-public record NotificationProperties(
-    String apiUrl,
-    int maxRetries
-) {}
+package vn.mastery.storage;
 
-// Kích hoạt record binding — thêm vào configuration class
-@EnableConfigurationProperties(NotificationProperties.class)
-// hoặc dùng @ConfigurationPropertiesScan ở app class
+import java.io.InputStream;
+
+public interface StorageService {
+    String uploadFile(String filename, InputStream data, long contentLength, String contentType);
+    InputStream downloadFile(String fileId);
+    void deleteFile(String fileId);
+    String getStorageType();
+}
 ~~~
 
-Inject và dùng:
+### Bước 2: Cấu hình Type-safe với @ConfigurationProperties & Bean Validation
 
 ~~~java
-@Service
-public class NotificationService {
-    private final NotificationProperties props;
-    public NotificationService(NotificationProperties props) { this.props = props; }
+package vn.mastery.storage.config;
 
-    public void send() {
-        String url = props.apiUrl();          // có type check + IDE auto-complete
-        int retries = props.maxRetries();     // thay vì @Value string rời rạc
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+@Validated
+@ConfigurationProperties(prefix = "app.storage")
+public record StorageProperties(
+    @NotBlank
+    String provider, // "local" hoặc "s3"
+    
+    LocalStorageProperties local,
+    S3Properties s3
+) {
+    public record LocalStorageProperties(
+        String baseDir
+    ) {}
+
+    public record S3Properties(
+        String bucketName,
+        String region,
+        String accessKey,
+        String secretKey
+    ) {}
+}
+~~~
+
+### Bước 3: Hai implementation độc lập
+
+~~~java
+package vn.mastery.storage.impl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import vn.mastery.storage.StorageService;
+import vn.mastery.storage.config.StorageProperties;
+
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+
+public class LocalStorageService implements StorageService {
+    private static final Logger log = LoggerFactory.getLogger(LocalStorageService.class);
+    private final Path rootLocation;
+
+    public LocalStorageService(StorageProperties properties) {
+        String dir = (properties.local() != null && properties.local().baseDir() != null)
+            ? properties.local().baseDir()
+            : "./uploads";
+        this.rootLocation = Path.of(dir);
+        try {
+            Files.createDirectories(this.rootLocation);
+            log.info("Khởi tạo LocalStorageService thành công tại thư mục: {}", this.rootLocation.toAbsolutePath());
+        } catch (Exception e) {
+            throw new IllegalStateException("Không thể khởi tạo thư mục lưu trữ cục bộ", e);
+        }
+    }
+
+    @Override
+    public String uploadFile(String filename, InputStream data, long contentLength, String contentType) {
+        try {
+            Path target = this.rootLocation.resolve(filename);
+            Files.copy(data, target, StandardCopyOption.REPLACE_EXISTING);
+            return target.toAbsolutePath().toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi lưu file local", e);
+        }
+    }
+
+    @Override
+    public InputStream downloadFile(String fileId) {
+        try {
+            return Files.newInputStream(Path.of(fileId));
+        } catch (Exception e) {
+            throw new RuntimeException("Không tìm thấy file: " + fileId, e);
+        }
+    }
+
+    @Override
+    public void deleteFile(String fileId) {
+        try {
+            Files.deleteIfExists(Path.of(fileId));
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa file: {}", fileId, e);
+        }
+    }
+
+    @Override
+    public String getStorageType() {
+        return "LOCAL_DISK";
     }
 }
 ~~~
 
-:::info @Value vs @ConfigurationProperties
-<code>@Value("\${app.api-url}")</code> — nhanh, lẻ tẻ, stringly-typed.<br>
-<code>@ConfigurationProperties</code> — gom nhóm, type-safe, validate được, IDE hỗ trợ. **Dùng record binding cho mọi config nhóm ≥ 2 khóa.**
-:::
+~~~java
+package vn.mastery.storage.impl;
 
-## 6. Profiles — mỗi môi trường một bộ mặt
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import vn.mastery.storage.StorageService;
+import vn.mastery.storage.config.StorageProperties;
 
-~~~yaml
-# application.yml — cấu hình chung
-spring:
-  profiles:
-    active: dev
----
-# application-dev.yml (hoặc cùng file, ngăn bằng ---)
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/dev_db
-logging:
-  level:
-    vn.mastery: DEBUG
----
-# application-prod.yml
-spring:
-  datasource:
-    url: jdbc:postgresql://\${DB_HOST}:5432/prod_db
-    password: \${DB_PASSWORD}    # từ env var — KHÔNG hardcode!
-logging:
-  level:
-    vn.mastery: WARN
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
+public class S3StorageService implements StorageService {
+    private static final Logger log = LoggerFactory.getLogger(S3StorageService.class);
+    private final StorageProperties.S3Properties s3Config;
+
+    public S3StorageService(StorageProperties properties) {
+        this.s3Config = properties.s3();
+        log.info("Khởi tạo S3StorageService kết nối Bucket S3: {} tại Region: {}", 
+                 s3Config.bucketName(), s3Config.region());
+    }
+
+    @Override
+    public String uploadFile(String filename, InputStream data, long contentLength, String contentType) {
+        log.info("Giả lập truyền stream lên AWS S3: s3://{}/{}", s3Config.bucketName(), filename);
+        return "https://" + s3Config.bucketName() + ".s3." + s3Config.region() + ".amazonaws.com/" + filename;
+    }
+
+    @Override
+    public InputStream downloadFile(String fileId) {
+        return new ByteArrayInputStream("S3 file dummy content".getBytes());
+    }
+
+    @Override
+    public void deleteFile(String fileId) {
+        log.info("Xóa object khỏi S3: {}", fileId);
+    }
+
+    @Override
+    public String getStorageType() {
+        return "AWS_S3";
+    }
+}
 ~~~
+
+### Bước 4: Lớp Auto-configuration thông minh
 
 ~~~java
-@Bean
-@Profile("dev")                   // chỉ tồn tại khi profile dev active
-public DataSource devDataSource() { ... }
+package vn.mastery.storage.config;
+
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import vn.mastery.storage.StorageService;
+import vn.mastery.storage.impl.LocalStorageService;
+import vn.mastery.storage.impl.S3StorageService;
+
+@AutoConfiguration
+@EnableConfigurationProperties(StorageProperties.class)
+public class StorageAutoConfiguration {
+
+    // Nếu cấu hình app.storage.provider=local HOẶC không cấu hình gì (matchIfMissing = true)
+    @Bean
+    @ConditionalOnProperty(name = "app.storage.provider", havingValue = "local", matchIfMissing = true)
+    @ConditionalOnMissingBean(StorageService.class)
+    public StorageService localStorageService(StorageProperties properties) {
+        return new LocalStorageService(properties);
+    }
+
+    // Nếu cấu hình app.storage.provider=s3
+    @Bean
+    @ConditionalOnProperty(name = "app.storage.provider", havingValue = "s3")
+    @ConditionalOnMissingBean(StorageService.class)
+    public StorageService s3StorageService(StorageProperties properties) {
+        return new S3StorageService(properties);
+    }
+}
 ~~~
 
-:::laas ĐỐI CHIẾU LAAS
-LAAS chạy nhiều môi trường sit/uat/production với cấu hình khác nhau qua env vars trên OKD/Kubernetes. Hãy mở file <code>application.yml</code> + <code>application-sit.yml</code> của platform-service và đối chiếu pattern này.
-:::
+---
 
-## 7. DevTools & Actuator — bộ đôi tăng tốc
+## 4. Bóc trần "Ma thuật" qua Condition Evaluation Report & Actuator
 
-**DevTools** (đã cài từ Module 0) auto-restart khi class thay đổi. Bật thêm "Build project automatically" trong IntelliJ settings.
+Khi bạn gặp tình huống: "Tại sao bean của tôi không chạy?" hoặc "Tại sao Spring lại tự tạo một bean kỳ lạ nào đó?", hãy kích hoạt báo cáo điều kiện ngay lập tức.
 
-**Actuator** — cửa sổ nhìn vào app đang chạy:
+### Cách 1: Bật cờ --debug lúc khởi động
+
+~~~bash
+java -jar target/mastery-app.jar --debug
+~~~
+
+Terminal sẽ in ra toàn bộ bảng **CONDITIONS EVALUATION REPORT**:
+
+~~~text
+============================
+CONDITIONS EVALUATION REPORT
+============================
+
+Positive matches:
+-----------------
+   StorageAutoConfiguration#localStorageService matched:
+      - @ConditionalOnProperty (app.storage.provider=local) matched (OnPropertyCondition)
+      - @ConditionalOnMissingBean (types: vn.mastery.storage.StorageService; SearchStrategy: all) did not find any beans (OnBeanCondition)
+
+   DataSourceAutoConfiguration matched:
+      - @ConditionalOnClass finds 'javax.sql.DataSource' and 'org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType' (OnClassCondition)
+
+Negative matches:
+-----------------
+   StorageAutoConfiguration#s3StorageService:
+      Did not match:
+         - @ConditionalOnProperty (app.storage.provider=s3) did not find property 'app.storage.provider' with value 's3' (OnPropertyCondition)
+
+   MongoDataAutoConfiguration:
+      Did not match:
+         - @ConditionalOnClass did not find required class 'com.mongodb.client.MongoClient' (OnClassCondition)
+
+Exclusions:
+-----------
+    None
+
+Unconditional classes:
+----------------------
+    org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration
+~~~
+
+### Cách 2: Truy vấn trực tiếp qua HTTP bằng Spring Boot Actuator
+
+Bật endpoint conditions trong <code>application.yml</code>:
 
 ~~~yaml
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env,beans
-  endpoint:
-    health:
-      show-details: when_authorized
+        include: "conditions,configprops,beans"
 ~~~
 
-| Endpoint | Dùng khi |
-|---|---|
-| <code>/actuator/health</code> | Kiểm tra app sống + DB up |
-| <code>/actuator/beans</code> | Xem toàn bộ bean trong context |
-| <code>/actuator/env</code> | Trace property đến từ đâu |
-| <code>/actuator/metrics</code> | JVM, HTTP metrics |
-| <code>/actuator/configprops</code> | @ConfigurationProperties đã bind gì |
+Gọi qua cURL để xem cây quyết định runtime:
+
+~~~bash
+curl -X GET http://localhost:8080/actuator/conditions
+~~~
+
+JSON phản hồi trả về chi tiết chính xác lý do từng method bean được kích hoạt hay bị từ chối:
+
+~~~json
+{
+  "contexts": {
+    "application": {
+      "positiveMatches": {
+        "StorageAutoConfiguration#localStorageService": [
+          {
+            "condition": "OnPropertyCondition",
+            "message": "@ConditionalOnProperty (app.storage.provider=local) matched"
+          },
+          {
+            "condition": "OnBeanCondition",
+            "message": "@ConditionalOnMissingBean (types: vn.mastery.storage.StorageService) did not find any beans"
+          }
+        ]
+      },
+      "negativeMatches": {
+        "StorageAutoConfiguration#s3StorageService": [
+          {
+            "condition": "OnPropertyCondition",
+            "message": "@ConditionalOnProperty (app.storage.provider=s3) did not find property 'app.storage.provider'"
+          }
+        ]
+      }
+    }
+  }
+}
+~~~
+
+---
+
+## 5. Ba cạm bẫy thực chiến & Sự cố hạ tầng (Production Pitfalls)
+
+### Cạm bẫy 1: Classpath Pollution do Transitive Dependency
+**Hiện tượng**: Bạn thêm một dependency kiểm thử hoặc một SDK của bên thứ ba, nhưng dependency đó ngầm kéo theo <code>h2database</code> hoặc <code>spring-boot-starter-security</code>.
+**Hậu quả**:
+- Spring Boot thấy class Security trên classpath → Tự động tạo SecurityFilterChain mặc định → Khóa toàn bộ các API với mã HTTP 401 Unauthorized và sinh ra một mật khẩu random ngẫu nhiên trong log!
+- Spring Boot thấy H2 trên classpath → Đổi datasource sang in-memory thay vì kết nối tới PostgreSQL thật.
+**Khắc phục**: Dùng lệnh <code>mvn dependency:tree</code> hoặc Gradle <code>./gradlew dependencies</code> để phát hiện và dùng thẻ <code>&lt;exclusions&gt;</code> loại bỏ dependency ký sinh.
+
+### Cạm bẫy 2: matchIfMissing = false gây sập ứng dụng ở môi trường mới
+Xem lại cấu hình:
+~~~java
+@ConditionalOnProperty(name = "feature.loyalty.v2", havingValue = "true")
+~~~
+Nếu bạn không đặt <code>matchIfMissing = true</code> (hoặc ngược lại tùy nghiệp vụ), khi đưa ứng dụng sang môi trường kiểm thử mới chưa kịp khai báo property này, bean sẽ bị <code>null</code>. Nếu một Service khác inject trực tiếp interface này qua Constructor, ứng dụng sẽ sập ngay lúc khởi động với lỗi:
+<code>NoSuchBeanDefinitionException: No qualifying bean of type '...' available</code>.
+
+### Cạm bẫy 3: Cấu hình sai thứ tự @AutoConfigureAfter
+Nếu AutoConfiguration A phụ thuộc vào Bean do AutoConfiguration B sinh ra, nhưng bạn không khai báo <code>@AutoConfigureAfter(B.class)</code>, cỗ máy đánh giá điều kiện có thể chạy A trước B. Khi đó, điều kiện <code>@ConditionalOnBean</code> tại A sẽ kiểm tra thất bại vì B chưa hề chạy!
+
+---
+
+## 6. Thử thách thực chiến (Hands-on Challenge)
+
+### Đề bài:
+Một tập đoàn tài chính yêu cầu bạn xây dựng hệ thống gửi tin nhắn thông báo (Notification Subsystem).
+Hệ thống cần đáp ứng:
+1. Interface <code>NotificationSender</code> có phương thức <code>void send(String recipient, String message)</code>.
+2. Có 2 implementation:
+   - <code>EmailNotificationSender</code>: Gửi email giả lập (in log).
+   - <code>SlackNotificationSender</code>: Gửi tin nhắn qua Webhook Slack.
+3. Điều kiện kích hoạt:
+   - Nếu trong <code>application.yml</code> có cấu hình <code>notification.slack.webhook-url</code> khác rỗng, tự động chọn <code>SlackNotificationSender</code>.
+   - Nếu không có cấu hình trên, fallback an toàn về <code>EmailNotificationSender</code>.
+   - Nếu lập trình viên tự khai báo một bean <code>NotificationSender</code> bất kỳ trong class <code>@Configuration</code> của dự án, hệ sinh thái auto-configuration phải nhường quyền hoàn toàn (Back off).
+
+### Lời giải mẫu chuẩn công nghiệp:
+
+~~~java
+package vn.mastery.notification;
+
+public interface NotificationSender {
+    void send(String recipient, String message);
+    String getChannelName();
+}
+~~~
+
+~~~java
+package vn.mastery.notification.impl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import vn.mastery.notification.NotificationSender;
+
+public class EmailNotificationSender implements NotificationSender {
+    private static final Logger log = LoggerFactory.getLogger(EmailNotificationSender.class);
+
+    @Override
+    public void send(String recipient, String message) {
+        log.info("[EMAIL CHANNEL] Gửi email tới {}: {}", recipient, message);
+    }
+
+    @Override
+    public String getChannelName() {
+        return "EMAIL";
+    }
+}
+~~~
+
+~~~java
+package vn.mastery.notification.impl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import vn.mastery.notification.NotificationSender;
+
+public class SlackNotificationSender implements NotificationSender {
+    private static final Logger log = LoggerFactory.getLogger(SlackNotificationSender.class);
+    private final String webhookUrl;
+
+    public SlackNotificationSender(String webhookUrl) {
+        this.webhookUrl = webhookUrl;
+    }
+
+    @Override
+    public void send(String recipient, String message) {
+        log.info("[SLACK WEBHOOK] Post tới {}: @{} -> {}", webhookUrl, recipient, message);
+    }
+
+    @Override
+    public String getChannelName() {
+        return "SLACK";
+    }
+}
+~~~
+
+~~~java
+package vn.mastery.notification.config;
+
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
+import vn.mastery.notification.NotificationSender;
+import vn.mastery.notification.impl.EmailNotificationSender;
+import vn.mastery.notification.impl.SlackNotificationSender;
+
+@AutoConfiguration
+public class NotificationAutoConfiguration {
+
+    @Bean
+    @ConditionalOnProperty(prefix = "notification.slack", name = "webhook-url")
+    @ConditionalOnMissingBean(NotificationSender.class)
+    public NotificationSender slackNotificationSender(Environment env) {
+        String webhookUrl = env.getProperty("notification.slack.webhook-url");
+        return new SlackNotificationSender(webhookUrl);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(NotificationSender.class)
+    public NotificationSender emailNotificationSender() {
+        return new EmailNotificationSender();
+    }
+}
+~~~
 
 :::takeaways
-- Auto-config = @Conditional đánh giá classpath + beans hiện có
-- Starter = dependency combo + auto-config "cắm là chạy"
-- @ConfigurationProperties (record) > @Value rời rạc
-- Profiles tách cấu hình theo môi trường; env vars cho secret
-- Actuator = observability ngay trong app
+- **Không có phép màu**: Spring Boot là sự kết hợp giữa <code>AutoConfiguration.imports</code>, reflection classpath scan và các quy tắc <code>@Conditional</code>.
+- **Thứ tự nạp bean**: User Beans (được định nghĩa trực tiếp trong app) luôn được nạp trước, sau đó Auto-Configuration mới nạp và kiểm tra <code>@ConditionalOnMissingBean</code>.
+- **Vũ khí chẩn đoán**: Gặp sự cố khởi động, luôn chạy <code>--debug</code> để xem **Conditions Evaluation Report** hoặc tra cứu <code>/actuator/conditions</code>.
+- **Phòng chống ô nhiễm classpath**: Thường xuyên kiểm tra <code>mvn dependency:tree</code> để tránh kéo nhầm các starter/driver không mong muốn kích hoạt tính năng tự động ngoài tầm kiểm soát.
 :::
 `
     },
     {
       id: "1-3",
       type: "lesson",
-      title: "AOP & Bean lifecycle nâng cao",
-      minutes: 35,
+      title: "AOP & Dynamic Proxies — CGLIB, JDK Proxy & Cạm bẫy Self-Invocation",
+      minutes: 50,
       content: `
-## AOP — code cắt ngang không còn lặp
+## Đằng sau các "Annotation ma thuật" của Spring
 
-Logging, transaction, caching, security check... xuất hiện ở **mọi** service. Copy-paste 20 lần? AOP giải quyết: viết **một lần**, áp dụng **mọi nơi**.
+Khi bạn gắn <code>@Transactional</code> lên một method, database transaction được mở và commit tự động. Khi gắn <code>@Cacheable</code>, dữ liệu được lấy từ Redis mà hàm thậm chí không chạy. Khi gắn <code>@PreAuthorize("hasRole('ADMIN')")</code>, những kẻ xâm nhập trái phép bị chặn đứng ở ngưỡng cửa.
+
+Tất cả những tính năng quyền lực này đều được xây dựng trên một nền tảng kỹ thuật duy nhất: **AOP (Aspect-Oriented Programming)** kết hợp với **Dynamic Proxy**.
+
+Nếu không nắm vững cơ chế Proxy và AOP:
+1. Bạn sẽ đối mặt với các lỗi "chết người" như **Self-invocation** khiến <code>@Transactional</code> bị vô hiệu hóa trong im lặng, dẫn đến rách nát dữ liệu tài khoản ngân hàng.
+2. Aspect tự viết nuốt chửng Exception khiến transaction không thể rollback.
+3. Không hiểu sự khác biệt giữa JDK Dynamic Proxy và CGLIB dẫn đến lỗi <code>ClassCastException</code> khó hiểu khi inject bean.
 
 ---
 
-## 1. Thuật ngữ 30 giây
+## 1. Kiến trúc AOP & Cơ chế hoạt động của Dynamic Proxy
 
-| Thuật ngữ | Ý nghĩa |
-|---|---|
-| **Aspect** | Module chứa logic cắt ngang |
-| **Join point** | Điểm chèn (trong Spring = method execution) |
-| **Pointcut** | Biểu thức chọn join point nào bị ảnh hưởng |
-| **Advice** | Hành động chạy tại điểm chèn (before/after/around) |
-| **Weaving** | Quá trình áp aspect vào target |
+AOP không thay thế OOP (Lập trình hướng đối tượng), mà bổ trợ cho OOP bằng cách tách rời các mối quan tâm cắt ngang (cross-cutting concerns) như Logging, Security, Transaction, Metrics ra khỏi logic nghiệp vụ cốt lõi.
 
-## 2. Aspect đầu tiên — đo thời gian thực thi
+### Sơ đồ luồng chặn cuộc gọi (Invocation Chain Flowchart)
 
-Thêm dependency:
+Khi Client gọi một method trên một Spring Bean đã được áp dụng Aspect:
 
-~~~xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-aop</artifactId>
-</dependency>
+~~~text
+                          CHUỖI CHẶN PROXY CỦA SPRING
+                          
+  [Caller / Client]
+        │
+        │ Gọi: orderService.processPayment(orderId)
+        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                 SPRING AOP PROXY (CGLIB)                    │
+  │                                                             │
+  │   [CglibAopProxy.DynamicAdvisedInterceptor.intercept()]     │
+  │                          │                                  │
+  │                          ▼                                  │
+  │        Chạy chuỗi MethodInterceptor / Advice Chain:          │
+  │        ├── 1. SecurityAspect (@PreAuthorize)                │
+  │        │        │ (Kiểm tra token, role)                    │
+  │        ├── 2. RateLimitAspect (@RateLimited)                │
+  │        │        │ (Kiểm tra quota)                          │
+  │        ├── 3. TransactionInterceptor (@Transactional)       │
+  │        │        │ (Mở Transaction trên DB Connection)       │
+  │        │        ▼                                           │
+  │        │   proceed()                                        │
+  │        │        │                                           │
+  │        │        ▼                                           │
+  │        │   ┌──────────────────────────────────────────┐     │
+  │        │   │        TARGET BEAN (OrderServiceImpl)    │     │
+  │        │   │                                          │     │
+  │        │   │  public void processPayment(...) {       │     │
+  │        │   │      // Code nghiệp vụ thuần túy         │     │
+  │        │   │  }                                       │     │
+  │        │   └──────────────────────────────────────────┘     │
+  │        │        │                                           │
+  │        │   Return kết quả                                   │
+  │        │        │                                           │
+  │        ├── 3. Commit Transaction / Rollback nếu Exception  │
+  │        ├── 2. Cập nhật Rate Limit metrics                   │
+  │        └── 1. Ghi log hoàn tất                              │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │
+                             ▼
+                     [Trả kết quả cho Caller]
 ~~~
 
+### JDK Dynamic Proxy vs CGLIB: Sự khác biệt bản chất
+
+| Tiêu chí so sánh | JDK Dynamic Proxy | CGLIB Proxy (Code Generation Library) |
+|---|---|---|
+| **Cơ chế kỹ thuật** | Dùng <code>java.lang.reflect.Proxy</code> tích hợp sẵn trong JDK. | Dùng thư viện ASM sinh mã bytecode trực tiếp để tạo subclass kế thừa class mục tiêu. |
+| **Yêu cầu đối với Bean** | Target class **bắt buộc phải implement một Interface**. | Target class không cần Interface, kế thừa trực tiếp từ class gốc. |
+| **Hạn chế** | Chỉ can thiệp được các method có trong Interface. Không cast về implementation class được. | Không thể proxy các class hoặc method có từ khóa <code>final</code>. Class phải có default constructor. |
+| **Mặc định Spring Boot** | Mặc định ở Spring 1.x / Spring Boot 1.3 trở về trước. | **Mặc định từ Spring Boot 2.0+** (<code>spring.aop.proxy-target-class=true</code>). |
+
+:::tip VÌ SAO SPRING BOOT 2+ CHUYỂN SANG CGLIB TOÀN BỘ?
+Thời kỳ đầu, khi dùng JDK Dynamic Proxy, nếu bạn viết <code>@Autowired OrderServiceImpl orderService</code> (inject bằng implementation thay vì interface <code>OrderService</code>), ứng dụng sẽ sập ngay lập tức với lỗi <code>BeanNotOfRequiredTypeException</code> vì Proxy sinh ra là anh em cùng cha (cùng implement interface), chứ không phải con của <code>OrderServiceImpl</code>. CGLIB tạo subclass nên bạn inject theo Interface hay Implementation class đều chạy hoàn hảo.
+:::
+
+---
+
+## 2. Xây dựng Production Aspect: Distributed Rate Limiting với SpEL
+
+Hãy xây dựng một Aspect cấp độ sản xuất: Cho phép giới hạn tần suất gọi API theo từng User hoặc IP, sử dụng Annotation tùy biến và Spring Expression Language (SpEL) để bóc tách tham số động từ method.
+
+### Bước 1: Khai báo Annotation @RateLimited
+
 ~~~java
+package vn.mastery.aop.annotation;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.concurrent.TimeUnit;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RateLimited {
+    /**
+     * Biểu thức SpEL xác định khóa định danh (ví dụ: "#userId", "#request.cif").
+     */
+    String key();
+
+    /**
+     * Số lượt gọi tối đa được phép trong khung thời gian.
+     */
+    int limit() default 5;
+
+    /**
+     * Độ dài khung thời gian.
+     */
+    long period() default 60;
+
+    /**
+     * Đơn vị thời gian.
+     */
+    TimeUnit timeUnit() default TimeUnit.SECONDS;
+}
+~~~
+
+### Bước 2: Ngoại lệ chuẩn RateLimitExceededException
+
+~~~java
+package vn.mastery.aop.exception;
+
+public class RateLimitExceededException extends RuntimeException {
+    private final String rateLimitKey;
+    private final long retryAfterSeconds;
+
+    public RateLimitExceededException(String key, long retryAfterSeconds) {
+        super(String.format("Vượt quá ngưỡng tần suất gọi cho khóa [%s]. Thử lại sau %d giây.", key, retryAfterSeconds));
+        this.rateLimitKey = key;
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    public String getRateLimitKey() { return rateLimitKey; }
+    public long getRetryAfterSeconds() { return retryAfterSeconds; }
+}
+~~~
+
+### Bước 3: Lớp Aspect hoàn chỉnh với SpEL Parser
+
+~~~java
+package vn.mastery.aop.aspect;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.expression.MethodBasedEvaluationContext;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.expression.EvaluationContext;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.stereotype.Component;
+import vn.mastery.aop.annotation.RateLimited;
+import vn.mastery.aop.exception.RateLimitExceededException;
+
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 @Aspect
 @Component
-public class TimingAspect {
+@Order(Ordered.HIGHEST_PRECEDENCE + 50) // Chạy TRƯỚC @Transactional để tiết kiệm DB connection
+public class RateLimitingAspect {
 
-    private static final Logger log =
-        LoggerFactory.getLogger(TimingAspect.class);
+    private static final Logger log = LoggerFactory.getLogger(RateLimitingAspect.class);
+    private final ExpressionParser parser = new SpelExpressionParser();
+    private final DefaultParameterNameDiscoverer paramDiscoverer = new DefaultParameterNameDiscoverer();
 
-    // Pointcut: mọi method trong package service
-    @Around("execution(* vn.mastery..service..*(..))")
-    public Object measure(ProceedingJoinPoint pjp) throws Throwable {
-        long start = System.nanoTime();
-        try {
-            return pjp.proceed();              // chạy method gốc
-        } finally {
-            long ms = (System.nanoTime() - start) / 1_000_000;
-            log.info("{}.{} mất {}ms",
-                pjp.getSignature().getDeclaringType().getSimpleName(),
-                pjp.getSignature().getName(), ms);
+    // Giả lập In-Memory Cache (Production thực tế sẽ thay bằng Redis Token Bucket)
+    private final Map<String, TokenBucket> buckets = new ConcurrentHashMap<>();
+
+    @Around("@annotation(rateLimited)")
+    public Object enforceRateLimit(ProceedingJoinPoint joinPoint, RateLimited rateLimited) throws Throwable {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
+
+        // 1. Phân giải dynamic key từ tham số method bằng SpEL
+        String resolvedKey = resolveSpelKey(rateLimited.key(), method, joinPoint.getArgs(), joinPoint.getTarget());
+        String fullBucketKey = method.getDeclaringClass().getSimpleName() + ":" + method.getName() + ":" + resolvedKey;
+
+        // 2. Kiểm tra Token Bucket
+        TokenBucket bucket = buckets.computeIfAbsent(
+            fullBucketKey, 
+            k -> new TokenBucket(rateLimited.limit(), rateLimited.period(), rateLimited.timeUnit())
+        );
+
+        if (!bucket.tryConsume()) {
+            log.warn("Rate limit breached for key: {}", fullBucketKey);
+            throw new RateLimitExceededException(fullBucketKey, bucket.getResetSeconds());
+        }
+
+        log.debug("Rate limit passed for key: {}. Executing target method.", fullBucketKey);
+
+        // 3. Thực thi method mục tiêu
+        return joinPoint.proceed();
+    }
+
+    private String resolveSpelKey(String spelExpression, Method method, Object[] args, Object target) {
+        if (!spelExpression.startsWith("#")) {
+            return spelExpression; // Chuỗi tĩnh
+        }
+        EvaluationContext context = new MethodBasedEvaluationContext(target, method, args, paramDiscoverer);
+        Object value = parser.parseExpression(spelExpression).getValue(context);
+        return value != null ? value.toString() : "anonymous";
+    }
+
+    // Đơn giản hóa cấu trúc Token Bucket in-memory thread-safe
+    private static class TokenBucket {
+        private final int maxTokens;
+        private final long windowMillis;
+        private final AtomicInteger tokens;
+        private volatile long lastResetTime;
+
+        public TokenBucket(int maxTokens, long period, java.util.concurrent.TimeUnit unit) {
+            this.maxTokens = maxTokens;
+            this.windowMillis = unit.toMillis(period);
+            this.tokens = new AtomicInteger(maxTokens);
+            this.lastResetTime = System.currentTimeMillis();
+        }
+
+        public synchronized boolean tryConsume() {
+            refill();
+            if (tokens.get() > 0) {
+                tokens.decrementAndGet();
+                return true;
+            }
+            return false;
+        }
+
+        private void refill() {
+            long now = System.currentTimeMillis();
+            if (now - lastResetTime > windowMillis) {
+                tokens.set(maxTokens);
+                lastResetTime = now;
+            }
+        }
+
+        public long getResetSeconds() {
+            long elapsed = System.currentTimeMillis() - lastResetTime;
+            long remaining = windowMillis - elapsed;
+            return Math.max(1, remaining / 1000);
         }
     }
 }
 ~~~
 
-Chạy lại app, gọi API — log hiện thời gian từng method service. **Không sửa bất kỳ class service nào!**
+---
 
-## 3. Pointcut expression — ngữ pháp chọn điểm
+## 3. Thử nghiệm & Xác thực Thực tế (Real-world Verification)
 
-~~~text
-execution( [modifiers] ReturnType package..ClassName.methodName(args) )
-~~~
-
-| Biểu thức | Bắt |
-|---|---|
-| <code>execution(* vn.mastery..*(..))</code> | Mọi method trong package + con |
-| <code>execution(* vn.mastery..service.*.*(..))</code> | Mọi method của class trong package service |
-| <code>@annotation(org.springframework...@Transactional)</code> | Method có @Transactional |
-| <code>within(@org.springframework.stereotype.Service *)</code> | Class @Service |
-| <code>bean(orderService)</code> | Theo tên bean |
-
-## 4. Các loại Advice
+### Service & Controller mẫu sử dụng Aspect
 
 ~~~java
-@Before("pointcut()")           // trước method
-public void before(JoinPoint jp) { ... }
+package vn.mastery.aop.controller;
 
-@AfterReturning("pointcut()")   // sau khi return bình thường
-public void afterOk(JoinPoint jp, Object result) { ... }
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import vn.mastery.aop.annotation.RateLimited;
 
-@AfterThrowing("pointcut()")    // sau khi ném exception
-public void afterFail(JoinPoint jp, Exception ex) { ... }
+@RestController
+@RequestMapping("/api/v1/payments")
+public class PaymentController {
 
-@Around("pointcut()")           // bọc trọn — mạnh nhất
-public Object around(ProceedingJoinPoint pjp) throws Throwable { ... }
+    @PostMapping("/transfer")
+    @RateLimited(key = "#senderCif", limit = 3, period = 60)
+    public ResponseEntity<String> executeTransfer(
+            @RequestParam String senderCif,
+            @RequestParam String targetAccount,
+            @RequestParam double amount) {
+        return ResponseEntity.ok("Giao dịch thành công cho khách hàng: " + senderCif);
+    }
+}
 ~~~
 
-:::tip AOP Ở QUANH TA
-Bạn đang dùng AOP mỗi ngày mà không biết: <code>@Transactional</code> (mở/commit transaction quanh method), <code>@Cacheable</code> (kiểm tra cache trước khi chạy), <code>@PreAuthorize</code> (check quyền trước method). Mẹo đằng sau mọi "annotation ma thuật" là AOP/proxy.
-:::
+### Global Exception Handler chuẩn RFC 7807 ProblemDetails
 
-## 5. Proxy — cách Spring thực thi AOP
+~~~java
+package vn.mastery.aop.exception;
 
-Spring tạo **proxy** bọc bean gốc. Cuộc gọi từ ngoài → proxy → (aspect chain) → bean thật.
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.net.URI;
+import java.time.Instant;
+
+@RestControllerAdvice
+public class GlobalAopExceptionHandler {
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleRateLimit(RateLimitExceededException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.TOO_MANY_REQUESTS,
+            ex.getMessage()
+        );
+        problem.setTitle("Rate Limit Exceeded");
+        problem.setType(URI.create("https://api.mastery.vn/errors/rate-limit-exceeded"));
+        problem.setProperty("timestamp", Instant.now());
+        problem.setProperty("rateLimitKey", ex.getRateLimitKey());
+        problem.setProperty("retryAfterSeconds", ex.getRetryAfterSeconds());
+
+        return ResponseEntity
+            .status(HttpStatus.TOO_MANY_REQUESTS)
+            .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+            .body(problem);
+    }
+}
+~~~
+
+### Kịch bản cURL kiểm thử thực tế
+
+Gửi liên tiếp 4 request bằng lệnh cURL:
+
+~~~bash
+# Request 1, 2, 3 -> HTTP 200 OK
+curl -X POST "http://localhost:8080/api/v1/payments/transfer?senderCif=CIF888999&targetAccount=102030&amount=500000"
+
+# Request 4 -> HTTP 429 Too Many Requests
+curl -i -X POST "http://localhost:8080/api/v1/payments/transfer?senderCif=CIF888999&targetAccount=102030&amount=500000"
+~~~
+
+JSON phản hồi trả về từ máy chủ:
 
 ~~~text
-Caller → [Proxy: @Transactional advice] → TargetBean.method()
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/problem+json
+Retry-After: 54
+
+{
+  "type": "https://api.mastery.vn/errors/rate-limit-exceeded",
+  "title": "Rate Limit Exceeded",
+  "status": 429,
+  "detail": "Vượt quá ngưỡng tần suất gọi cho khóa [PaymentController:executeTransfer:CIF888999]. Thử lại sau 54 giây.",
+  "timestamp": "2026-10-03T10:15:30.125Z",
+  "rateLimitKey": "PaymentController:executeTransfer:CIF888999",
+  "retryAfterSeconds": 54
+}
 ~~~
 
-Hậu quả cực quan trọng — **self-invocation**:
+---
+
+## 4. Ba Cạm bẫy Chết người & Bài học Sự cố Thực tế
+
+### Cạm bẫy 1: Self-Invocation Bypass — Bug ẩn kinh điển nhất trong Spring
+
+Hãy quan sát đoạn code quen thuộc sau:
 
 ~~~java
 @Service
-public class OrderService {
-    public void processOrder() {
-        this.validate();     // ❌ gọi nội bộ — BYPASS PROXY!
+public class OrderProcessingService {
+
+    public void checkout(String orderId) {
+        log.info("Bắt đầu xử lý đơn hàng: {}", orderId);
+        // GỌI NỘI BỘ TRONG CÙNG CLASS
+        this.saveAuditAndDeductStock(orderId);
     }
 
-    @Transactional
-    public void validate() { ... }   // transaction KHÔNG được mở!
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveAuditAndDeductStock(String orderId) {
+        // Trừ kho và tạo log
+        inventoryRepository.deductStock(orderId);
+        if (checkFraud(orderId)) {
+            throw new FraudDetectedException("Gian lận phát hiện!");
+        }
+    }
 }
 ~~~
 
-:::danger SELF-INVOCATION — BUG ẨN KINH ĐIỂN
-Gọi method trong cùng class qua <code>this</code> đi thẳng vào bean, **không qua proxy** → mọi annotation (@Transactional, @Cacheable, @Async, @PreAuthorize) **không có tác dụng**. Giải pháp: tách method sang class khác, hoặc tự inject proxy (<code>ObjectProvider</code>).
-:::
+**Hiện tượng**: Khi <code>FraudDetectedException</code> bị ném ra, dữ liệu trong kho **KHÔNG HỀ BỊ ROLLBACK**!
+**Bản chất kỹ thuật**: 
+Khi bên ngoài gọi <code>orderService.checkout()</code>, cuộc gọi đi qua Proxy. Nhưng bên trong <code>checkout()</code>, từ khóa <code>this.saveAuditAndDeductStock()</code> tham chiếu trực tiếp đến địa chỉ vùng nhớ của object thật trong Heap.
+Cuộc gọi đi thẳng vào hàm mà **hoàn toàn vòng qua Proxy**. Spring Transaction Interceptor không hề hay biết method này được gọi, nên không có Transaction nào được mở ra!
 
-## 6. Bean lifecycle nâng cao — BeanPostProcessor & Aware interfaces
+#### 3 Giải pháp sửa lỗi chuẩn kỹ thuật:
 
 ~~~java
-@Component
-public class MyBean implements ApplicationContextAware {
-    private ApplicationContext ctx;
+// GIẢI PHÁP 1 (Chuẩn nhất - SOLID): Tách sang Service riêng
+@Service
+public class OrderProcessingService {
+    private final InventoryAuditService inventoryAuditService;
 
-    @Override
-    public void setApplicationContext(ApplicationContext ctx) {
-        this.ctx = ctx;      // nắm được context — hiếm khi cần, nhưng biết có lợi
+    public OrderProcessingService(InventoryAuditService inventoryAuditService) {
+        this.inventoryAuditService = inventoryAuditService;
+    }
+
+    public void checkout(String orderId) {
+        // Cuộc gọi này đi qua Proxy của InventoryAuditService!
+        inventoryAuditService.saveAuditAndDeductStock(orderId);
+    }
+}
+
+// GIẢI PHÁP 2: Self-Injection với ObjectProvider (Tránh Circular Dependency)
+@Service
+public class OrderProcessingService {
+    private final ObjectProvider<OrderProcessingService> selfProvider;
+
+    public OrderProcessingService(ObjectProvider<OrderProcessingService> selfProvider) {
+        this.selfProvider = selfProvider;
+    }
+
+    public void checkout(String orderId) {
+        // Lấy chính proxy của mình từ Container để gọi
+        selfProvider.getObject().saveAuditAndDeductStock(orderId);
     }
 }
 ~~~
 
-BeanPostProcessor: hook can thiệp mọi bean sau khi tạo — đây chính là cơ chế giúp <code>ConfigurationPropertiesBindingPostProcessor</code> bind config, hay <code>AbstractAdvisingBeanPostProcessor</code> gắn aspect.
+### Cạm bẫy 2: Nuốt Exception trong @Around Advice phá vỡ Transaction Rollback
 
-## 7. Debug context khi start chậm/lỗi
-
-~~~bash
-# In ra condition evaluation report — auto-config nào bật, nào không và VÌ SAO
-java -jar app.jar --debug
+~~~java
+// ❌ CỰC KỲ NGUY HIỂM:
+@Around("@annotation(Audited)")
+public Object badAuditAspect(ProceedingJoinPoint pjp) {
+    try {
+        return pjp.proceed();
+    } catch (Throwable t) {
+        log.error("Có lỗi xảy ra: {}", t.getMessage());
+        return null; // ❌ Nuốt Exception!
+    }
+}
 ~~~
 
-~~~yaml
-logging:
-  level:
-    org.springframework.context: DEBUG   # trace bean creation
+Nếu method được bọc bởi Aspect này có <code>@Transactional</code>, khi có ngoại lệ nghiệp vụ xảy ra, Spring AOP Proxy nằm ngoài không hề thấy Exception bị ném lên. Container kết luận method thành công mỹ mãn và gửi lệnh **COMMIT** xuống Database, lưu lại dữ liệu rác!
+**Quy tắc**: Trong mọi <code>@Around</code> Advice, nếu có <code>catch (Throwable t)</code>, bạn **phải re-throw** lại <code>throw t;</code> trừ khi có mục đích đặc biệt được kiểm soát.
+
+### Cạm bẫy 3: Đặt Annotation AOP trên method không phải <code>public</code>
+
+Spring AOP dựa trên cơ chế Proxy thông thường chỉ chặn được các method có phạm vi truy cập <code>public</code>. Nếu bạn đặt <code>@Transactional</code>, <code>@Async</code> hay <code>@RateLimited</code> lên một method <code>protected</code> hoặc <code>private</code>, Spring sẽ lờ đi mà không báo bất kỳ lỗi nào!
+
+---
+
+## 5. Thử thách Thực chiến (Hands-on Challenge)
+
+### Đề bài:
+Xây dựng một hệ thống Audit Trail tự động cho các hoạt động tài chính:
+1. Tạo Custom Annotation <code>@AuditLog(action = "...", maskFields = {"password", "pin", "cvv"})</code>.
+2. Xây dựng <code>AuditTrailAspect</code> dùng <code>@Around</code>:
+   - Đo chính xác thời gian thực thi (milliseconds).
+   - Bắt giữ các tham số truyền vào method, tự động chuyển đổi sang chuỗi JSON và **mã hóa (Mask) các trường nhạy cảm thành <code>***</code>**.
+   - Ghi nhận trạng thái: <code>SUCCESS</code> hoặc <code>FAILED (kèm nguyên nhân exception)</code>.
+   - Bắt buộc phải re-throw Exception để bảo vệ tính toàn vẹn của Transaction cha.
+
+### Lời giải chuẩn kỹ sư cao cấp:
+
+~~~java
+package vn.mastery.aop.audit;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface AuditLog {
+    String action();
+    String[] maskFields() default {"password", "pin", "cvv", "accessToken"};
+}
+~~~
+
+~~~java
+package vn.mastery.aop.audit;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+@Aspect
+@Component
+@Order(Ordered.LOWEST_PRECEDENCE - 10) // Chạy bao ngoài logic nghiệp vụ
+public class AuditTrailAspect {
+
+    private static final Logger log = LoggerFactory.getLogger(AuditTrailAspect.class);
+
+    @Around("@annotation(auditLog)")
+    public Object auditExecution(ProceedingJoinPoint pjp, AuditLog auditLog) throws Throwable {
+        long startTime = System.currentTimeMillis();
+        String actionName = auditLog.action();
+        MethodSignature signature = (MethodSignature) pjp.getSignature();
+        Method method = signature.getMethod();
+        String methodName = method.getDeclaringClass().getSimpleName() + "." + method.getName();
+
+        Map<String, Object> sanitizedParams = extractAndSanitizeParams(
+            signature.getParameterNames(), 
+            pjp.getArgs(), 
+            auditLog.maskFields()
+        );
+
+        log.info("[AUDIT-START] Action: {} | Method: {} | Params: {}", actionName, methodName, sanitizedParams);
+
+        Object result;
+        try {
+            result = pjp.proceed();
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("[AUDIT-SUCCESS] Action: {} | Time: {}ms", actionName, duration);
+            return result;
+        } catch (Throwable ex) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("[AUDIT-FAILED] Action: {} | Time: {}ms | Error: {}", actionName, duration, ex.getMessage());
+            // CỰC KỲ QUAN TRỌNG: Phải ném lại exception để không làm hỏng rollback của @Transactional
+            throw ex;
+        }
+    }
+
+    private Map<String, Object> extractAndSanitizeParams(String[] paramNames, Object[] args, String[] maskFields) {
+        Map<String, Object> map = new HashMap<>();
+        if (paramNames == null || args == null) return map;
+
+        for (int i = 0; i < paramNames.length; i++) {
+            String name = paramNames[i];
+            Object value = (i < args.length) ? args[i] : null;
+
+            if (isMasked(name, maskFields)) {
+                map.put(name, "******");
+            } else {
+                map.put(name, value != null ? value.toString() : "null");
+            }
+        }
+        return map;
+    }
+
+    private boolean isMasked(String paramName, String[] maskFields) {
+        return Arrays.stream(maskFields).anyMatch(field -> field.equalsIgnoreCase(paramName));
+    }
+}
 ~~~
 
 :::takeaways
-- AOP: viết logging/monitoring 1 lần — áp mọi service
-- <code>@Around</code> + <code>execution(* vn.mastery..service..*(..))</code> = công thức đo hiệu năng
-- @Transactional/@Cacheable là AOP proxy → **self-invocation vô hiệu hóa chúng**
-- <code>--debug</code> in ConditionEvaluationReport — soi auto-config nào bật/tắt và vì sao
+- **Cơ chế cốt lõi**: Mọi annotation ma thuật (<code>@Transactional</code>, <code>@Cacheable</code>, <code>@Async</code>) đều là các Interceptor được dệt (weave) qua Spring Dynamic Proxy.
+- **CGLIB mặc định**: Spring Boot 2+ dùng CGLIB tạo subclass, cho phép inject bean theo cả Class lẫn Interface.
+- **Tử huyệt Self-invocation**: Gọi <code>this.method()</code> trong cùng class không bao giờ kích hoạt được Aspect/Transaction. Giải pháp chuẩn là tách service hoặc dùng <code>ObjectProvider</code>.
+- **Bảo toàn Exception**: Tuyệt đối không nuốt Exception trong <code>@Around</code> advice nếu không muốn làm sai lệch kết quả commit/rollback của transaction.
 :::
 `
     },
     {
       id: "1-4",
       type: "lesson",
-      title: "Configuration & Profiles — externalize đúng chuẩn",
-      minutes: 45,
+      title: "Configuration & Profiles — 17 tầng ưu tiên, Relaxed Binding & Validation",
+      minutes: 50,
       content: `
-## Config không phải code — nhưng config sai thì chết cả code
+## Cấu hình sai — thảm họa sản xuất lớn hơn cả bug code
 
-Mọi thứ khác nhau giữa môi trường (URL DB, secret, Kafka broker, issuer Keycloak) phải rời khỏi code. Spring cho 3 cơ chế: <code>@Value</code>, <code>@ConfigurationProperties</code>, Profiles. Biết đúng lúc nào dùng cái nào.
+Trong một hệ thống phân tán hoặc Microservices, code logic có thể hoàn hảo tuyệt đối, nhưng chỉ cần một sai sót nhỏ trong cấu hình:
+- Điền nhầm URL của Database Production vào môi trường Staging.
+- Sai định dạng chuỗi Timeout khiến thread bị treo vĩnh viễn (Hang thread) dẫn đến cạn kiệt Connection Pool.
+- Quên đặt cơ chế Fail-fast khiến ứng dụng boot thành công nhưng lăn đùng ra chết khi nhận transaction đầu tiên lúc 2 giờ sáng.
+
+Spring Boot cung cấp một trong những hệ thống quản lý cấu hình ngoại hóa (Externalized Configuration) mạnh mẽ nhất thế giới phần mềm. Để làm chủ nó, bạn không thể dừng lại ở việc biết điền vài dòng vào <code>application.yml</code>. Bạn phải thấu hiểu cặn kẽ: **17 tầng thứ tự ưu tiên**, quy tắc **Relaxed Binding 2.0**, kỹ thuật **Fail-Fast Validation**, và kiến trúc bảo mật Secret trên Cloud/Kubernetes.
 
 ---
 
-## 1. @Value — quick and dirty
+## 1. Kiến trúc Nạp Cấu hình & 17 Tầng Thứ tự Ưu tiên (Order of Precedence)
+
+Khi Spring Boot khởi động, cỗ máy <code>ConfigDataEnvironmentPostProcessor</code> sẽ nạp cấu hình từ nhiều nguồn khác nhau vào đối tượng <code>Environment</code> (gồm các <code>PropertySource</code>). Khi hai nguồn cùng định nghĩa một khóa (key), giá trị ở tầng có **độ ưu tiên cao hơn sẽ đè bẹp (override) giá trị ở tầng thấp hơn**.
+
+Dưới đây là bảng 17 tầng ưu tiên theo chuẩn chính thức của Spring Boot 3 (xếp từ THẤP NHẤT đến CAO NHẤT):
+
+~~~text
+          THỨ TỰ ƯU TIÊN NGUỒN CẤU HÌNH (THẤP ĐẾN CAO)
+          
+  [TẦNG 1]  Default properties (SpringApplication.setDefaultProperties)
+     ▲
+  [TẦNG 2]  @PropertySource trên các @Configuration class
+     ▲
+  [TẦNG 3]  Config data (application.yml / application.properties) nằm TRONG JAR
+     ▲
+  [TẦNG 4]  Profile-specific config (application-{profile}.yml) nằm TRONG JAR
+     ▲
+  [TẦNG 5]  Config data (application.yml) nằm NGOÀI JAR (thư mục ./config)
+     ▲
+  [TẦNG 6]  Profile-specific config (application-{profile}.yml) nằm NGOÀI JAR
+     ▲
+  [TẦNG 7]  OS Environment Variables (SPRING_APPLICATION_JSON)
+     ▲
+  [TẦNG 8]  Standard OS Environment Variables (export DB_PASSWORD=...)
+     ▲
+  [TẦNG 9]  Java System Properties (-Dspring.datasource.password=...)
+     ▲
+  [TẦNG 10] JNDI attributes (java:comp/env)
+     ▲
+  [TẦNG 11] ServletConfig init parameters
+     ▲
+  [TẦNG 12] ServletContext init parameters
+     ▲
+  [TẦNG 13] Command Line Arguments (--server.port=9090 --spring.profiles.active=prod)
+     ▲
+  [TẦNG 14] TestPropertySource / @SpringBootTest(properties = "...") trong JUnit Test
+     ▲
+  [TẦNG 15] @DynamicPropertySource trong Testcontainers
+     ▲
+  [TẦNG 16] DevTools global settings (~/.config/spring-boot-devtools.properties)
+     ▲
+  [TẦNG 17] SpringApplication.from(...) trong Dev Mode
+~~~
+
+:::tip QUY TẮC VÀNG TRONG PRODUCTION (12-FACTOR APP)
+**"Build once, deploy anywhere"**: File <code>.jar</code> hoặc Docker Image chỉ được đóng gói đúng **1 LẦN DUY NHẤT** tại CI/CD pipeline. 
+Mọi thông số biến đổi theo môi trường (URL, Port, Secret, Quota) bắt buộc phải được bơm từ bên ngoài qua **Tầng 8 (OS Environment Variables)** hoặc **Tầng 6 (ConfigMap/Secret mount trong Kubernetes)**. Không bao giờ rebuild image chỉ vì thay đổi mật khẩu database!
+:::
+
+---
+
+## 2. Kỹ thuật Relaxed Binding 2.0 & Chuyển đổi Kiểu dữ liệu
+
+Spring Boot có cơ chế ánh xạ tên thuộc tính cực kỳ thông minh gọi là **Relaxed Binding**. Một thuộc tính trong Java Class có thể khớp với nhiều kiểu viết khác nhau trong YAML hoặc Biến môi trường:
+
+| Định dạng | Ví dụ trong YAML / Env | Mục đích sử dụng |
+|---|---|---|
+| **kebab-case** | <code>app.payment-gateway.connect-timeout</code> | **Chuẩn khuyên dùng trong file .yml / .properties** |
+| **camelCase** | <code>app.paymentGateway.connectTimeout</code> | Chuẩn trong code Java thông thường |
+| **snake_case** | <code>app.payment_gateway.connect_timeout</code> | Phổ biến ở các hệ thống Python/C/Legacy |
+| **UPPER_SNAKE_CASE** | <code>APP_PAYMENTGATEWAY_CONNECTTIMEOUT</code> | **Bắt buộc khi dùng Biến môi trường OS (Docker / Kubernetes)** |
+
+### Hỗ trợ chuyển đổi tự động các kiểu dữ liệu thời gian & dung lượng:
+Không cần phải tự viết code nhân chia milliseconds hay bytes! Spring Boot tự động parse các đơn vị:
+- **Thời gian (<code>java.time.Duration</code>)**: <code>10ms</code>, <code>500ms</code>, <code>2s</code>, <code>5m</code>, <code>1h</code>, <code>2d</code>.
+- **Dung lượng bộ nhớ (<code>org.springframework.util.unit.DataSize</code>)**: <code>100B</code>, <code>10KB</code>, <code>50MB</code>, <code>2GB</code>, <code>1TB</code>.
+
+---
+
+## 3. Toàn bộ Code Sản Xuất: Banking Gateway Configuration
+
+Hãy xem một hệ thống thanh toán ngân hàng yêu cầu cấu hình cực kỳ nghiêm ngặt: Kết nối an toàn, cơ chế Timeout, Retry Policy, và kiểm định tính hợp lệ ngay lúc boot (Fail-Fast).
+
+### Bước 1: Khai báo cấu trúc bất biến với Java Record
 
 ~~~java
-@Service
-public class NotificationService {
+package vn.mastery.banking.config;
 
-    @Value("\${app.notification.from-email:no-reply@laas.vn}")
-    private String fromEmail;          // có default sau dấu :
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.util.unit.DataSize;
+import org.springframework.validation.annotation.Validated;
 
-    @Value("\${app.notification.max-retry:3}")
-    private int maxRetry;
+import java.time.Duration;
+import java.util.List;
+
+@Validated
+@ConfigurationProperties(prefix = "app.bank-gateway")
+public record BankGatewayProperties(
+    @NotBlank(message = "Mã định danh ngân hàng (bankCode) không được để trống")
+    String bankCode,
+
+    @NotBlank(message = "Endpoint URL không được để trống")
+    @Pattern(regexp = "^https://.*", message = "Endpoint ngân hàng bắt buộc phải dùng giao thức an toàn HTTPS")
+    String endpointUrl,
+
+    @Valid
+    @NotNull(message = "Cấu hình Connection Pool không được null")
+    ConnectionPool connectionPool,
+
+    @Valid
+    @NotNull(message = "Cấu hình Retry không được null")
+    RetryPolicy retry,
+
+    @NotNull(message = "Giới hạn dung lượng payload không được null")
+    DataSize maxPayloadSize,
+
+    List<@NotBlank String> supportedCurrencies
+) {
+    public record ConnectionPool(
+        @Min(value = 5, message = "Pool size tối thiểu là 5")
+        @Max(value = 100, message = "Pool size tối đa là 100 để bảo vệ tài nguyên")
+        int maxTotalConnections,
+
+        @NotNull(message = "Connect timeout không được null")
+        Duration connectTimeout,
+
+        @NotNull(message = "Read timeout không được null")
+        Duration readTimeout,
+
+        @DefaultValue("true")
+        boolean keepAlive
+    ) {}
+
+    public record RetryPolicy(
+        @Min(value = 1, message = "Số lần retry tối thiểu là 1")
+        @Max(value = 5, message = "Số lần retry tối đa là 5 để tránh cascade failure")
+        int maxAttempts,
+
+        @NotNull(message = "Backoff duration không được null")
+        Duration initialBackoff,
+
+        @DecimalMin(value = "1.0", message = "Multiplier tối thiểu là 1.0")
+        @DecimalMax(value = "3.0", message = "Multiplier tối đa là 3.0")
+        double backoffMultiplier
+    ) {}
 }
 ~~~
 
-Hạn chế: rải rác từng class, không validate, không có IDE auto-complete, đổi tên property không ai báo lỗi.
-
-## 2. @ConfigurationProperties — typesafe, nhóm, validate
+### Bước 2: Kích hoạt quét cấu hình trên Application Class
 
 ~~~java
-// Record immutable — Spring Boot 3 style
-@ConfigurationProperties(prefix = "app.notification")
-public record NotificationProperties(
-    @NotBlank String fromEmail,
-    @Min(1) @Max(10) int maxRetry,
-    @NotNull Duration retryBackoff,     // "500ms", "2s" tự parse!
-    List<@Email String> bccAdmins
-) {}
+package vn.mastery.banking;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+
+@SpringBootApplication
+@ConfigurationPropertiesScan(basePackages = "vn.mastery.banking.config")
+public class BankingApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(BankingApplication.class, args);
+    }
+}
 ~~~
+
+### Bước 3: Cấu hình chuẩn trong application.yml
 
 ~~~yaml
 app:
-  notification:
-    from-email: no-reply@addpay.africa
-    max-retry: 5
-    retry-backoff: 750ms
-    bcc-admins:
-      - ops@addpay.africa
-      - sre@addpay.africa
+  bank-gateway:
+    bank-code: "VCB_DIRECT"
+    endpoint-url: "https://api.vietcombank.com.vn/v1/transfer"
+    connection-pool:
+      max-total-connections: 20
+      connect-timeout: 3s
+      read-timeout: 10s
+      keep-alive: true
+    retry:
+      max-attempts: 3
+      initial-backoff: 500ms
+      backoff-multiplier: 2.0
+    max-payload-size: 5MB
+    supported-currencies:
+      - "VND"
+      - "USD"
+      - "EUR"
 ~~~
+
+### Bước 4: Service sử dụng trực tiếp Type-safe Configuration
 
 ~~~java
-@Configuration
-@EnableConfigurationProperties(NotificationProperties.class)
-public class NotificationConfig { }
+package vn.mastery.banking.service;
 
-// Hoặc Spring Boot 3: @ConfigurationPropertiesScan trên Application class
-~~~
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import vn.mastery.banking.config.BankGatewayProperties;
 
-Kích hoạt validation:
+@Service
+public class BankGatewayClient {
+    private static final Logger log = LoggerFactory.getLogger(BankGatewayClient.class);
+    private final BankGatewayProperties props;
 
-~~~xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-validation</artifactId>
-</dependency>
-~~~
-
-~~~java
-@ConfigurationProperties(prefix = "app.notification")
-@Validated                      // bật Bean Validation cho properties
-public record NotificationProperties(...) { }
-~~~
-
-App **không start** nếu config sai — fail fast đúng nghĩa: thà chết lúc boot còn hơn lỗi runtime lúc 2h sáng.
-
-## 3. Profiles — 1 artifact, nhiều môi trường
-
-~~~text
-src/main/resources/
-├── application.yml                 ← config chung (base)
-├── application-dev.yml             ← chỉ đè phần khác biệt
-├── application-sit.yml
-├── application-prod.yml
-└── application-test.yml
-~~~
-
-~~~yaml
-# application.yml — base
-spring:
-  application:
-    name: loyalty-service
-  datasource:
-    url: jdbc:postgresql://localhost:5432/loyalty     # default dev
-
-logging:
-  level:
-    vn.addpay.loyalty: INFO
-~~~
-
-~~~yaml
-# application-prod.yml — chỉ phần KHÁC
-spring:
-  datasource:
-    url: \${DB_URL}              # prod nhận từ env var, không default
-
-logging:
-  level:
-    vn.addpay.loyalty: WARN      # giảm ồn prod
-~~~
-
-~~~bash
-java -jar app.jar --spring.profiles.active=sit
-# Hoặc env var: SPRING_PROFILES_ACTIVE=sit
-~~~
-
-### @Profile trên bean — wiring theo môi trường
-
-~~~java
-@Configuration
-public class SchedulerConfig {
-
-    @Bean
-    @Profile("dev")                        // chỉ dev mới có
-    @ConditionalOnProperty(name = "app.mock-kafka", havingValue = "true")
-    KafkaTemplate<String, Object> mockKafka() {
-        return new MockKafkaTemplate();    // không cần broker thật
+    public BankGatewayClient(BankGatewayProperties props) {
+        this.props = props;
+        log.info("Khởi tạo BankGatewayClient: BankCode={}, Timeout={}ms, MaxPayload={} bytes",
+            props.bankCode(),
+            props.connectionPool().connectTimeout().toMillis(),
+            props.maxPayloadSize().toBytes()
+        );
     }
 
-    @Bean
-    @Profile({"sit", "prod"})              // môi trường thật
-    KafkaTemplate<String, Object> realKafka(KafkaProperties props) {
-        return new DefaultKafkaProducerFactory<>(props.buildProducerProperties())
-            .createKafkaTemplate();
+    public void processTransfer(String accountNo, double amount, String currency) {
+        if (!props.supportedCurrencies().contains(currency)) {
+            throw new IllegalArgumentException("Đồng tiền không được hỗ trợ: " + currency);
+        }
+        log.info("Chuyển tiền tới {} qua cổng {}, Timeout={}s",
+            accountNo, props.endpointUrl(), props.connectionPool().readTimeout().toSeconds());
     }
 }
 ~~~
 
-## 4. Độ ưu tiên nguồn config — ai thắng ai?
+---
+
+## 4. Thử nghiệm & Xác thực Thực tế (Real-world Verification)
+
+### Kịch bản 1: Kiểm thử Fail-Fast khi Cấu hình Sai
+Điều gì xảy ra nếu một kỹ sư vô tình đặt <code>endpoint-url</code> là <code>http://...</code> (không bảo mật) hoặc <code>max-total-connections: 0</code>?
+
+Khởi động ứng dụng, Spring Boot lập tức chặn đứng quá trình startup và ném ra **BindValidationException**:
 
 ~~~text
-1. @TestPropertySource (test)
-2. Command line args (--server.port=9090)
-3. SPRING_APPLICATION_JSON
-4. OS environment variables (DB_PASSWORD=...)
-5. application-{profile}.yml ngoài jar (./config/)
-6. application-{profile}.yml trong jar
-7. application.yml trong jar
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Binding to target org.springframework.boot.context.properties.bind.BindResult@7f35b2 failed:
+
+    Property: app.bank-gateway.endpoint-url
+    Value: "http://insecure.bank.com"
+    Reason: Endpoint ngân hàng bắt buộc phải dùng giao thức an toàn HTTPS
+
+    Property: app.bank-gateway.connection-pool.max-total-connections
+    Value: 0
+    Reason: Pool size tối thiểu là 5
+
+Action:
+
+Update your application's configuration
 ~~~
 
-Nguyên tắc production: **image build 1 lần, cấu hình bơm ngoài** (env vars từ OKD Secret / AWS Parameter Store). Không bao giờ rebuild image vì đổi URL DB.
+Ứng dụng dừng ngay lập tức trong 0.8 giây, ngăn ngừa hoàn toàn nguy cơ chạy trên môi trường thật với thông số hỏng hóc!
 
-## 5. Secret — không bao giờ trong Git
+### Kịch bản 2: Tra cứu Nguồn gốc Cấu hình với Actuator /env
+
+~~~bash
+curl -X GET "http://localhost:8080/actuator/env/app.bank-gateway.bank-code"
+~~~
+
+JSON phản hồi bóc tách chính xác giá trị đang active và các nguồn cấu hình đã bị override:
+
+~~~json
+{
+  "property": {
+    "source": "systemEnvironment",
+    "value": "VCB_PRODUCTION"
+  },
+  "activeProfiles": ["prod"],
+  "propertySources": [
+    {
+      "name": "systemEnvironment",
+      "property": {
+        "value": "VCB_PRODUCTION"
+      }
+    },
+    {
+      "name": "Config resource 'class path resource [application-prod.yml]' via location 'optional:classpath:/'",
+      "property": {
+        "value": "VCB_STAGING"
+      }
+    },
+    {
+      "name": "Config resource 'class path resource [application.yml]' via location 'optional:classpath:/'",
+      "property": {
+        "value": "VCB_DIRECT"
+      }
+    }
+  ]
+}
+~~~
+
+Nhìn vào JSON trên, bạn biết ngay: Giá trị trong file <code>application.yml</code> gốc là <code>VCB_DIRECT</code>, bị <code>application-prod.yml</code> ghi đè thành <code>VCB_STAGING</code>, và cuối cùng bị biến môi trường của hệ điều hành <code>systemEnvironment</code> ghi đè thành <code>VCB_PRODUCTION</code>!
+
+### Kịch bản 3: Bảo mật Tuyệt đối — Sanitize Secret trên Actuator
+Mặc định, các thông tin nhạy cảm như Password, Token, Private Key phải được che giấu trên Actuator. Cấu hình bảo mật trong <code>application.yml</code>:
 
 ~~~yaml
-# ❌ application-prod.yml commit lên repo
-password: SuperSecret123
-
-# ✓ Prod nhận từ env / secret manager
-password: \${DB_PASSWORD}
+management:
+  endpoint:
+    env:
+      show-values: when_authorized
+      roles: "SYSTEM_ADMIN"
+  endpoints:
+    web:
+      exposure:
+        include: "env,health,configprops"
 ~~~
 
-Giải pháp chuẩn: OKD Secrets mount thành env, AWS Secrets Manager + Spring Cloud AWS, Vault. Repo Git là nơi công khai — kể cả private repo, ai rời công ty cũng mang theo lịch sử.
+Khi người dùng không đủ quyền truy vấn, Actuator sẽ tự động thay thế giá trị thành <code>******</code>!
 
-:::warn CẢNH BÁO BEAN TRÙNG
-Nếu IDE warning "multiple beans of type X" sau khi thêm @ConfigurationProperties — kiểm tra xem class có bị component-scan pickup 2 lần (annotation @Component + @EnableConfigurationProperties cùng lúc) không. Chọn 1 cách đăng ký duy nhất.
-:::
+---
 
-:::laas ĐỐI CHIẾU LAAS
-LAAS deploy qua Jenkins + OKD: mỗi môi trường (sit/uat/prod) là 1 bộ ConfigMap + Secret bơm env vars. Lỗi "SendAsDenied" SMTP bạn từng xử lý chính là config mismatch giữa môi trường — sender identity không khớp SMTP user. Nếu dùng @ConfigurationProperties + @Validated group "mail", cấu hình sai sẽ bị chặn ngay lúc boot thay vì lỗi runtime khi gửi thư.
-:::
+## 5. Ba Cạm bẫy Chết người & Sự cố Hạ tầng (Production Pitfalls)
+
+### Cạm bẫy 1: Biến Môi trường trong Docker Container không đè được do Sai Quy tắc Đặt tên
+Khi đóng gói ứng dụng vào Docker, bạn muốn ghi đè thuộc tính <code>app.bank-gateway.connection-pool.max-total-connections</code>.
+Nhiều kỹ sư DevOps viết trong file <code>docker-compose.yml</code>:
+~~~yaml
+environment:
+  - APP_BANK_GATEWAY_CONNECTION_POOL_MAX_TOTAL_CONNECTIONS=50 # ❌ SAI QUY TẮC!
+~~~
+Hệ quả: Spring Boot không nhận được biến này vì relaxed binding đối với dấu gạch ngang (kebab-case) và dấu chấm (dot) trong env var được quy ước:
+**Quy tắc chuẩn**:
+1. Thay dấu chấm <code>.</code> bằng dấu gạch dưới <code>_</code>.
+2. Xóa bỏ dấu gạch ngang <code>-</code> trong kebab-case (hoặc gộp lại không gạch).
+3. Viết hoa toàn bộ: <code>APP_BANKGATEWAY_CONNECTIONPOOL_MAXTOTALCONNECTIONS=50</code>.
+
+### Cạm bẫy 2: Lỗi Duplicate Bean Definition khi kết hợp @Component và @EnableConfigurationProperties
+Nếu bạn vừa khai báo:
+~~~java
+@Component // ❌ KHÔNG DÙNG CÙNG LÚC
+@ConfigurationProperties(prefix = "app.bank-gateway")
+public record BankGatewayProperties(...) {}
+~~~
+Và trong một class Config khác bạn lại khai báo:
+~~~java
+@Configuration
+@EnableConfigurationProperties(BankGatewayProperties.class) // ❌ TRÙNG LẶP
+public class AppConfig {}
+~~~
+Spring Boot sẽ cố gắng đăng ký bean này **2 LẦN**, dẫn đến xung đột hoặc cảnh báo <code>Overriding bean definition for bean 'bankGatewayProperties'</code>.
+**Chuẩn công nghiệp**: Chỉ dùng duy nhất một annotation <code>@ConfigurationPropertiesScan</code> trên Application Class, không gắn <code>@Component</code> lên record cấu hình.
+
+### Cạm bẫy 3: Hardcode Secret trong Git Repository
+Một thói quen nguy hiểm là tạo file <code>application-prod.yml</code> chứa password database thật rồi commit lên Git:
+~~~yaml
+# ❌ CỰC KỲ NGUY HIỂM:
+spring:
+  datasource:
+    password: "ProductionSuperSecret2026@"
+~~~
+Kể cả repository nội bộ công ty (Private Repo), bất kỳ ai từng clone repo hoặc các bot quét mã độc trên mạng đều có thể lục lọi Git History và chiếm đoạt quyền kiểm soát cơ sở dữ liệu.
+**Quy tắc bắt buộc**: 
+~~~yaml
+spring:
+  datasource:
+    password: \${DB_PASSWORD} # ✓ Bắt buộc lấy từ biến môi trường hoặc Kubernetes Secret!
+~~~
+
+---
+
+## 6. Thử thách Thực chiến (Hands-on Challenge)
+
+### Đề bài:
+Xây dựng Module Cấu hình cho **Hệ thống Đối soát Giao dịch Ban đêm (Nightly Reconciliation Batch)** của ngân hàng:
+1. Tạo record <code>BatchReconProperties</code> có prefix là <code>app.batch.recon</code>.
+2. Yêu cầu kiểm tra tính hợp lệ lúc khởi động (Fail-fast Validation):
+   - <code>chunkSize</code>: Số lượng giao dịch mỗi batch, bắt buộc từ 100 đến 10,000.
+   - <code>maxThreads</code>: Số luồng xử lý đồng thời, từ 1 đến 32.
+   - <code>jobTimeout</code>: Kiểu <code>Duration</code>, tối thiểu 5 phút và tối đa 4 giờ.
+   - <code>storageQuota</code>: Kiểu <code>DataSize</code>, tối đa 50GB.
+   - <code>notificationEmails</code>: Danh sách email nhận báo cáo, mỗi phần tử phải đúng định dạng <code>@Email</code>.
+3. Viết một cấu hình YAML mẫu cho môi trường Local (Dev) và một chuỗi lệnh Bash xuất các biến môi trường Docker tương ứng cho Production.
+
+### Lời giải Chuẩn Kỹ sư Cấp cao:
+
+~~~java
+package vn.mastery.batch.config;
+
+import jakarta.validation.constraints.*;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.util.unit.DataSize;
+import org.springframework.validation.annotation.Validated;
+
+import java.time.Duration;
+import java.util.List;
+
+@Validated
+@ConfigurationProperties(prefix = "app.batch.recon")
+public record BatchReconProperties(
+    @Min(value = 100, message = "Chunk size tối thiểu là 100 giao dịch")
+    @Max(value = 10000, message = "Chunk size tối đa là 10,000 để tránh tràn bộ nhớ JVM Heap")
+    int chunkSize,
+
+    @Min(value = 1, message = "Số worker thread tối thiểu là 1")
+    @Max(value = 32, message = "Số worker thread tối đa là 32 để tránh context switching")
+    int maxThreads,
+
+    @NotNull(message = "Job timeout không được null")
+    Duration jobTimeout,
+
+    @NotNull(message = "Storage quota không được null")
+    DataSize storageQuota,
+
+    @NotEmpty(message = "Danh sách email nhận thông báo đối soát không được rỗng")
+    List<@NotBlank @Email(message = "Email không đúng định dạng RFC 5322") String> notificationEmails,
+
+    @DefaultValue("true")
+    boolean dryRunMode
+) {}
+~~~
+
+### File cấu hình application-dev.yml:
+
+~~~yaml
+app:
+  batch:
+    recon:
+      chunk-size: 500
+      max-threads: 4
+      job-timeout: 15m
+      storage-quota: 2GB
+      dry-run-mode: true
+      notification-emails:
+        - "developer@mastery.vn"
+        - "lead-dev@mastery.vn"
+~~~
+
+### Lệnh truyền biến môi trường Production trong Docker/Kubernetes:
+
+~~~bash
+# Xuất biến môi trường chuẩn xác tuân theo Relaxed Binding 2.0
+export APP_BATCH_RECON_CHUNKSIZE=5000
+export APP_BATCH_RECON_MAXTHREADS=16
+export APP_BATCH_RECON_JOBTIMEOUT="2h"
+export APP_BATCH_RECON_STORAGEQUOTA="20GB"
+export APP_BATCH_RECON_DRYRUNMODE="false"
+export APP_BATCH_RECON_NOTIFICATIONEMAILS_0_="ops@mastery.vn"
+export APP_BATCH_RECON_NOTIFICATIONEMAILS_1_="reconciliation-lead@mastery.vn"
+
+# Chạy ứng dụng với Profile prod
+java -jar target/batch-recon-service.jar --spring.profiles.active=prod
+~~~
 
 :::takeaways
-- @Value cho throwaway; @ConfigurationProperties (record) cho mọi thứ nghiêm túc
-- @Validated + Bean Validation = fail fast lúc start, không lỗi runtime
-- Profiles: base.yml chứa chung, profile yml chỉ đè khác biệt
-- Độ ưu tiên: env vars và args ĐÈ file trong jar
-- Secret không bao giờ commit — env var từ Secret manager
-- 1 artifact chạy mọi môi trường: build once, configure anywhere
+- **17 Tầng Thứ tự Ưu tiên**: Cấu hình từ xa (OS env, Command Line, Kubernetes ConfigMap) luôn ghi đè cấu hình đóng gói bên trong file JAR.
+- **Fail-Fast lúc Startup**: Luôn sử dụng <code>@ConfigurationProperties</code> kết hợp <code>@Validated</code> để bắt mọi lỗi sai cấu hình trước khi ứng dụng kịp phục vụ traffic.
+- **Đơn vị Tự nhiên**: Tận dụng <code>Duration</code> và <code>DataSize</code> để cấu hình thời gian và dung lượng một cách minh bạch, tránh nhầm lẫn giữa giây và mili-giây.
+- **Bảo mật Bí mật**: Không bao giờ commit credentials vào Git. Sử dụng Actuator Sanitize để bảo vệ dữ liệu nhạy cảm khỏi bị rò rỉ.
 :::
 `
     },
     {
       id: "1-5",
       type: "lesson",
-      title: "Spring Events — decoupling không cần Kafka",
-      minutes: 40,
+      title: "Spring Events — Decoupling trong JVM & @TransactionalEventListener",
+      minutes: 45,
       content: `
-## Không phải mọi sự kiện đều cần Kafka
+## Không phải mọi sự kiện đều cần đến Kafka
 
-Trong 1 process: user đăng ký → gửi email, ghi audit log, cập nhật thống kê. Viết hết trong service method = class đó biết quá nhiều, thêm bước phải sửa class. **ApplicationEvent**: publisher phát sự kiện, ai quan tâm tự lắng nghe — tách rời bằng cơ chế trong JVM.
+Khi một người dùng đăng ký tài khoản hoặc đặt hàng thành công, hệ thống thường phải thực hiện hàng loạt tác vụ phụ (side-effects):
+1. Gửi email chào mừng và SMS OTP.
+2. Ghi nhật ký kiểm toán (Audit Trail) để đối soát pháp lý.
+3. Kích hoạt tính điểm thưởng loyalty.
+4. Đẩy thông báo đẩy (Push Notification) về ứng dụng di động.
+
+Nếu bạn viết toàn bộ những thao tác này trong một phương thức <code>OrderService.createOrder()</code>:
+- Code vi phạm nghiêm trọng nguyên lý Single Responsibility (Đơn trách nhiệm). Service biết quá nhiều thứ không thuộc về nghiệp vụ bán hàng.
+- Lỗi ở bước gửi email sẽ làm **văng ngoại lệ và rollback toàn bộ đơn hàng của khách**!
+- Thời gian phản hồi API (Latency) tăng vọt từ 20ms lên 2000ms vì phải chờ các bên thứ ba trả lời.
+
+Nhiều team vội vã kéo cụm Apache Kafka hoặc RabbitMQ vào chỉ để giải quyết bài toán này trong một ứng dụng Monolith hoặc một Microservice đơn lẻ. Đó là sự lãng phí tài nguyên và gia tăng chi phí vận hành (Operational Overhead). **Spring ApplicationEvent** chính là vũ khí tối thượng giúp bạn tách rời (decouple) các module bên trong một tiến trình JVM với hiệu năng tính bằng micro-giây.
 
 ---
 
-## 1. Định nghĩa event — record bất biến
+## 1. Kiến trúc Sự kiện In-JVM & Cỗ máy Event Multicaster
 
-~~~java
-public record MemberRegisteredEvent(
-    Long memberId,
-    String cif,
-    String email,
-    Instant occurredAt
-) {}
+Cơ chế sự kiện của Spring được điều khiển bởi <code>ApplicationEventPublisher</code> và <code>ApplicationEventMulticaster</code>:
+
+~~~text
+                   LUỒNG XỬ LÝ APPLICATION EVENT CỦA SPRING
+                   
+  [OrderService]
+        │
+        │ 1. events.publishEvent(new OrderCreatedEvent(orderId, amount))
+        ▼
+  [ApplicationEventPublisher]
+        │
+        ▼
+  [SimpleApplicationEventMulticaster]
+        │
+        ├── (Mặc định: Đồng bộ / Cùng Thread)
+        │     │
+        │     ├── 2. Gọi InventoryListener.onOrderCreated()
+        │     │      (Chạy TRONG Transaction của OrderService)
+        │     │
+        │     └── 3. Bắt gặp @TransactionalEventListener(phase = AFTER_COMMIT)
+        │            │
+        │            └── Đăng ký callback vào TransactionSynchronizationManager
+        │
+  [TransactionManager]
+        │
+        ├── Commit DB thành công!
+        │     │
+        │     ▼
+        └── Kích hoạt các TransactionSynchronization callbacks:
+              │
+              ├── 4. Async Worker Thread Pool (evt-exec-1)
+              │      └── EmailNotificationListener.sendEmail()
+              │
+              └── 5. Transaction Mới (Propagation.REQUIRES_NEW)
+                     └── AuditLogListener.recordAudit()
 ~~~
 
-Event = dữ liệu đã XẢY RA (past tense), không phải lệnh. MemberRegisteredEvent (sự kiện) ≠ RegisterMemberCommand (lệnh).
+### Bốn Pha Vòng đời của @TransactionalEventListener
 
-## 2. Publish
+Khác với <code>@EventListener</code> thông thường (chạy ngay lập tức khi publish), <code>@TransactionalEventListener</code> liên kết chặt chẽ với trạng thái của Transaction Database:
+
+| Pha (TransactionPhase) | Thời điểm kích hoạt | Hành vi khi ném Ngoại lệ | Trường hợp sử dụng chuẩn |
+|---|---|---|---|
+| **BEFORE_COMMIT** | Ngay trước khi gửi lệnh COMMIT xuống DB. | **Làm rollback toàn bộ Transaction cha.** | Kiểm tra ràng buộc tồn kho cuối cùng, chuẩn bị dữ liệu audit cùng phiên. |
+| **AFTER_COMMIT** (Mặc định) | Sau khi lệnh COMMIT xuống DB đã **thành công hoàn toàn**. | Không ảnh hưởng đến dữ liệu đã commit. | Gửi Email, bắn SMS, push notification, xóa cache Redis. |
+| **AFTER_ROLLBACK** | Khi Transaction cha bị ngoại lệ và phải ROLLBACK. | Không ảnh hưởng đến kết quả rollback. | Dọn dẹp file tạm trên ổ đĩa, giải phóng lock phân tán, bắn cảnh báo SRE. |
+| **AFTER_COMPLETION** | Luôn chạy khi transaction kết thúc (bất kể Commit hay Rollback). | Thực thi dọn dẹp chung. | Thu hồi tài nguyên, clear ThreadLocal context. |
+
+---
+
+## 2. Toàn bộ Code Sản Xuất: Order Placement & Post-Commit Workflow
+
+Hãy triển khai một quy trình đặt hàng thương mại điện tử chuyên nghiệp: Đơn hàng lưu DB, kiểm tra kho trước khi commit, gửi email bất đồng bộ sau commit, và ghi log kiểm toán vào một transaction hoàn toàn độc lập.
+
+### Bước 1: Khai báo Domain Event bất biến với Java Record
 
 ~~~java
+package vn.mastery.order.event;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+public record OrderCreatedEvent(
+    String orderId,
+    String customerId,
+    BigDecimal totalAmount,
+    String customerEmail,
+    Instant createdAt
+) {
+    public OrderCreatedEvent {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("orderId không được để trống");
+        }
+        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("totalAmount phải lớn hơn 0");
+        }
+    }
+}
+~~~
+
+### Bước 2: Publisher trong Transaction chính
+
+~~~java
+package vn.mastery.order.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.mastery.order.event.OrderCreatedEvent;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
 @Service
-public class MemberService {
+public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    private final ApplicationEventPublisher eventPublisher;
 
-    private final ApplicationEventPublisher events;
-
-    public MemberService(ApplicationEventPublisher events) {
-        this.events = events;
+    public OrderService(ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public MemberDto register(RegisterRequest req) {
-        Member member = memberRepo.save(new Member(req.cif(), req.fullName()));
-
-        events.publishEvent(new MemberRegisteredEvent(
-            member.getId(), member.getCif(), member.getEmail(), Instant.now()));
-
-        return toDto(member);
+    public String createOrder(String customerId, String email, BigDecimal amount) {
+        String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        
+        log.info("[1. TRANSACTION GỐC] Đang ghi đơn hàng {} vào database...", orderId);
+        // Giả lập lưu đơn hàng vào PostgreSQL
+        
+        log.info("[2. EVENT PUBLISH] Bắn sự kiện OrderCreatedEvent trong JVM...");
+        eventPublisher.publishEvent(new OrderCreatedEvent(orderId, customerId, amount, email, Instant.now()));
+        
+        log.info("[3. TRANSACTION CHUẨN BỊ COMMIT] Kết thúc hàm createOrder.");
+        return orderId;
     }
 }
 ~~~
 
-## 3. Listener — nhiều consumer độc lập
+### Bước 3: Cấu hình Thread Pool riêng cho Event Listeners
 
 ~~~java
-@Component
-public class WelcomeEmailListener {
+package vn.mastery.order.config;
 
-    @EventListener
-    public void onRegistered(MemberRegisteredEvent event) {
-        mailService.sendWelcome(event.email());   // Đồng bộ trong cùng thread!
-    }
-}
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-@Component
-public class AuditListener {
+import java.util.concurrent.Executor;
 
-    @EventListener
-    @Async("auditExecutor")                    // đẩy sang pool riêng
-    public void onRegistered(MemberRegisteredEvent event) {
-        auditRepo.save(AuditLog.of("MEMBER_REGISTERED", event.memberId()));
-    }
-}
-~~~
-
-## 4. @TransactionalEventListener — commit xong mới chạy
-
-~~~java
-@Component
-public class StatsListener {
-
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onRegistered(MemberRegisteredEvent event) {
-        statsService.incrementRegistrations(event.occurredAt());
-    }
-}
-~~~
-
-Bảng chuyển đổi hành vi:
-
-| Annotation | Chạy khi nào | Rủi ro |
-|---|---|---|
-| @EventListener | Ngay khi publish (trong transaction) | Rollback → side-effect đã chạy (email gửi cho member không tồn tại!) |
-| @TransactionalEventListener (AFTER_COMMIT) | Sau khi commit thành công | Listener fail KHÔNG rollback transaction chính |
-| @TransactionalEventListener (AFTER_ROLLBACK) | Sau rollback | Dọn dẹp |
-| @TransactionalEventListener (IN_PROGRESS) | Giống @EventListener | — |
-
-:::warn AFTER_COMMIT KHÔNG BẤT CHẤP
-Listener fail sau commit không rollback được transaction đã commit. Nếu bước này bắt buộc phải thành công (gửi SMS OTP) → dùng outbox + Kafka (Module 6) thay vì in-memory event. Spring event là "best effort", KHÔNG phải guaranteed delivery.
-:::
-
-## 5. @Async + executor riêng cho listener nặng
-
-~~~java
 @Configuration
 @EnableAsync
-public class EventConfig {
+public class AsyncEventConfig {
 
-    @Bean("eventExecutor")
-    public Executor eventExecutor() {
-        ThreadPoolTaskExecutor ex = new ThreadPoolTaskExecutor();
-        ex.setCorePoolSize(2);
-        ex.setMaxPoolSize(4);
-        ex.setQueueCapacity(200);
-        ex.setThreadNamePrefix("evt-");
-        return ex;
-    }
-}
-
-@Component
-public class SlowListener {
-
-    @Async("eventExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onRegistered(MemberRegisteredEvent event) {
-        generateWelcomePdf(event.memberId());   // nặng — không block request thread
+    @Bean("orderEventExecutor")
+    public Executor orderEventExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("evt-order-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
     }
 }
 ~~~
 
-## 6. Khi nào dùng Spring Event vs Kafka?
+### Bước 4: Ba Listener thực hiện 3 vai trò khác nhau
 
-| Tiêu chí | Spring Event (in-JVM) | Kafka (cross-service) |
-|---|---|---|
-| Phạm vi | Cùng process | Nhiều service / replay được |
-| Đảm bảo | Best-effort | At-least-once (outbox + idempotent) |
-| Consumer chết | Mất event | Chờ — đọc lại khi sống lại |
-| Latency | Microseconds | Milliseconds |
-| Use case | Email, audit, stats nội bộ | Egress domain, integration |
+~~~java
+package vn.mastery.order.listener;
 
-Quy tắc: **side-effect nội bộ 1 app** → Spring event. **Sự kiện business mà service khác tiêu thụ** → outbox + Kafka. Đừng kéo Kafka vào cho việc email welcome trong cùng service — operational cost không đáng.
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import vn.mastery.order.event.OrderCreatedEvent;
 
-:::laas ĐỐI CHIẾU LAAS
-Outbox worker LAAS dùng chính tư duy này: business commit → event. Nhưng vì event phải survive crash + cross-service, LAAS ghi ra bảng outbox (durable) thay vì chỉ publish in-memory. Spring event là phiên bản lightweight cùng pattern — đủ cho side-effect trong cùng JVM, không đủ cho guaranteed delivery.
-:::
+@Component
+public class OrderProcessingListeners {
+    private static final Logger log = LoggerFactory.getLogger(OrderProcessingListeners.class);
+
+    // 1. CHẠY TRƯỚC KHI COMMIT: Nếu ném lỗi -> Rollback đơn hàng
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onBeforeCommitReserveInventory(OrderCreatedEvent event) {
+        log.info("[BEFORE_COMMIT] Kiểm tra khóa tồn kho cho đơn hàng: {}", event.orderId());
+        // Nếu hết hàng: ném new OutOfStockException(...) -> Hủy Transaction đơn hàng
+    }
+
+    // 2. CHẠY SAU KHI COMMIT THÀNH CÔNG (BẤT ĐỒNG BỘ TRÊN POOL RIÊNG)
+    @Async("orderEventExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onAfterCommitSendEmail(OrderCreatedEvent event) {
+        log.info("[AFTER_COMMIT - ASYNC] Đang gửi email xác nhận tới {}. Thread: {}", 
+            event.customerEmail(), Thread.currentThread().getName());
+        try {
+            Thread.sleep(1500); // Giả lập độ trễ SMTP Network
+        } catch (InterruptedException ignored) {}
+        log.info("[AFTER_COMMIT - ASYNC] Gửi email thành công cho đơn: {}", event.orderId());
+    }
+
+    // 3. CHẠY SAU KHI COMMIT NHƯNG CẦN GHI DB AUDIT:
+    // CỰC KỲ QUAN TRỌNG: Bắt buộc phải có @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onAfterCommitWriteAuditLog(OrderCreatedEvent event) {
+        log.info("[AFTER_COMMIT - REQUIRES_NEW] Mở Transaction mới để ghi Audit Trail cho đơn: {}", event.orderId());
+        // Ghi vào bảng audit_logs ở database
+    }
+
+    // 4. CHẠY KHI TRANSACTION BỊ ROLLBACK: Dọn dẹp tài nguyên
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
+    public void onRollbackCleanup(OrderCreatedEvent event) {
+        log.warn("[AFTER_ROLLBACK] Đơn hàng {} bị lỗi rollback! Tiến hành giải phóng lock phân tán.", event.orderId());
+    }
+}
+~~~
+
+---
+
+## 3. Thử nghiệm & Xác thực Thực tế (Real-world Verification)
+
+### Kiểm thử Tự động với @RecordApplicationEvents (Spring Boot Test)
+
+Spring Boot 2.7+ cung cấp annotation <code>@RecordApplicationEvents</code> giúp bạn kiểm tra chính xác các event đã được bắn ra mà không cần phải can thiệp vào tầng Listener:
+
+~~~java
+package vn.mastery.order;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
+import vn.mastery.order.event.OrderCreatedEvent;
+import vn.mastery.order.service.OrderService;
+
+import java.math.BigDecimal;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+@RecordApplicationEvents
+class OrderServiceEventTest {
+
+    @Autowired
+    private OrderService orderService;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
+    @Test
+    void shouldPublishOrderCreatedEventWhenOrderIsSuccessful() {
+        String orderId = orderService.createOrder("CUST-001", "alice@mastery.vn", new BigDecimal("450000"));
+
+        assertThat(orderId).isNotBlank();
+
+        // Kiểm tra chính xác 1 event loại OrderCreatedEvent đã được phát
+        long count = applicationEvents.stream(OrderCreatedEvent.class).count();
+        assertThat(count).isEqualTo(1);
+
+        OrderCreatedEvent event = applicationEvents.stream(OrderCreatedEvent.class)
+            .findFirst()
+            .orElseThrow();
+        assertThat(event.customerId()).isEqualTo("CUST-001");
+        assertThat(event.customerEmail()).isEqualTo("alice@mastery.vn");
+    }
+}
+~~~
+
+### Nhật ký Thực tế trên Môi trường Console Production
+
+Khi chạy API tạo đơn hàng, hãy quan sát trình tự chính xác của các Thread:
+
+~~~text
+[http-nio-8080-exec-1] INFO OrderService - [1. TRANSACTION GỐC] Đang ghi đơn hàng ORD-7C12F4A1 vào database...
+[http-nio-8080-exec-1] INFO OrderService - [2. EVENT PUBLISH] Bắn sự kiện OrderCreatedEvent trong JVM...
+[http-nio-8080-exec-1] INFO OrderProcessingListeners - [BEFORE_COMMIT] Kiểm tra khóa tồn kho cho đơn hàng: ORD-7C12F4A1
+[http-nio-8080-exec-1] INFO OrderService - [3. TRANSACTION CHUẨN BỊ COMMIT] Kết thúc hàm createOrder.
+[http-nio-8080-exec-1] DEBUG JpaTransactionManager - Initiating transaction commit
+[http-nio-8080-exec-1] INFO OrderProcessingListeners - [AFTER_COMMIT - REQUIRES_NEW] Mở Transaction mới để ghi Audit Trail...
+[evt-order-1]          INFO OrderProcessingListeners - [AFTER_COMMIT - ASYNC] Đang gửi email xác nhận tới alice@mastery.vn...
+[evt-order-1]          INFO OrderProcessingListeners - [AFTER_COMMIT - ASYNC] Gửi email thành công cho đơn: ORD-7C12F4A1
+~~~
+
+Nhìn vào log trên, ta thấy: Request HTTP hoàn tất và trả về Client ngay sau khi commit DB xong. Việc gửi email chạy trên luồng <code>evt-order-1</code> độc lập, không giữ chân client dù mạng SMTP có chậm 1.5 giây!
+
+---
+
+## 4. Ba Cạm bẫy Chết người & Bài học Sự cố Thực tế
+
+### Cạm bẫy 1: Sự cố "Phantom Notification" do dùng @EventListener thông thường
+**Sự cố thực tế**: Khách hàng thanh toán qua ngân hàng thất bại (tài khoản không đủ số dư), đơn hàng trong Database bị rollback hoàn toàn. Tuy nhiên, khách hàng vẫn nhận được email "Chúc mừng bạn đã thanh toán thành công!".
+**Nguyên nhân**: Lập trình viên sử dụng <code>@EventListener</code> thay vì <code>@TransactionalEventListener(phase = AFTER_COMMIT)</code>. 
+<code>@EventListener</code> chạy **ngay thời điểm gọi <code>publishEvent()</code>**, khi đó Transaction chưa hề commit! Khi transaction văng lỗi ở các bước sau, email đã bay đi mất và không thể thu hồi.
+
+### Cạm bẫy 2: Thao tác Database trong AFTER_COMMIT mà không có REQUIRES_NEW
+**Hiện tượng**: Trong listener <code>AFTER_COMMIT</code>, bạn gọi <code>auditRepository.save(new AuditLog(...))</code> nhưng dữ liệu không hề xuất hiện trong Database, cũng không có bất kỳ dòng log lỗi nào!
+**Nguyên nhân gốc rễ**: Tại thời điểm <code>AFTER_COMMIT</code>, Transaction cha đã commit và đã đóng kết nối (Connection Closed/Read-Only). Nếu method trong listener không gắn <code>@Transactional(propagation = Propagation.REQUIRES_NEW)</code>, Hibernate sẽ không thể mở kết nối mới để flush dữ liệu xuống đĩa!
+
+### Cạm bẫy 3: Ngộ nhận In-Memory Event thay thế được Kafka/RabbitMQ
+**Nguyên tắc kiến trúc**:
+- Spring Events là **In-Memory & Best-Effort**. Nếu server bị sập nguồn, pod Kubernetes bị kill, hoặc JVM bị OutOfMemoryError, toàn bộ các event đang chờ trong ThreadPool sẽ **biến mất vĩnh viễn**.
+- Dùng Spring Events cho: Email marketing, refresh cache cục bộ, audit trail không ảnh hưởng tiền bạc.
+- Bắt buộc dùng Message Broker ngoài (Kafka/RabbitMQ kết hợp Transactional Outbox Pattern) cho: Trừ tiền ví điện tử, đồng bộ trạng thái đơn hàng liên dịch vụ, xuất hóa đơn tài chính.
+
+---
+
+## 5. Thử thách Thực chiến (Hands-on Challenge)
+
+### Đề bài:
+Xây dựng quy trình Xóa Tài khoản Khách hàng tuân thủ quy chuẩn bảo mật GDPR (User Account Deletion):
+1. Khai báo <code>AccountDeletedEvent(String userId, String email, Instant requestedAt)</code>.
+2. <code>UserService.deleteAccount(String userId)</code>:
+   - Cập nhật trạng thái người dùng trong DB thành <code>DELETED</code> trong một <code>@Transactional</code>.
+   - Bắn sự kiện <code>AccountDeletedEvent</code>.
+3. Xây dựng bộ Listeners:
+   - **Giai đoạn BEFORE_COMMIT**: Gọi hàm thu hồi toàn bộ token đăng nhập đang hoạt động trong Redis. Nếu Redis lỗi, hủy toàn bộ giao dịch xóa tài khoản.
+   - **Giai đoạn AFTER_COMMIT**: 
+     - Gửi email thông báo chia tay khách hàng qua ThreadPool bất đồng bộ.
+     - Ghi nhận biên bản tuân thủ GDPR vào bảng <code>gdpr_compliance_log</code> trong một transaction mới hoàn toàn (<code>REQUIRES_NEW</code>).
+   - **Giai đoạn AFTER_ROLLBACK**: Bắn thông báo log cảnh báo SRE rằng thao tác xóa tài khoản thất bại để rà soát bảo mật.
+
+### Lời giải Chuẩn Kỹ sư Cấp cao:
+
+~~~java
+package vn.mastery.account.event;
+
+import java.time.Instant;
+
+public record AccountDeletedEvent(
+    String userId,
+    String email,
+    Instant requestedAt
+) {}
+~~~
+
+~~~java
+package vn.mastery.account.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.mastery.account.event.AccountDeletedEvent;
+
+import java.time.Instant;
+
+@Service
+public class UserService {
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+    private final ApplicationEventPublisher eventPublisher;
+
+    public UserService(ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteAccount(String userId, String email) {
+        log.info("[1] Đánh dấu tài khoản {} thành DELETED trong Database", userId);
+        
+        eventPublisher.publishEvent(new AccountDeletedEvent(userId, email, Instant.now()));
+        
+        log.info("[2] Chuẩn bị hoàn tất transaction xóa tài khoản {}", userId);
+    }
+}
+~~~
+
+~~~java
+package vn.mastery.account.listener;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import vn.mastery.account.event.AccountDeletedEvent;
+
+@Component
+public class GdprAccountDeletionListener {
+    private static final Logger log = LoggerFactory.getLogger(GdprAccountDeletionListener.class);
+
+    // 1. BEFORE_COMMIT: Thu hồi session token. Nếu thất bại -> Hủy việc xóa tài khoản!
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onBeforeCommitRevokeTokens(AccountDeletedEvent event) {
+        log.info("[GDPR-BEFORE-COMMIT] Thu hồi toàn bộ JWT active tokens của user: {}", event.userId());
+        // Giả lập logic Redis: nếu lỗi mạng ném IllegalStateException -> Rollback DB
+    }
+
+    // 2. AFTER_COMMIT: Gửi email bất đồng bộ
+    @Async("orderEventExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onAfterCommitSendGoodbyeEmail(AccountDeletedEvent event) {
+        log.info("[GDPR-AFTER-COMMIT-ASYNC] Gửi email xác nhận xóa dữ liệu GDPR tới: {}", event.email());
+    }
+
+    // 3. AFTER_COMMIT: Ghi log kiểm toán pháp lý trong Transaction riêng biệt
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onAfterCommitRecordComplianceLog(AccountDeletedEvent event) {
+        log.info("[GDPR-AFTER-COMMIT-AUDIT] Lưu chứng từ xóa dữ liệu cá nhân vào bảng gdpr_compliance_log cho user: {}", event.userId());
+    }
+
+    // 4. AFTER_ROLLBACK: Báo động đội SRE
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
+    public void onAfterRollbackAlertSecurity(AccountDeletedEvent event) {
+        log.error("[GDPR-SECURITY-ALERT] Thao tác xóa tài khoản {} bị thất bại! Cần rà soát thủ công.", event.userId());
+    }
+}
+~~~
 
 :::takeaways
-- Event = record bất biến, tên past tense, chứa đủ dữ liệu consumer cần
-- @EventListener chạy đồng bộ trong transaction; AFTER_COMMIT chạy sau commit
-- Side-effect bắt buộc thành công → outbox/Kafka, KHÔNG dùng in-memory event
-- @Async listener cần executor riêng — không mượn default pool
-- Câu hỏi chọn: cùng process & best-effort → event; cross-service & guaranteed → Kafka
+- **Tách rời Đơn trách nhiệm**: Spring Events giúp phân rã các tác vụ phụ (Email, Notification, Audit) ra khỏi nghiệp vụ lõi mà không cần kéo hệ thống hạ tầng phức tạp.
+- **Quy tắc Vàng @TransactionalEventListener**: Luôn phân biệt rạch ròi <code>BEFORE_COMMIT</code> (có quyền làm rollback) và <code>AFTER_COMMIT</code> (chỉ chạy khi dữ liệu đã commit an toàn).
+- **Thao tác DB sau Commit**: Trong <code>AFTER_COMMIT</code>, nếu cần lưu DB thì bắt buộc phải thêm <code>@Transactional(propagation = Propagation.REQUIRES_NEW)</code>.
+- **Ranh giới công nghệ**: Spring Events là In-Memory (Best-Effort). Sự kiện liên quan đến tài chính, tiền tệ, hoặc cần tồn tại qua các sự cố sập server bắt buộc phải dùng Message Queue (Kafka/RabbitMQ) kết hợp Transactional Outbox Pattern.
 :::
 `
     },
     {
       id: "1-6",
       type: "lesson",
-      title: "Feature Flags & Config Refresh — deploy ≠ release",
-      minutes: 40,
+      title: "Feature Flags & Config Refresh — @RefreshScope, Dynamic Config & Zero-Downtime Releases",
+      minutes: 45,
       content: `
-## Deploy 2h sáng chỉ để tắt 1 feature?
+## Đêm 2 giờ sáng và quyết định tắt một tính năng lỗi
 
-Hotfix tắt job tính điểm phải build + deploy + restart 15 phút downtime. Trong khi đó feature flag tắt = 1 click, 30 giây. Bài này: config động (@RefreshScope), 4 tier feature flag, dark launch — tách "ship code" khỏi "bật tính năng".
+Một kịch bản quen thuộc trong các dự án công nghệ:
+Tính năng "Tích điểm thưởng nhân đôi" vừa được deploy lên production vào lúc nửa đêm. Đúng 1 giờ sáng, đội SRE phát hiện lỗi rò rỉ logic khiến khách hàng nhận điểm vô hạn lần.
+
+Nếu hệ thống của bạn không có cấu hình động:
+1. Developer phải sửa code để comment dòng tính điểm.
+2. Tạo Pull Request, chờ Tech Lead duyệt.
+3. Chờ CI/CD pipeline build image Docker (mất 10-15 phút).
+4. Restart lại cụm Pod trên Kubernetes, gây gián đoạn dịch vụ và tiềm ẩn lỗi kết nối.
+
+Trong khi đó, với kiến trúc **Feature Flags & Runtime Config Refresh**, một kỹ sư On-call chỉ cần đổi một cờ cấu hình và gửi lệnh HTTP trong đúng **15 giây** — tính năng lỗi lập tức tắt ngấm mà **không cần restart bất kỳ tiến trình nào**, không mất kết nối database, zero downtime!
+
 ---
 
-## 1. Config tĩnh vs động
+## 1. Kiến trúc Tách biệt Deploy vs Release & Cơ chế @RefreshScope
 
-| Loại | Ví dụ | Đổi khi nào |
-|---|---|---|
-| Tĩnh (cần restart) | DB URL, Kafka broker, pool size | Theo release |
-| Động (runtime) | maintenance mode, timeout threshold, flag bật feature | Theo sự kiện |
+Trong kỹ nghệ phần mềm hiện đại:
+- **Deployment (Triển khai)**: Đưa mã nguồn mới lên server hoặc cụm Pod container một cách âm thầm (Dark Launch).
+- **Release (Phát hành)**: Bật tính năng đó cho người dùng cuối nhìn thấy và sử dụng.
 
-application.yml là tĩnh. Config động cần: nơi lưu (Config Server / Consul / DB) + cơ chế refresh bean.
+Khi hai khái niệm này được tách rời bằng Feature Flag, rủi ro triển khai giảm xuống gần như bằng 0.
 
-## 2. @RefreshScope — bean tạo lại khi refresh
+### Cơ chế hoạt động của @RefreshScope bên trong Spring Container
+
+Spring Framework thông thường chỉ có 2 scope chính: <code>singleton</code> và <code>prototype</code>. Spring Cloud giới thiệu thêm **<code>@RefreshScope</code>** — một Scope tùy biến cực kỳ tinh xảo:
+
+~~~text
+                 CƠ CHẾ HOẠT ĐỘNG CỦA @REFRESHSCOPE
+                 
+  [HTTP Request]
+        │
+        ▼
+  [Proxy CGLIB của Bean @RefreshScope]
+        │
+        ├── Kiểm tra Cache của RefreshScope:
+        │     • Target instance đã tồn tại trong Map chưa?
+        │     • Có: Gọi thẳng target.method()
+        │
+  [SỰ KIỆN: POST /actuator/refresh]
+        │
+        ├── 1. ContextRefresher nạp lại Environment từ Config Server / Git / Consul
+        ├── 2. Tính toán diff giữa cấu hình cũ và mới
+        ├── 3. Bắn sự kiện RefreshScopeRefreshedEvent
+        └── 4. RefreshScope xóa sạch (clear) toàn bộ Bean instance trong Cache Map
+        
+  [HTTP Request TIẾP THEO]
+        │
+        ▼
+  [Proxy CGLIB của Bean @RefreshScope]
+        │
+        ├── Kiểm tra Cache: Target instance đang NULL!
+        ├── Gọi BeanFactory.getBean() để TẠO INSTANCE MỚI TINH
+        │     (Instance mới này đọc toàn bộ cấu hình mới vừa refresh)
+        └── Lưu instance mới vào Cache & Thực thi request
+~~~
+
+:::tip BẢN CHẤT CỦA @REFRESHSCOPE LÀ GÌ?
+Bean được đánh dấu <code>@RefreshScope</code> thực chất là một **Client-side Proxy**. Khi bạn gọi <code>/actuator/refresh</code>, Spring không hề kill container hay khởi động lại JVM. Nó chỉ đơn giản là vứt bỏ object cũ trong bộ nhớ và lười biếng (lazy) khởi tạo một object mới với thuộc tính mới ở request kế tiếp!
+:::
+
+---
+
+## 2. Toàn bộ Code Sản Xuất: Canary Rollout & Dynamic Circuit Breaker
+
+Hãy xây dựng một hệ thống thanh toán cấp tập đoàn hỗ trợ điều phối traffic dần dần (Canary Rollout 5% -> 50% -> 100%) và tích hợp chế độ bảo trì (Kill Switch) ngay lập tức.
+
+### Bước 1: Dependency trong pom.xml
 
 ~~~xml
 <dependency>
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-starter</artifactId>
+    <version>4.1.0</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
 </dependency>
 ~~~
 
-~~~yaml
-maintenance:
-  mode: false
-  message: "He thong bao tri 02:00-04:00"
-~~~
+### Bước 2: Cấu hình Type-safe với @RefreshScope
 
 ~~~java
-@RestController
-@RefreshScope                       // bean nay TAO LAI khi refresh
-public class MaintenanceController {
+package vn.mastery.payment.config;
 
-    @Value("\${maintenance.mode}")
-    private boolean maintenanceMode;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.stereotype.Component;
 
-    @GetMapping("/maintenance/status")
-    public Map<String, Object> status() {
-        return Map.of("mode", maintenanceMode);
+@Component
+@RefreshScope
+@ConfigurationProperties(prefix = "app.payment.feature")
+public class PaymentFeatureProperties {
+
+    private boolean maintenanceMode = false;
+    private boolean v2EngineEnabled = false;
+    private int canaryRolloutPercentage = 0; // 0 đến 100%
+    private long executionTimeoutMs = 3000;
+
+    // Getters và Setters bắt buộc để ConfigurationProperties binding lại khi refresh
+    public boolean isMaintenanceMode() { return maintenanceMode; }
+    public void setMaintenanceMode(boolean maintenanceMode) { this.maintenanceMode = maintenanceMode; }
+
+    public boolean isV2EngineEnabled() { return v2EngineEnabled; }
+    public void setV2EngineEnabled(boolean v2EngineEnabled) { this.v2EngineEnabled = v2EngineEnabled; }
+
+    public int getCanaryRolloutPercentage() { return canaryRolloutPercentage; }
+    public void setCanaryRolloutPercentage(int canaryRolloutPercentage) { this.canaryRolloutPercentage = canaryRolloutPercentage; }
+
+    public long getExecutionTimeoutMs() { return executionTimeoutMs; }
+    public void setExecutionTimeoutMs(long executionTimeoutMs) { this.executionTimeoutMs = executionTimeoutMs; }
+}
+~~~
+
+### Bước 3: Thuật toán Hash Bucket Ổn định & Service Điều phối
+
+Khi rollout theo %, một yêu cầu sống còn là: **Cùng một user phải luôn rơi vào cùng một phiên bản (V1 hoặc V2)** trong suốt phiên làm việc, không được nhảy qua nhảy lại khiến khách hàng bị lỗi trải nghiệm.
+
+~~~java
+package vn.mastery.payment.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import vn.mastery.payment.config.PaymentFeatureProperties;
+
+@Service
+public class PaymentRoutingService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentRoutingService.class);
+    private final PaymentFeatureProperties featureFlags;
+
+    public PaymentRoutingService(PaymentFeatureProperties featureFlags) {
+        this.featureFlags = featureFlags;
+    }
+
+    public String processPayment(String customerId, double amount) {
+        // 1. Kiểm tra Kill Switch khẩn cấp
+        if (featureFlags.isMaintenanceMode()) {
+            log.warn("Cổng thanh toán đang ở chế độ bảo trì khẩn cấp!");
+            throw new IllegalStateException("Hệ thống thanh toán đang bảo trì định kỳ. Vui lòng thử lại sau.");
+        }
+
+        // 2. Kiểm tra điều kiện Canary Rollout
+        if (featureFlags.isV2EngineEnabled() && isEligibleForCanary(customerId)) {
+            return executePaymentV2(customerId, amount);
+        }
+
+        return executePaymentV1(customerId, amount);
+    }
+
+    /**
+     * Thuật toán Stable Hashing: Chia 100 bucket cố định theo ID khách hàng.
+     */
+    private boolean isEligibleForCanary(String customerId) {
+        if (customerId == null) return false;
+        
+        // Dùng Math.floorMod để tránh lỗi số âm khi hashCode() == Integer.MIN_VALUE
+        int bucket = Math.floorMod(customerId.hashCode(), 100);
+        boolean eligible = bucket < featureFlags.getCanaryRolloutPercentage();
+        
+        log.debug("Customer [{}] thuộc Bucket [{}] - Ngưỡng Canary: [{}%] -> Phục vụ V2: {}",
+            customerId, bucket, featureFlags.getCanaryRolloutPercentage(), eligible);
+        return eligible;
+    }
+
+    private String executePaymentV1(String customerId, double amount) {
+        log.info("[ENGINE-V1] Xử lý đơn thanh toán {} cho khách hàng {}", amount, customerId);
+        return "SUCCESS_VIA_LEGACY_V1";
+    }
+
+    private String executePaymentV2(String customerId, double amount) {
+        log.info("[ENGINE-V2-CANARY] Xử lý thanh toán hiệu năng cao cho khách hàng {}", customerId);
+        return "SUCCESS_VIA_NEXTGEN_V2";
     }
 }
 ~~~
 
+---
+
+## 3. Thử nghiệm & Xác thực Thực tế (Real-world Verification)
+
+### Cấu hình mở Actuator Refresh Endpoint trong application.yml
+
+~~~yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,refresh,env"
+  endpoint:
+    refresh:
+      enabled: true
+
+app:
+  payment:
+    feature:
+      maintenance-mode: false
+      v2-engine-enabled: true
+      canary-rollout-percentage: 10 # Chỉ thử nghiệm 10% người dùng
+~~~
+
+### Kịch bản cURL kiểm thử Hot-Reload không restart JVM:
+
+#### 1. Kiểm tra thanh toán của User 1 (rơi vào Bucket 5 -> Được dùng V2):
 ~~~bash
-# Bat maintenance mode KHONG restart
+curl -X POST "http://localhost:8080/api/v1/payments?customerId=CUST-1005&amount=200000"
+# Trả về: SUCCESS_VIA_NEXTGEN_V2
+~~~
+
+#### 2. Kích hoạt Chế độ Bảo trì Khẩn cấp (Maintenance Mode):
+Bạn thay đổi thuộc tính trong file cấu hình ngoài hoặc qua biến môi trường:
+<code>app.payment.feature.maintenance-mode=true</code>
+
+Gửi yêu cầu POST tới endpoint <code>/actuator/refresh</code>:
+
+~~~bash
 curl -X POST http://localhost:8080/actuator/refresh
 ~~~
 
-POST /actuator/refresh hủy mọi bean @RefreshScope → lần gọi sau tạo bean mới đọc config mới. Lưu ý: refresh chỉ áp cho bean có annotation — không phải toàn app.
+Phản hồi JSON hiển thị danh sách chính xác các key cấu hình vừa được refresh:
 
-:::warn @REFRESHSCOPE KHÔNG PHẢI MAGIC TOÀN CỤC
-@Value trong bean KHÔNG có @RefreshScope giữ giá trị cũ mãi mãi. Team thường quên annotation rồi thắc mắc "refresh rồi mà sao không đổi". Chiến lược sạch: gom toàn bộ config động vào 1 @ConfigurationProperties bean có @RefreshScope, mọi nơi inject bean đó.
-:::
+~~~json
+[
+  "app.payment.feature.maintenance-mode"
+]
+~~~
 
-## 3. @ConfigurationProperties + RefreshScope — chuẩn typed
+#### 3. Kiểm tra lại ngay lập tức:
+~~~bash
+curl -i -X POST "http://localhost:8080/api/v1/payments?customerId=CUST-1005&amount=200000"
+~~~
 
-~~~java
-@RefreshScope
-@ConfigurationProperties(prefix = "runtime")
-public class RuntimeFlags {
-    private boolean maintenanceMode;
-    private int pointCalculationTimeoutMs;
-    private int maxRedeemPerDay;
-    private boolean redeemV2Enabled;
-    private int redeemV2Percent;
-    // getters/setters — Lombok @Data cũng được
+Kết quả phản hồi ngay lập tức sau 4 milliseconds:
+
+~~~text
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{
+  "status": 503,
+  "error": "Service Unavailable",
+  "message": "Hệ thống thanh toán đang bảo trì định kỳ. Vui lòng thử lại sau."
 }
 ~~~
 
-Typed config: 1 chỗ sửa, IDE navigate được, test được — hơn @Value rải rác 20 file.
+Toàn bộ ứng dụng không hề restart. Tiến trình JVM giữ nguyên. Cổng thanh toán đã được khóa an toàn!
 
-## 4. Feature flag — 4 tier theo mục đích
+---
 
-| Tier | Mục đích | Vòng đời |
-|---|---|---|
-| Release toggle | Ẩn code mới chưa hoàn thiện khi deploy | Ngày — tuần |
-| Ops toggle (kill switch) | Tắt tính năng đang lỗi, không rollback | Giờ — ngày |
-| Experiment (A/B) | Đo tác động của thay đổi | Tuần — tháng |
-| Permission | Bật tính năng theo tenant/plan | Vĩnh viễn (thành pricing rule) |
+## 4. Ba Cạm bẫy Chết người & Bài học Sự cố Thực tế
+
+### Cạm bẫy 1: Gắn @RefreshScope lên DataSource hoặc Connection Pool (HikariCP)
+**Sự cố thảm họa**: Một kỹ sư muốn đổi mật khẩu DB không cần restart nên đã gắn <code>@RefreshScope</code> lên bean <code>DataSource</code>.
+Khi chạy <code>/actuator/refresh</code>, Spring hủy bean DataSource cũ. Toàn bộ 50 kết nối database đang mở của các transaction đang chuyển tiền của khách hàng bị ngắt đột ngột (Socket closed). Hàng trăm khách hàng bị trừ tiền ví nhưng không nhận được mã vé!
+**Nguyên tắc**: Tuyệt đối **KHÔNG BAO GIỜ** gắn <code>@RefreshScope</code> lên các bean quản lý tài nguyên nặng có kết nối mạng (Stateful Connection): <code>DataSource</code>, <code>EntityManagerFactory</code>, <code>KafkaListenerContainerFactory</code>. Chỉ áp dụng cho các cấu hình nghiệp vụ nhẹ (Business Flags, Thresholds, Timeout).
+
+### Cạm bẫy 2: Lỗi tràn số âm kinh điển với Math.abs()
+Nhiều lập trình viên tính bucket người dùng bằng công thức:
+~~~java
+// ❌ BUG TO TOÁN HỌC TIỀM ẨN:
+int bucket = Math.abs(customerId.hashCode()) % 100;
+~~~
+Trong Java, <code>Math.abs(Integer.MIN_VALUE)</code> (tương ứng -2,147,483,648) **VẪN LÀ MỘT SỐ ÂM** do tràn số nguyên 32-bit!
+Khi một customerId tình cờ có hashCode là <code>Integer.MIN_VALUE</code>, bucket tính ra sẽ là một số âm (ví dụ: -48). Phép so sánh <code>bucket &lt; percentage</code> luôn đúng hoặc luôn sai bất thường tùy logic.
+**Chuẩn kỹ thuật**: Luôn luôn dùng <code>Math.floorMod(hash, 100)</code> để đảm bảo kết quả luôn là một số nguyên dương từ 0 đến 99.
+
+### Cạm bẫy 3: Nợ kỹ thuật Feature Flag (Flag Debt)
+Một lỗi quản trị rất thường gặp: Sau khi tính năng V2 đã release thành công 100% trong 6 tháng, code cũ V1 và các nhánh <code>if-else</code> vẫn nằm lại trong codebase. 
+Sau 2 năm, dự án tích tụ hơn 40 feature flags đan xen nhau, không ai dám xóa vì sợ ảnh hưởng.
+**Quy tắc kỷ luật**:
+- Mọi Release Flag khi sinh ra trong Jira **bắt buộc phải có một Sub-task "Dọn dẹp code cũ & Xóa cờ"** được lên lịch sau 2 sprint kể từ khi rollout 100%.
+- Tách biệt rõ ràng 4 loại Flag:
+  1. *Release Toggle*: Tạm thời (sống vài tuần).
+  2. *Ops Toggle (Kill Switch)*: Dài hạn (dành cho chế độ bảo trì khẩn cấp).
+  3. *Experiment Toggle (A/B Test)*: Ngắn hạn (đo lường tỷ lệ chuyển đổi).
+  4. *Permission Toggle*: Vĩnh viễn (gói dịch vụ Free vs Premium theo Tenant).
+
+---
+
+## 5. Thử thách Thực chiến (Hands-on Challenge)
+
+### Đề bài:
+Xây dựng Động cơ Khuyến mãi Động (Dynamic Promotion Engine) cho hệ thống Thương mại Điện tử:
+1. Tạo class <code>PromotionFeatureFlags</code> có <code>@RefreshScope</code> và <code>@ConfigurationProperties(prefix = "app.promo")</code> gồm:
+   - <code>flashSaleEnabled</code> (boolean).
+   - <code>discountPercentage</code> (int: từ 5% đến 50%).
+   - <code>vipExclusiveOnly</code> (boolean).
+2. Viết service <code>PromotionCalculator</code>:
+   - Nhận vào <code>OrderAmount</code> và <code>isVipUser</code>.
+   - Nếu <code>flashSaleEnabled == false</code> -> Không chiết khấu (giảm 0đ).
+   - Nếu <code>vipExclusiveOnly == true</code> mà khách hàng không phải VIP -> Không chiết khấu.
+   - Nếu thỏa mãn: Áp dụng chiết khấu theo tỉ lệ <code>discountPercentage</code> hiện thời.
+3. Đảm bảo toàn bộ cấu hình có thể thay đổi nóng qua <code>/actuator/refresh</code> mà không cần build lại code.
+
+### Lời giải Chuẩn Kỹ sư Cấp cao:
 
 ~~~java
+package vn.mastery.promo.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.stereotype.Component;
+
+@Component
+@RefreshScope
+@ConfigurationProperties(prefix = "app.promo")
+public class PromotionFeatureFlags {
+
+    private boolean flashSaleEnabled = false;
+    private int discountPercentage = 10;
+    private boolean vipExclusiveOnly = false;
+
+    public boolean isFlashSaleEnabled() { return flashSaleEnabled; }
+    public void setFlashSaleEnabled(boolean flashSaleEnabled) { this.flashSaleEnabled = flashSaleEnabled; }
+
+    public int getDiscountPercentage() { return discountPercentage; }
+    public void setDiscountPercentage(int discountPercentage) { this.discountPercentage = discountPercentage; }
+
+    public boolean isVipExclusiveOnly() { return vipExclusiveOnly; }
+    public void setVipExclusiveOnly(boolean vipExclusiveOnly) { this.vipExclusiveOnly = vipExclusiveOnly; }
+}
+~~~
+
+~~~java
+package vn.mastery.promo.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import vn.mastery.promo.config.PromotionFeatureFlags;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 @Service
-public class RedeemService {
+public class PromotionCalculator {
+    private static final Logger log = LoggerFactory.getLogger(PromotionCalculator.class);
+    private final PromotionFeatureFlags promoFlags;
 
-    private final RuntimeFlags flags;   // @RefreshScope bean
+    public PromotionCalculator(PromotionFeatureFlags promoFlags) {
+        this.promoFlags = promoFlags;
+    }
 
-    public RedeemResult redeem(RedeemCommand cmd) {
-        if (!flags.isRedeemV2Enabled()) {
-            return redeemLegacy(cmd);       // path cũ vẫn chạy — an toàn
+    public BigDecimal calculateDiscount(BigDecimal orderAmount, boolean isVip) {
+        if (!promoFlags.isFlashSaleEnabled()) {
+            log.debug("Flash sale đang tắt. Giảm giá 0đ.");
+            return BigDecimal.ZERO;
         }
-        if (!shouldUseV2(cmd.memberId())) {
-            return redeemLegacy(cmd);       // rollout % chưa tới user này
+
+        if (promoFlags.isVipExclusiveOnly() && !isVip) {
+            log.info("Chương trình Flash Sale chỉ áp dụng riêng cho khách hàng VIP!");
+            return BigDecimal.ZERO;
         }
-        return redeemV2(cmd);
+
+        int percent = Math.min(50, Math.max(5, promoFlags.getDiscountPercentage()));
+        BigDecimal discountFactor = BigDecimal.valueOf(percent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal discountAmount = orderAmount.multiply(discountFactor);
+
+        log.info("Áp dụng chiết khấu Flash Sale {}%: Giảm {} cho đơn hàng {}", percent, discountAmount, orderAmount);
+        return discountAmount;
     }
 }
 ~~~
 
-Rollout dần theo phần trăm (canary):
-
-~~~java
-private boolean shouldUseV2(String memberId) {
-    int bucket = Math.floorMod(memberId.hashCode(), 100);   // stable hash
-    return bucket < flags.getRedeemV2Percent();             // 5% → 50% → 100%
-}
-~~~
-
-floorMod(hash) cho cùng user luôn rơi cùng bucket — không xảy ra "hôm nay V2 mai V1" khiến trải nghiệm nhảy loạn.
-
-## 5. Togglz — feature flag engine trưởng thành
-
-~~~xml
-<dependency>
-    <groupId>org.togglz</groupId>
-    <artifactId>togglz-spring-boot-starter</artifactId>
-</dependency>
-~~~
-
-~~~java
-public enum AppFeature implements Feature {
-
-    @Label("Redeem engine v2")
-    REDEEM_V2,
-
-    @EnabledByDefault
-    @Label("Points expiry job")
-    EXPIRY_JOB;
-}
-~~~
-
-~~~java
-if (AppFeature.REDEEM_V2.isActive()) {
-    return redeemV2(cmd);
-}
-return redeemLegacy(cmd);
-~~~
-
-Togglz console (/togglz) bật/tắt runtime + strategy sẵn có: theo username, gradual rollout %, server IP. State lưu DB hoặc Consul — mọi instance đồng bộ đọc chung.
-
-## 6. Flag debt — cái giá của tiện lợi
-
-Flag là NỢ: mỗi flag = 2 nhánh code phải test, hiểu, duy trì. Quy tắc kỷ luật:
-
-- Flag release/ops: ngày sinh phải có issue ngày chết (tạo flag kèm ticket dọn flag)
-- Tối đa 1-2 flag active cùng lúc — hơn nữa là dấu hiệu branch sống quá lâu
-- Flag permission dài hạn → chuyển thành config theo tenant (pricing table), không phải if-else vĩnh viễn trong code
-
-:::laas Keycloak LAAS bạn từng build có biometric authentication provider làm SPI tùy chọn — bản chất là feature flag cấp infrastructure: SPI đăng ký nhưng chỉ tenant bật mới đi qua flow đó. Đối chiếu thực chiến: maintenance mode + kill switch job là 2 flag ops phổ biến nhất mọi hệ thống thanh toán — quyết định "tắt hay không" trong 30 giây khi incident, không chờ pipeline 15 phút.
-:::
-
 :::takeaways
-- Tách deploy (ship code im lặng) khỏi release (bật flag) — giảm rủi ro release
-- @RefreshScope + @ConfigurationProperties: config động typed, refresh không restart
-- refresh chỉ áp bean @RefreshScope — gom config động 1 chỗ tránh quên annotation
-- 4 tier flag: release/ops/experiment/permission — mỗi tier vòng đời khác nhau
-- Rollout %: floorMod(hash) stable bucket — canary an toàn, trải nghiệm nhất quán
-- Flag debt là thật: mỗi flag có ngày sinh phải có issue ngày chết
+- **Tách Deploy khỏi Release**: Dùng Feature Flag để đưa code lên production an toàn, kiểm soát thời điểm kích hoạt bằng cấu hình mà không phụ thuộc vào chu kỳ build.
+- **Bản chất @RefreshScope**: Là một Dynamic Proxy xóa cache bean khi nhận sự kiện refresh, tái tạo bean mới với giá trị cấu hình mới ở request tiếp theo.
+- **Phân bổ Canary Nhất quán**: Sử dụng <code>Math.floorMod(userId.hashCode(), 100)</code> để đảm bảo một người dùng luôn có trải nghiệm đồng nhất qua nhiều lần truy cập.
+- **Cấm kỵ @RefreshScope trên Connection Pool**: Tuyệt đối không gắn refresh scope lên DataSource hay Rabbit/Kafka connection nếu không muốn làm đứt gãy kết nối mạng của các giao dịch đang diễn ra.
 :::
 `
     },
     {
       id: "1-7",
       type: "lesson",
-      title: "AOP & Bean Lifecycle — cross-cutting không lặp code, lifecycle không bất ngờ",
+      title: "Tự viết Custom Starter & Đào sâu @Conditional — biến thư viện nội bộ thành plug-and-play",
       minutes: 50,
       content: `
-## Cùng 1 đoạn log timing copy-paste 47 method — và bean prototype inject vào singleton biến mất
+## 20 microservice cùng copy-paste cấu hình audit log — và bài toán thư viện dùng chung
 
-Hai vấn đề kinh điển: (1) logging/audit/metrics/timing là nghiệp vụ cắt ngang MỌI layer — viết tay trong từng method là 47 chỗ copy-paste lỗi nhất quán; (2) bean @Prototype inject vào @Singleton "biến mất" — luôn CÙNG instance dù đúng annotation. AOP giải bài toán (1), hiểu sâu lifecycle giải bài toán (2).
+Trong một tổ chức có nhiều team hoặc nhiều microservice, các bài toán như: ghi audit log chuẩn, tích hợp hệ thống đo lường (metrics), rate limiting, xử lý common exception hay header tracing thường bị lặp lại. Nếu copy-paste cấu hình thủ công:
+1. Version thư viện phân mảnh, khó nâng cấp đồng loạt.
+2. Mỗi service cấu hình một kiểu, format log/header không đồng nhất.
+3. Rất khó để một service riêng lẻ ghi đè (override) hành vi mặc định khi cần.
+
+**Spring Boot Starter** chính là lời giải tiêu chuẩn: đóng gói dependency và auto-configuration thành một gói "cắm là chạy", có thể cấu hình linh hoạt qua <code>application.yml</code>.
+
 ---
 
-## 1. Vấn đề cross-cutting — code lặp không phải nghiệp vụ
+## 1. Kiến trúc 2 module chuẩn của một Starter
+
+Theo chuẩn của Spring Boot team, một Starter chuyên nghiệp thường gồm 2 module:
 
 ~~~text
-@Service class RedeemService {
-    public RedeemResult redeem(cmd) {
-        long t0 = System.currentTimeMillis();     // ← copy-paste
-        log.info("redeem start cif={}", cmd.cif()); // ← copy-paste
-        try {
-            RedeemResult r = doRedeem(cmd);
-            log.info("redeem done in {}ms", ...);  // ← copy-paste
-            metrics.increment("redeem.ok");        // ← copy-paste
-            return r;
-        } catch (Exception e) {
-            metrics.increment("redeem.fail");      // ← copy-paste
-            throw e;
-        }
-    }
-}
-// 46 method khác y chang — quên 1 chỗ là méo metrics
+mycompany-audit-spring-boot-parent/
+├── mycompany-audit-spring-boot-autoconfigure/   ← Chứa code logic, @AutoConfiguration & @Bean
+└── mycompany-audit-spring-boot-starter/         ← Module rỗng (empty jar), chỉ gom dependency
 ~~~
 
-AOP tách phần cắt ngang thành ASPECT — 1 chỗ viết, áp dụng theo quy tắc (pointcut), không đụng code nghiệp vụ.
+- **Autoconfigure module**: Chứa code kiểm tra điều kiện (@Conditional), tạo bean, bind cấu hình.
+- **Starter module**: Chỉ chứa file <code>pom.xml</code> khai báo dependency tới module autoconfigure và các thư viện cần thiết. Người dùng cuối chỉ cần thêm **duy nhất** dependency starter này.
+*(Lưu ý: Với các dự án nội bộ vừa và nhỏ, bạn có thể gộp 2 module này thành 1 module duy nhất để đơn giản hóa quá trình build).*
 
-## 2. Khái niệm lõi — Aspect, Pointcut, Advice, JoinPoint
+## 2. Vũ khí tối thượng: Hệ sinh thái @Conditional
 
-| Thuật ngữ | Ý nghĩa | Ví dụ |
+Tất cả sự "thông minh" của Spring Boot bắt nguồn từ các annotation điều kiện:
+
+| Annotation | Ý nghĩa thực chiến | Trường hợp sử dụng |
 |---|---|---|
-| Aspect | Module hóa mối quan tâm cắt ngang | PerformanceAspect, AuditAspect |
-| JoinPoint | Điểm có thể chèn code (method call trong Spring) | redeemService.redeem() |
-| Pointcut | Biểu thức CHỌN joinpoint nào | execution(* vn.addpay..service.*.*(..)) |
-| Advice | Code chạy tại điểm chèn | @Around, @Before, @AfterThrowing |
-
-## 3. @Aspect thực chiến — timing + audit log
-
-~~~xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-aop</artifactId>
-</dependency>
-~~~
+| <code>@ConditionalOnClass(X.class)</code> | Chỉ tạo bean nếu class X có mặt trong classpath | Tích hợp Redis/Kafka khi thư viện client được import |
+| <code>@ConditionalOnMissingBean(X.class)</code> | Chỉ tạo bean nếu người dùng **CHƯA** tự định nghĩa bean này | Cho phép user ghi đè (override) bean mặc định dễ dàng |
+| <code>@ConditionalOnProperty(...)</code> | Bật/tắt theo cấu hình trong application.yml | Feature switch: <code>mastery.audit.enabled=true</code> |
+| <code>@ConditionalOnWebApplication</code> | Chỉ chạy nếu app là web app (Servlet hoặc Reactive) | Filter, Interceptor, Controller advice |
+| <code>@AutoConfigureAfter(X.class)</code> | Đảm bảo starter chạy sau một AutoConfig khác | Đảm bảo DataSourceAutoConfiguration đã chạy trước |
 
 ~~~java
-@Aspect
-@Component
-public class PerformanceAspect {
+@AutoConfiguration
+@ConditionalOnClass(AuditManager.class)
+@EnableConfigurationProperties(AuditProperties.class)
+public class AuditAutoConfiguration {
 
-    private static final Logger log =
-        LoggerFactory.getLogger("perf");
-
-    // Pointcut: mọi method public của mọi @Service
-    @Pointcut("execution(public * vn.addpay.loyalty..service..*(..))")
-    public void serviceLayer() {}
-
-    @Around("serviceLayer()")
-    public Object timing(ProceedingJoinPoint jp) throws Throwable {
-        long t0 = System.nanoTime();
-        try {
-            return jp.proceed();                 // CHẠY method gốc
-        } finally {
-            long ms = (System.nanoTime() - t0) / 1_000_000;
-            log.info("{}.{} took {}ms",
-                jp.getTarget().getClass().getSimpleName(),
-                jp.getSignature().getName(), ms);
-        }
+    @Bean
+    @ConditionalOnMissingBean(AuditRepository.class)
+    public AuditRepository defaultAuditRepository() {
+        return new InMemoryAuditRepository(); // Fallback nếu user không cấu hình DB
     }
 }
 ~~~
 
-~~~java
-@Aspect
-@Component
-public class AuditAspect {
+## 3. Đăng ký AutoConfiguration trong Spring Boot 3+
 
-    // Chỉ method có annotation đánh dấu — pointcut chính xác hơn execution
-    @Around("@annotation(audited)")
-    public Object audit(ProceedingJoinPoint jp, Audited audited)
-            throws Throwable {
-        String action = audited.value();
-        String actor = SecurityContextHelper.currentUser();
-        auditRepo.insert(action, actor, jp.getArgs(),
-            Instant.now(), "RUNNING");
-        try {
-            Object result = jp.proceed();
-            auditRepo.markDone(action, actor);
-            return result;
-        } catch (Exception e) {
-            auditRepo.markFailed(action, actor, e.getMessage());
-            throw e;
-        }
-    }
-}
-~~~
-
-@annotation pointcut là cách idiomat nhất: tự đánh dấu method nào cần audit — không pointcut string mong manh theo package.
-
-## 4. Proxy — cách Spring thực thi AOP (và giới hạn của nó)
-
-Spring AOP là PROXY: container bọc bean trong lớp proxy — caller gọi proxy, proxy chạy advice rồi mới delegate xuống target.
-
-~~~text
-Caller → [PerformanceProxy.redeem()]  ← advice chạy ở đây
-              ↓ delegate
-         RedeemService.redeem()       ← method gốc (KHÔNG qua proxy!)
-~~~
-
-Hệ quả — 3 cái bẫy kinh điển:
-
-1. **Self-invocation**: redeem() gọi this.validate() nội bộ — validate() KHÔNG qua proxy → aspect không chạy
-2. **final method**: proxy không override được → aspect lặng lẽ bỏ qua
-3. **@Prototype trong @Singleton**: inject 1 lần lúc startup — bean prototype "đóng băng" thành 1 instance duy nhất. Muốn mỗi lần dùng instance mới: ObjectProvider<T> hoặc @Lookup
-
-## 5. Bean lifecycle đầy đủ — instantiation → populate → aware → init → ready → destroy
-
-~~~text
-Constructor → Dependency Injection (populate) → Aware callbacks
-→ @PostConstruct → afterPropertiesSet() → custom init-method
-→ [bean READY — sống trong container]
-→ @PreDestroy → destroy() → custom destroy-method
-~~~
-
-~~~java
-@Component
-public class CacheWarmUp {
-
-    @PostConstruct                          // dependency đã inject xong
-    void warmUp() {
-        rules.loadFromDb();                 // an toàn dùng dependency
-    }
-}
-
-@Component
-public class GracefulShutdown {
-
-    @PreDestroy                             // trước khi container tắt
-    void drain() {
-        kafkaConsumer.pause();              // ngừng lấy message mới
-        inFlight.awaitCompletion(30s);      // chờ việc đang chạy
-    }
-}
-~~~
-
-Constructor chạy TRƯỚC injection: dùng dependency trong constructor (trừ constructor injection tự nó) là NPE — @PostConstruct là chỗ đúng cho init logic.
-
-## 6. Scope thực chiến — khi nào loại nào
-
-| Scope | Số instance | Use case |
-|---|---|--- trong container |
-| singleton | 1 / container | Default — 99% service/repository |
-| prototype | 1 / mỗi request getBean | Object tạo mới liên tục (builder có state) |
-| request | 1 / HTTP request | Thông tin per-request (cart tạm) |
-| session | 1 / HTTP session | Không dùng cho REST API — stateless |
-| application | 1 / ServletContext | Chia sẻ toàn app (hiếm) |
-
-:::warn AOP TRên @Transactional KHÔNG HOẠT ĐỘNG TRÊN self-call
-Đây là nguồn bug khó hiểu nhất Spring: method @Transactional gọi method @Transactional KHÁC trong CÙNG class → inner KHÔNG có transaction mới (proxy không nằm giữa). Fix: tách class, hoặc tự inject proxy (self-injection). Cùng cơ chế proxy với aspect — hiểu proxy là hiểu cùng lúc cả AOP lẫn transaction.
+:::warn BƯỚC ĐỆM QUAN TRỌNG TỪ SPRING BOOT 3
+Trước Spring Boot 2.7, cơ chế auto-config được khai báo qua file <code>META-INF/spring.factories</code>.
+Kể từ **Spring Boot 3.0+**, file này **đã bị loại bỏ** cho việc auto-configuration.
+Bạn BẮT BUỘC phải tạo file:
+<code>src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>
 :::
 
-:::laas LAAS dùng pattern tenant context (bài 6-7) chính là aspect: TenantContextAspect @Around chặn mọi method @TenantRequired, set/clear ThreadLocal quanh lời gọi — không method nghiệp vụ nào biết sự tồn tại của nó. Đối chiếu: nếu thấy metrics thiếu cho method nội bộ this.xxx() — đó không phải bug metrics, là self-invocation bỏ qua proxy. Cùng 1 kiến thức: proxy nằm ở RANH GIỚI bean, không nằm bên trong bean.
+Nội dung file chỉ chứa tên đầy đủ (FQCN) của AutoConfiguration class:
+
+~~~text
+vn.mastery.starter.audit.AuditAutoConfiguration
+~~~
+
+Mỗi dòng một class. Khi ứng dụng khởi động, Spring Boot sẽ tự động quét file này và đưa class vào pipeline đánh giá điều kiện.
+
+## 4. Thực hành: Xây dựng Audit Starter từng bước
+
+### Bước 1: Class cấu hình Type-safe
+
+~~~java
+@ConfigurationProperties(prefix = "mastery.audit")
+public record AuditProperties(
+    boolean enabled,
+    String serviceName,
+    int maxQueueSize
+) {
+    public AuditProperties {
+        if (serviceName == null || serviceName.isBlank()) {
+            serviceName = "default-service";
+        }
+    }
+}
+~~~
+
+### Bước 2: Service cốt lõi & Interface cho phép mở rộng
+
+~~~java
+public interface AuditSender {
+    void send(AuditPayload payload);
+}
+
+public class HttpAuditSender implements AuditSender {
+    private final AuditProperties properties;
+    public HttpAuditSender(AuditProperties properties) { this.properties = properties; }
+
+    @Override
+    public void send(AuditPayload payload) {
+        // Gửi audit log lên server tập trung
+    }
+}
+~~~
+
+### Bước 3: Class AutoConfiguration kết nối mọi thứ
+
+~~~java
+@AutoConfiguration
+@ConditionalOnProperty(prefix = "mastery.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(AuditProperties.class)
+public class AuditAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(AuditSender.class)
+    public AuditSender auditSender(AuditProperties properties) {
+        return new HttpAuditSender(properties);
+    }
+
+    @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+    @ConditionalOnMissingBean(AuditHttpFilter.class)
+    public AuditHttpFilter auditHttpFilter(AuditSender sender, AuditProperties props) {
+        return new AuditHttpFilter(sender, props);
+    }
+}
+~~~
+
+## 5. Kiểm thử AutoConfiguration với ApplicationContextRunner
+
+Không cần khởi động toàn bộ server Tomcat để test starter! Spring Boot Test cung cấp công cụ ApplicationContextRunner cực kỳ mạnh mẽ và chạy trong vài mili-giây:
+
+~~~java
+class AuditAutoConfigurationTest {
+
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(AuditAutoConfiguration.class));
+
+    @Test
+    void whenEnabled_thenBeansCreated() {
+        runner.withPropertyValues("mastery.audit.enabled=true")
+              .run(context -> {
+                  assertThat(context).hasSingleBean(AuditSender.class);
+                  assertThat(context).hasSingleBean(AuditHttpFilter.class);
+              });
+    }
+
+    @Test
+    void whenDisabled_thenNoBeansCreated() {
+        runner.withPropertyValues("mastery.audit.enabled=false")
+              .run(context -> {
+                  assertThat(context).doesNotHaveBean(AuditSender.class);
+              });
+    }
+
+    @Test
+    void whenCustomBeanProvided_thenAutoConfigBacksOff() {
+        runner.withUserConfiguration(CustomSenderConfig.class)
+              .run(context -> {
+                  assertThat(context).hasSingleBean(AuditSender.class);
+                  assertThat(context).getBean(AuditSender.class).isInstanceOf(CustomAuditSender.class);
+              });
+    }
+}
+~~~
+
+## 6. Ba cạm bẫy sống còn khi viết Starter
+
+1. **Quên @ConditionalOnMissingBean**: Đây là lỗi phổ biến nhất. Nếu thiếu annotation này, khi một service muốn tự viết Custom Sender, Spring sẽ báo lỗi xung đột bean duplicate (NoUniqueBeanDefinitionException).
+2. **Lạm dụng @ComponentScan trong starter**: KHÔNG BAO GIỜ đặt @ComponentScan trong AutoConfiguration class. Nó sẽ quét lan sang package của ứng dụng client, dẫn đến việc inject sai bean hoặc làm hỏng cấu hình của user.
+3. **matchIfMissing = true vs false**: Nếu muốn tính năng mặc định được bật và chỉ tắt khi khai báo rõ ràng, luôn nhớ thuộc tính matchIfMissing = true.
+
+:::laas ĐỐI CHIẾU HỆ THỐNG LAAS
+Tại các hệ thống như LAAS, module common-security hoặc common-logging được xây dựng dưới dạng custom starter. Mọi service chỉ cần thêm dependency là tự động có filter bắt Header JWT, giải mã TenantContext và ghi log theo format JSON thống nhất, không một service nào phải cấu hình lại từ đầu.
 :::
 
 :::takeaways
-- Cross-cutting (log/audit/metrics/timing) → aspect 1 chỗ viết, pointcut chọn nơi áp dụng
-- @annotation pointcut chính xác hơn execution(* package..*) — tự đánh dấu, không mong manh
-- Spring AOP = proxy: self-invocation KHÔNG qua proxy — aspect/transaction đều bị bỏ qua
-- @Prototype inject vào @Singleton đóng băng thành 1 instance — dùng ObjectProvider/@Lookup
-- Lifecycle: constructor → DI → @PostConstruct → ready → @PreDestroy — init ở đúng chỗ, không NPE
-- @Transactional self-call mất transaction mới — cùng bẫy proxy với aspect
+- Starter = Dependency bundle + AutoConfiguration class + META-INF registration.
+- Spring Boot 3+ dùng META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports.
+- @ConditionalOnMissingBean là nguyên tắc lịch sự số 1 của Starter: cung cấp mặc định nhưng luôn nhường đường cho người dùng ghi đè.
+- Dùng ApplicationContextRunner để kiểm thử các nhánh @Conditional nhanh chóng mà không cần chạy server.
+- Không dùng @ComponentScan trong các class AutoConfiguration.
 :::
 `
     },

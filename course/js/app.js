@@ -309,6 +309,15 @@
     $("#headerProgressPct").textContent = total.pct + "%";
     $("#dashRingText").textContent = total.pct + "%";
 
+    const streakEl = $("#streakSub");
+    if (streakEl) {
+      const quizCount = MODULES.reduce((acc, m) => {
+        const q = m.lessons.find((l) => l.type === "quiz");
+        return acc + (q && q.questions ? q.questions.length : 0);
+      }, 0);
+      streakEl.textContent = `${lessonsTotal} bài · ${MODULES.length} module · ${quizCount} câu quiz`;
+    }
+
     const CIRC = 226.2;
     $("#dashRing").style.strokeDashoffset = CIRC - (CIRC * total.pct) / 100;
     const HCIRC = 100.5;
