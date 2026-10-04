@@ -444,6 +444,21 @@
       </div>
       <div class="ai-config-body" style="padding: 16px 0;">
         <div class="form-group" style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-2);"><strong>⚡ Chọn nhanh cấu hình mẫu (Preset):</strong></label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiCoding" style="font-size: 12px; padding: 6px 12px; border-color: rgba(56,189,248,0.5); color: #38bdf8;" title="Dành cho tài khoản z.ai có gói GLM Coding Plan">
+              ⚡ Z.AI Coding Plan (z.ai)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiReasoning" style="font-size: 12px; padding: 6px 12px;" title="Mô hình suy luận chuyên sâu của Z.AI Coding Plan">
+              🧠 Z.AI GLM-5 Reasoning
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetBigmodel" style="font-size: 12px; padding: 6px 12px;" title="Dành cho tài khoản BigModel nội địa Trung Quốc">
+              🇨🇳 BigModel China (open.bigmodel.cn)
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
           <label for="glmApiKeyInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Token / API Key GLM (Zhipu AI):</strong></label>
           <div class="input-with-toggle" style="display: flex; gap: 8px;">
             <input type="password" id="glmApiKeyInput" class="form-control" style="flex: 1; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" placeholder="Dán API Key GLM của bạn tại đây (vd: 123...abc)" autocomplete="off">
@@ -451,24 +466,33 @@
           </div>
           <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3); line-height: 1.5;">
             🔒 Token được lưu trữ bảo mật cục bộ tại trình duyệt (<code>LocalStorage</code>), không gửi qua bất kỳ bên thứ ba nào.<br>
-            👉 Chưa có token? Đăng ký và lấy API Key miễn phí tại <a href="https://open.bigmodel.cn" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">open.bigmodel.cn</a>.
+            👉 Hỗ trợ cả <strong>Z.AI Coding Plan</strong> (<a href="https://z.ai" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">z.ai</a>) lẫn <strong>BigModel China</strong> (<a href="https://open.bigmodel.cn" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">open.bigmodel.cn</a>).
           </small>
         </div>
 
         <div class="form-group" style="margin-bottom: 16px;">
           <label for="glmModelSelect" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Mô hình AI (Model):</strong></label>
           <select id="glmModelSelect" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);">
-            <option value="glm-4-flash" selected>glm-4-flash (Khuyên dùng: Siêu nhanh, Miễn phí, 128k context)</option>
-            <option value="glm-4-air">glm-4-air (Cân bằng tốc độ &amp; suy luận)</option>
-            <option value="glm-4-plus">glm-4-plus (Mô hình năng lực cao nhất)</option>
-            <option value="glm-4">glm-4 (Mô hình tiêu chuẩn)</option>
+            <optgroup label="Z.AI Coding Plan (Khuyên dùng cho tài khoản z.ai)">
+              <option value="glm-4.5" selected>glm-4.5 (Z.AI Coding Plan - Siêu nhanh, tối ưu lập trình Spring Boot)</option>
+              <option value="glm-5">glm-5 (Z.AI Coding Plan - Suy luận &amp; Tư duy chuyên sâu)</option>
+            </optgroup>
+            <optgroup label="BigModel China (open.bigmodel.cn)">
+              <option value="glm-4-flash">glm-4-flash (BigModel China - Nhanh, Miễn phí 128k context)</option>
+              <option value="glm-4-air">glm-4-air (BigModel China - Cân bằng)</option>
+              <option value="glm-4-plus">glm-4-plus (BigModel China - Năng lực cao)</option>
+              <option value="glm-4">glm-4 (BigModel China - Tiêu chuẩn)</option>
+            </optgroup>
           </select>
         </div>
 
         <div class="form-group">
           <label for="glmEndpointInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>API Endpoint:</strong></label>
-          <input type="text" id="glmEndpointInput" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" value="https://open.bigmodel.cn/api/paas/v4/chat/completions">
-          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3);">Mặc định chuẩn OpenAI của Zhipu v4. Có thể đổi nếu dùng Reverse Proxy riêng.</small>
+          <input type="text" id="glmEndpointInput" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" value="https://api.z.ai/api/coding/paas/v4/chat/completions">
+          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3); line-height: 1.4;">
+            • Z.AI Coding Plan: <code>https://api.z.ai/api/coding/paas/v4/chat/completions</code><br>
+            • BigModel China: <code>https://open.bigmodel.cn/api/paas/v4/chat/completions</code>
+          </small>
         </div>
       </div>
 
