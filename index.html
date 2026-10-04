@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="css/style.css?v=20261004.6">
+  <link rel="stylesheet" href="css/style.css?v=20261004.8">
 </head>
 <body>
   <div class="app" id="app">
@@ -23,8 +23,13 @@
         <span class="brand-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 2 4.5 4.5 4.5 8c0 2 1.2 3.6 3 4.6V16c0 .6.4 1 1 1h7c.6 0 1-.4 1-1v-3.4c1.8-1 3-2.6 3-4.6C19.5 4.5 16 2 12 2Z" fill="url(#g1)"/><ellipse cx="9.5" cy="8" rx="1.2" ry="1.6" fill="#0a0f0d"/><ellipse cx="14.5" cy="8" rx="1.2" ry="1.6" fill="#0a0f0d"/><path d="M9 20h6M10 22h4" stroke="url(#g1)" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="g1" x1="4" y1="2" x2="20" y2="22"><stop stop-color="#8BE36B"/><stop offset="1" stop-color="#2DD4A7"/></linearGradient></defs></svg>
         </span>
-        <span class="brand-text">SpringBoot <em>Mastery</em></span>
+        <span class="brand-text" id="brandText">SpringBoot <em>Mastery</em></span>
       </a>
+
+      <button class="nav-catalog-btn" id="btnHeaderCatalog" data-view="courses" title="Khám phá tất cả khóa học">
+        <span class="nc-icon">🌟</span>
+        <span class="nc-text">Tất cả khóa học</span>
+      </button>
 
       <div class="search-box" id="searchBox">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -159,6 +164,9 @@
 
         <!-- User Dashboard & Personal Progress -->
         <section class="view" id="view-user-dashboard" hidden></section>
+
+        <!-- Course Catalog view -->
+        <section class="view" id="view-courses" hidden></section>
       </main>
     </div>
   </div>
@@ -198,6 +206,10 @@
   <script src="js/content/module5.js"></script>
   <script src="js/content/module6.js"></script>
   <script src="js/content/module7.js"></script>
+  <script src="js/content/course_java.js"></script>
+  <script src="js/content/course_react.js"></script>
+  <script src="js/content/course_devops.js"></script>
+  <script src="js/content/expanded_quizzes.js"></script>
   <!-- ===== AUTH MODAL ===== -->
   <div class="modal-backdrop" id="authModalBackdrop" style="display: none;">
     <div class="auth-modal" id="authModal">
@@ -256,6 +268,6 @@
       </form>
     </div>
   </div>
-  <script src="js/app.js?v=20261004.6"></script>
+  <script src="js/app.js?v=20261004.8"></script>
 </body>
 </html>
