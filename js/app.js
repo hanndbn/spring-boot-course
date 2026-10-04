@@ -3099,7 +3099,40 @@ ${lesson ? lesson.content : ""}
             throw primaryErr;
           }
         } else {
-          throw primaryErr;
+          // If browser CORS error (Failed to fetch)
+          const isCors = primaryErr.name === "TypeError" || (primaryErr.message && primaryErr.message.includes("Failed to fetch"));
+          if (isCors) {
+            try {
+              console.info("Direct call blocked by CORS. Attempting /api/chat proxy...");
+              const vRes = await fetch("/api/chat", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${cfg.apiKey.trim()}`
+                },
+                body: JSON.stringify({
+                  model: cfg.model || DEFAULT_GLM_MODEL,
+                  messages: apiMessages,
+                  temperature: 1.0,
+                  max_tokens: 4096,
+                  thinking: { type: "enabled" },
+                  reasoning_effort: "max"
+                })
+              });
+              if (vRes.ok) {
+                data = await vRes.json();
+                toast("💡 Đã tự động kết nối qua API Proxy!", 3000);
+              } else {
+                throw new Error("Proxy HTTP " + vRes.status);
+              }
+            } catch (proxyErr) {
+              const cErr = new Error("CORS_POLICY_BLOCKED");
+              cErr.isCors = true;
+              throw cErr;
+            }
+          } else {
+            throw primaryErr;
+          }
         }
       }
 
@@ -3155,24 +3188,45 @@ ${lesson ? lesson.content : ""}
       const loadingEl = $("#aiLoadingIndicator");
       if (loadingEl) loadingEl.remove();
 
+      const isCors = err.isCors || err.name === "TypeError" || (err.message && (err.message.includes("Failed to fetch") || err.message.includes("CORS")));
+
       if (thread) {
         const errEl = document.createElement("div");
         errEl.className = "ai-msg ai-msg-bot";
-        errEl.innerHTML = `
-          <div class="ai-msg-avatar">⚠️</div>
-          <div class="ai-msg-content" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08);">
-            <p style="color: #fca5a5; font-weight: 600; margin-bottom: 4px;">Không thể kết nối đến GLM AI API:</p>
-            <p style="font-size: 13px; color: var(--text-2); margin: 0 0 8px;">${escapeHtml(err.message)}</p>
-            <p style="font-size: 12px; margin: 0;">
-              👉 Vui lòng kiểm tra lại API Key hoặc Endpoint: <button type="button" class="btn btn-secondary btn-sm" id="btnErrOpenConfig" style="padding: 3px 8px; font-size: 12px; margin-left: 6px;">⚙️ Kiểm tra Cấu hình</button>
-            </p>
-          </div>
-        `;
+        if (isCors) {
+          errEl.innerHTML = `
+            <div class="ai-msg-avatar">⚠️</div>
+            <div class="ai-msg-content" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);">
+              <p style="color: #fbbf24; font-weight: 700; margin-bottom: 6px; font-size: 14px;">⚠️ Trình duyệt chặn kết nối (CORS Policy của Z.AI)</p>
+              <p style="font-size: 13px; color: var(--text-2); line-height: 1.6; margin: 0 0 10px;">
+                Cổng máy chủ <code>api.z.ai</code> của Zhipu AI được thiết kế dạng <strong>Server-to-Server</strong>, hiện chưa mở CORS Header cho phép trình duyệt web (Chrome/Edge/Firefox) gọi trực tiếp.<br><br>
+                <strong>💡 2 Cách khắc phục tức thì:</strong><br>
+                1. <strong>Bật Tiện ích mở CORS (Nhanh nhất 30s):</strong> Cài extension <a href="https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline; font-weight: 600;">Allow CORS: Access-Control-Allow-Origin</a> trên Chrome/Edge và gạt nút <strong>ON</strong> (icon chuyển xanh) là chat được ngay lập tức!<br>
+                2. <strong>Hoặc chạy Backend Spring Boot:</strong> Mở terminal chạy <code>cd backend &amp;&amp; mvn spring-boot:run</code>, hệ thống sẽ tự động chuyển tiếp qua Backend Proxy.
+              </p>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnErrOpenConfig" style="padding: 4px 10px; font-size: 12px;">⚙️ Mở Cấu hình AI</button>
+                <a href="https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="padding: 4px 10px; font-size: 12px; text-decoration: none;">📥 Cài Allow CORS Extension</a>
+              </div>
+            </div>
+          `;
+        } else {
+          errEl.innerHTML = `
+            <div class="ai-msg-avatar">⚠️</div>
+            <div class="ai-msg-content" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08);">
+              <p style="color: #fca5a5; font-weight: 600; margin-bottom: 4px;">Không thể kết nối đến GLM AI API:</p>
+              <p style="font-size: 13px; color: var(--text-2); margin: 0 0 8px;">${escapeHtml(err.message)}</p>
+              <p style="font-size: 12px; margin: 0;">
+                👉 Vui lòng kiểm tra lại API Key hoặc Endpoint: <button type="button" class="btn btn-secondary btn-sm" id="btnErrOpenConfig" style="padding: 3px 8px; font-size: 12px; margin-left: 6px;">⚙️ Kiểm tra Cấu hình</button>
+              </p>
+            </div>
+          `;
+        }
         thread.appendChild(errEl);
         $("#btnErrOpenConfig", errEl)?.addEventListener("click", openAiConfigModal);
         thread.scrollTop = thread.scrollHeight;
       }
-      toast(`❌ Lỗi AI: ${err.message}`, 4000);
+      toast(isCors ? "⚠️ Bị chặn bởi CORS Policy của Z.AI" : `❌ Lỗi AI: ${err.message}`, 5000);
     } finally {
       if (sendBtn) sendBtn.disabled = false;
       if (input) {
