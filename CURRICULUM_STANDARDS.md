@@ -6,27 +6,6 @@
 
 ---
 
-## BẢNG QUYẾT ĐỊNH ĐỒNG THUẬN KỸ THUẬT (14 CONFLICT RESOLUTION MATRIX)
-
-| # | Vấn đề phát hiện | Giải pháp chuẩn hóa đưa vào Spec | Mục quy chuẩn tương ứng |
-|---|---|---|:---:|
-| **1** | **Schema mẫu vẫn là khóa monolith** | Tách riêng hai thực thể `Track` (Lộ trình) và `Course` (Khóa học). `level` của khóa chỉ còn 3 giá trị: `foundation`, `professional`, `architect`. Cấm `level: "Zero to Production"`. | **Mục 2.1 & 4** |
-| **2** | **Placement miễn cả level** | Bài test đầu vào 15 câu chỉ mang tính gợi ý điều hướng. Muốn bỏ qua hoặc nhận chứng chỉ từng chặng bắt buộc phải thi Test-Out đúng từng module, không miễn cả level. | **Mục 7.3** |
-| **3** | **20 phút, cấm paste coi là chống gian** | Bỏ claim chống gian viển vông. Giới hạn 20 phút chỉ để định dạng bài (time budget). Tuyệt đối không ghi "triệt tiêu ChatGPT", bỏ cấm paste UI vô giá trị kỹ thuật. | **Mục 7.3** |
-| **4** | **80% trên 16 câu, retake nhớ đề** | Ngân hàng đề mỗi module tối thiểu 36 câu kịch bản, mỗi lần rút ngẫu nhiên 12 câu. Telemetry log tỷ lệ đúng: câu có tỷ lệ đúng > 90% hoặc < 30% bắt buộc phải viết lại. | **Mục 7.1 & 7.2** |
-| **5** | **H2 giấu lỗi production** | Foundation được dùng `local-lite` H2. Từ Professional, bài data và concurrency bắt buộc chạy profile Docker/Cloud thật mới được tính Certified. | **Mục 6.1** |
-| **6** | **Domain ngân hàng quá sớm** | Mỗi Track áp dụng một domain giả cố định. Cấm ví dụ `foo/bar`, nhưng không cấm nghiệp vụ nhỏ ở Level 1 (không ép nghiệp vụ ngân hàng/giao dịch phân tán ở Level 1). | **Mục 1.3** |
-| **7** | **Synthesis làm vỡ trần 22 bài** | Bài Synthesis tính trực tiếp vào trần 22 bài. Quy định cứng: Mỗi topic tối đa 4 bài kể cả bài synthesis. | **Mục 2 & 5.5** |
-| **8** | **Mẫu data không copy được** | Mọi ví dụ trong spec bắt buộc là object tĩnh, copy dùng được ngay. Cấm biểu thức logic, điều kiện ternary trong JSON/JS mẫu. | **Mục 4** |
-| **9** | **k6 500 TPS là cổng tốt nghiệp** | Cổng tốt nghiệp bắt buộc chỉ gồm hidden test và ArchUnit đúng level (ngân sách CI dưới 4 phút). k6 và phản biện ADR là điểm cộng xuất sắc, không dùng đánh đỗ/trượt. | **Mục 8.1 & 8.2** |
-| **10** | **Rubric Architect áp cho mọi level** | Xây dựng 3 bảng Rubric riêng biệt cho 3 Level. Foundation tuyệt đối không chấm Hexagonal hay Contract Test (Pact). | **Mục 8.3** |
-| **11** | **Chứng chỉ mang chức danh nghề** | Tên chứng chỉ chuẩn hóa: `DevMastery Verified — <course title>`. Cấm dùng chữ "bằng" và cấm gán chức danh nghề nghiệp. | **Mục 2.1 & 8.4** |
-| **12** | **Clone repo học viên (Bảo mật)** | Ban hành điều khoản nộp bài minh bạch: Toàn bộ code clone về runner và artifact chấm điểm bị xóa sạch sau 7 ngày; cam kết không dùng bài nộp để train AI. | **Mục 8.5** |
-| **13** | **Agent sinh bài không chạy** | Bài `practice` không được merge vào repo nếu câu lệnh thực thi trong bài fail. Gắn CI test runner thành cổng chặn merge (Merge Gate). | **Mục 9.2** |
-| **14** | **DoD lẫn deploy** | Content DoD dừng ở schema, test runnable, quiz ngân hàng 36 câu, profile RAM. Bỏ việc deploy hạ tầng (kể cả gh-pages) khỏi Content DoD; chuyển sang Checklist Release. | **Mục 10** |
-
----
-
 ## 1. Triết Lý Thiết Kế: Thực Dụng & Khép Kín (Pragmatic Engineering)
 
 1. **Text-First & Interactive (Kiểu Educative):** Kỹ sư đọc và đối chiếu code nhanh gấp 2–3 lần xem video 40 giờ. Không dùng video thụ động; 100% nội dung là tài liệu kỹ thuật có thể tra cứu nhanh (`Ctrl + K`), copyable snippets và sơ đồ rõ ràng.
