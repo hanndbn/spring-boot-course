@@ -1165,17 +1165,16 @@ body {
 }
 
 .auth-form {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 14px !important;
-  width: 100% !important;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
 }
 
 .auth-form .form-group {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  margin-bottom: 0 !important;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 0;
 }
 
 .auth-form label {
