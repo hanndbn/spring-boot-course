@@ -446,11 +446,11 @@
         <div class="form-group" style="margin-bottom: 16px;">
           <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-2);"><strong>⚡ Chọn nhanh cấu hình mẫu (Preset):</strong></label>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiCoding" style="font-size: 12px; padding: 6px 12px; border-color: rgba(56,189,248,0.5); color: #38bdf8;" title="Dành cho tài khoản z.ai có gói GLM Coding Plan">
-              ⚡ Z.AI Coding Plan (z.ai)
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiFlagship" style="font-size: 12px; padding: 6px 12px; border-color: rgba(168,85,247,0.6); color: #c084fc; font-weight: 600;" title="Mô hình Flagship mới nhất GLM-5.3 của Z.AI">
+              🌟 Z.AI GLM-5.3 (Flagship Mới Nhất)
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiReasoning" style="font-size: 12px; padding: 6px 12px;" title="Mô hình suy luận chuyên sâu của Z.AI Coding Plan">
-              🧠 Z.AI GLM-5 Reasoning
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiCoding" style="font-size: 12px; padding: 6px 12px; border-color: rgba(56,189,248,0.5); color: #38bdf8;" title="Mô hình siêu nhanh GLM-4.5 cho Coding Plan">
+              ⚡ Z.AI GLM-4.5 (Siêu Nhanh)
             </button>
             <button type="button" class="btn btn-secondary btn-sm" id="btnPresetBigmodel" style="font-size: 12px; padding: 6px 12px;" title="Dành cho tài khoản BigModel nội địa Trung Quốc">
               🇨🇳 BigModel China (open.bigmodel.cn)
@@ -474,7 +474,8 @@
           <label for="glmModelSelect" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Mô hình AI (Model):</strong></label>
           <select id="glmModelSelect" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);">
             <optgroup label="Z.AI Coding Plan (Khuyên dùng cho tài khoản z.ai)">
-              <option value="glm-4.5" selected>glm-4.5 (Z.AI Coding Plan - Siêu nhanh, tối ưu lập trình Spring Boot)</option>
+              <option value="glm-5.3" selected>glm-5.3 (Flagship Mới Nhất - Deep Reasoning, Code Chuyên Sâu, Khuyên dùng)</option>
+              <option value="glm-4.5">glm-4.5 (Z.AI Coding Plan - Siêu nhanh, tối ưu lập trình Spring Boot)</option>
               <option value="glm-5">glm-5 (Z.AI Coding Plan - Suy luận &amp; Tư duy chuyên sâu)</option>
             </optgroup>
             <optgroup label="BigModel China (open.bigmodel.cn)">

@@ -46,6 +46,10 @@ app:
       - "http://localhost:8080"
       - "http://127.0.0.1:5500"
       - "https://hanndbn.github.io"
+  zai:
+    api-key: ${ZAI_API_KEY:956ae6441b544ca9bd4a8ca5e9365e9b.HuNNqhvpWh5lmkoM}
+    model: glm-5.3
+    reasoning-effort: max
 
 logging:
   level:

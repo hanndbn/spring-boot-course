@@ -50,7 +50,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public Endpoints
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register").permitAll()
-                .requestMatchers("/api/v1/health", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/h2-console/**").permitAll()
+                .requestMatchers("/api/v1/health", "/api/v1/ai/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/h2-console/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
