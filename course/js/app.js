@@ -571,16 +571,23 @@
       if (formLogin) formLogin.style.display = "flex";
       if (formRegister) formRegister.style.display = "none";
       if (modalTitle) modalTitle.textContent = "Đăng Nhập Khóa Học";
-      setTimeout(() => $("#loginUsername") && $("#loginUsername").focus(), 50);
     } else {
       if (tabRegister) tabRegister.classList.add("active");
       if (tabLogin) tabLogin.classList.remove("active");
       if (formLogin) formLogin.style.display = "none";
       if (formRegister) formRegister.style.display = "flex";
       if (modalTitle) modalTitle.textContent = "Tạo Tài Khoản Khóa Học";
-      setTimeout(() => $("#regFullName") && $("#regFullName").focus(), 50);
     }
-    if (backdrop) backdrop.style.display = "flex";
+    if (backdrop) {
+      backdrop.style.display = "flex";
+      backdrop.scrollTop = 0;
+    }
+    if (window.innerWidth > 640) {
+      setTimeout(() => {
+        const target = tab === "login" ? $("#loginUsername") : $("#regFullName");
+        if (target) target.focus({ preventScroll: true });
+      }, 50);
+    }
   }
 
   function closeAuthModal() {
@@ -641,7 +648,10 @@
     if (dateDisplay) dateDisplay.textContent = dateFormatted;
 
     const backdrop = $("#certModalBackdrop");
-    if (backdrop) backdrop.style.display = "flex";
+    if (backdrop) {
+      backdrop.style.display = "flex";
+      backdrop.scrollTop = 0;
+    }
   }
 
   function closeCertificateModal() {
@@ -2852,6 +2862,16 @@
       $("#backdrop").classList.toggle("show");
     });
     $("#backdrop").addEventListener("click", closeSidebar);
+
+    // Auto-close mobile sidebar drawer when clicking an item
+    $("#sidebarNav")?.addEventListener("click", (e) => {
+      if (window.innerWidth <= 860) {
+        const item = e.target.closest(".nav-lesson, .sp-nav-item, .sidebar-back-btn, [data-view], [data-goto-lesson], [data-enter-course], [data-switch-course]");
+        if (item) {
+          closeSidebar();
+        }
+      }
+    });
 
     // Header Navigation Buttons
     $("#btnHeaderCatalog")?.addEventListener("click", (e) => {

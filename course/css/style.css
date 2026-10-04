@@ -877,15 +877,17 @@ body {
 
 /* ============ TOAST & MISC ============ */
 .toast {
-  position: fixed; bottom: 26px; left: 50%;
+  position: fixed; bottom: 24px; left: 50%;
   transform: translate(-50%, 80px);
-  background: var(--bg-3); border: 1px solid var(--border);
-  color: var(--text-1); padding: 13px 22px;
-  border-radius: 14px; font-size: 14px; font-weight: 600;
-  box-shadow: var(--shadow-1); z-index: 1000;
+  background: var(--surface, var(--bg-3)); border: 1px solid var(--border);
+  color: var(--text-1); padding: 10px 18px;
+  border-radius: 999px; font-size: 13.5px; font-weight: 500;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.22); z-index: 1000;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-  display: flex; align-items: center; gap: 9px;
-  max-width: 90vw;
+  display: block; text-align: center;
+  white-space: normal; line-height: 1.4;
+  width: auto; max-width: min(92vw, 440px);
+  pointer-events: none;
 }
 .toast.show { transform: translate(-50%, 0); }
 
@@ -1151,10 +1153,10 @@ body {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 9999;
-  padding: 16px;
+  padding: 30px 16px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   animation: fadeIn 0.2s ease;
@@ -1164,24 +1166,25 @@ body {
   position: relative;
   width: 100%;
   max-width: 400px;
-  margin: auto;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin: auto 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px 20px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  color: var(--text-1);
 }
 
 .modal-close {
   position: absolute;
   top: 12px;
   right: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  font-size: 22px;
-  color: #94a3b8;
+  background: var(--bg-1);
+  border: 1px solid var(--border-soft);
+  font-size: 20px;
+  color: var(--text-2);
   cursor: pointer;
   line-height: 1;
   width: 32px;
@@ -1195,8 +1198,9 @@ body {
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #f8fafc;
+  background: var(--surface-hover);
+  color: var(--text-1);
+  border-color: var(--border);
 }
 
 .auth-header {
@@ -1213,32 +1217,32 @@ body {
 .auth-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text-1);
   margin: 0 0 4px 0;
 }
 
 .auth-subtitle {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-3);
   margin: 0;
   line-height: 1.4;
 }
 
 .auth-tabs {
   display: flex;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-1);
   padding: 3px;
   border-radius: 8px;
   margin-bottom: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-soft);
 }
 
 .auth-tab {
   flex: 1;
   padding: 8px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-3);
   font-size: 13px;
   font-weight: 600;
   border-radius: 6px;
@@ -1247,9 +1251,10 @@ body {
 }
 
 .auth-tab.active {
-  background: #334155;
-  color: #22c55e;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: var(--surface);
+  color: var(--accent);
+  border-color: var(--border-soft);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .auth-form {
@@ -1276,7 +1281,7 @@ body {
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-2);
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1286,10 +1291,10 @@ body {
   width: 100%;
   height: 42px;
   padding: 8px 12px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #f8fafc;
+  color: var(--text-1);
   font-size: 16px; /* 16px strictly prevents iOS Safari auto-zoom */
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -1298,8 +1303,8 @@ body {
 }
 
 .auth-form input:focus {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(164, 53, 240, 0.15);
 }
 
 .btn-submit-auth {
@@ -1309,7 +1314,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   border: none;
   border-radius: 8px;
   color: #ffffff;
@@ -1334,23 +1339,28 @@ body {
 
 @media (max-width: 480px) {
   .modal-backdrop {
-    padding: 12px 10px;
+    padding: 16px 12px 24px;
     align-items: flex-start;
   }
   .auth-modal {
-    padding: 16px 14px;
+    padding: 18px 16px;
     border-radius: 14px;
-    margin: 8px auto 24px;
+    margin: 12px auto 24px;
     max-width: 100%;
-    overflow: visible;
-    max-height: none;
+    overflow-y: auto;
+    max-height: calc(100dvh - 36px);
   }
   .auth-header {
-    margin-bottom: 10px;
-    padding: 0 20px;
+    margin-bottom: 12px;
+    padding: 0 24px;
+  }
+  .auth-logo svg {
+    width: 24px;
+    height: 24px;
   }
   .auth-header h3 {
-    font-size: 16px;
+    font-size: 16.5px;
+    margin: 2px 0;
   }
   .auth-subtitle {
     font-size: 11px;
@@ -3306,12 +3316,37 @@ body {
   border-color: rgba(239, 68, 68, 0.4);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 680px) {
+  .header-nav {
+    display: none !important;
+  }
   .cat-cards-grid {
     grid-template-columns: 1fr;
   }
   .cat-hero h1 {
     font-size: 24px;
+  }
+  .ud-section-head h3 {
+    font-size: 17px !important;
+    line-height: 1.35 !important;
+  }
+  .ud-profile-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+  .ud-profile-left {
+    width: 100%;
+  }
+  .ud-profile-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  .ud-profile-actions .btn {
+    flex: 1;
+    justify-content: center;
   }
 }
 
@@ -4189,6 +4224,178 @@ body {
     width: 100% !important;
     min-width: 100% !important;
     border: none !important;
+  }
+}
+
+/* ========================================================
+   CERTIFICATE MODAL — MOBILE RESPONSIVE ADAPTATION
+   ======================================================== */
+@media (max-width: 640px) {
+  .cert-modal {
+    padding: 16px 12px;
+    margin: 8px auto 20px;
+    max-height: calc(100dvh - 24px);
+    width: 96vw;
+    gap: 12px;
+  }
+  .cert-modal-header h3 {
+    font-size: 17px !important;
+  }
+  .cert-modal-header p {
+    font-size: 11.5px !important;
+  }
+  .cert-modal-controls {
+    padding: 10px;
+    gap: 8px;
+  }
+  .cert-control-item label {
+    font-size: 12px;
+  }
+  .cert-input-row {
+    flex-direction: column;
+    min-width: 0;
+    width: 100%;
+  }
+  .cert-input-row input {
+    font-size: 14px;
+    padding: 8px 10px;
+  }
+  .cert-preview-wrapper {
+    padding: 6px 4px;
+    border-radius: 8px;
+  }
+  .cert-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-width: 6px !important;
+  }
+  .cert-inner-frame {
+    padding: 14px 10px 12px !important;
+    outline-width: 2px !important;
+  }
+  .cert-corner {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  .cert-brand-row {
+    margin-bottom: 8px !important;
+  }
+  .cert-u-logo {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 11px !important;
+  }
+  .cert-brand-title {
+    font-size: 12px !important;
+  }
+  .cert-code-tag {
+    font-size: 8.5px !important;
+  }
+  .cert-heading-area {
+    margin-bottom: 8px !important;
+  }
+  .cert-kicker {
+    font-size: 8.5px !important;
+    letter-spacing: 1.5px !important;
+  }
+  .cert-main-title {
+    font-size: 15px !important;
+    letter-spacing: 0.5px !important;
+    margin-bottom: 4px !important;
+  }
+  .cert-divider-line {
+    width: 60px !important;
+    height: 2px !important;
+  }
+  .cert-recipient-area {
+    margin: 8px 0 10px !important;
+  }
+  .cert-recip-lead {
+    font-size: 10.5px !important;
+    margin-bottom: 3px !important;
+  }
+  .cert-student-name {
+    font-size: 17px !important;
+    padding: 2px 8px !important;
+    margin-bottom: 4px !important;
+  }
+  .cert-recip-desc {
+    font-size: 9.5px !important;
+    margin-bottom: 3px !important;
+  }
+  .cert-course-title {
+    font-size: 13.5px !important;
+    margin-bottom: 3px !important;
+  }
+  .cert-course-desc {
+    font-size: 9px !important;
+    line-height: 1.3 !important;
+  }
+  .cert-footer-area {
+    margin-top: 10px !important;
+    padding-top: 6px !important;
+    align-items: flex-end !important;
+  }
+  .cert-sign-box {
+    width: 75px !important;
+  }
+  .cert-signature-draw {
+    font-size: 15px !important;
+  }
+  .cert-sign-rule {
+    width: 65px !important;
+    margin: 2px 0 !important;
+  }
+  .cert-sign-name {
+    font-size: 8.5px !important;
+  }
+  .cert-sign-role {
+    font-size: 7px !important;
+  }
+  .cert-seal-box {
+    text-align: center;
+  }
+  .cert-seal-circle {
+    width: 46px !important;
+    height: 46px !important;
+    border-width: 2px !important;
+  }
+  .cert-seal-stars {
+    font-size: 4.5px !important;
+    letter-spacing: 0.5px !important;
+  }
+  .cert-seal-text {
+    font-size: 4.5px !important;
+    line-height: 1 !important;
+  }
+  .cert-seal-year {
+    font-size: 5px !important;
+  }
+  .cert-date-box {
+    width: 75px !important;
+  }
+  .cert-date-value {
+    font-size: 9.5px !important;
+  }
+  .cert-date-box .cert-sign-rule {
+    width: 65px !important;
+  }
+  .cert-date-label {
+    font-size: 7px !important;
+  }
+  .cert-cert-status {
+    font-size: 6.5px !important;
+  }
+  .cert-modal-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .btn-cert-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 13px;
   }
 }
 
