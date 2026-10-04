@@ -2792,6 +2792,7 @@
   const GLM_KEY_STORAGE = "sbc_glm_api_key";
   const GLM_MODEL_STORAGE = "sbc_glm_model";
   const GLM_ENDPOINT_STORAGE = "sbc_glm_endpoint";
+  const GLM_MIGRATION_KEY = "sbc_glm_v53_migrated";
   const ZAI_CODING_ENDPOINT = "https://api.z.ai/api/coding/paas/v4/chat/completions";
   const BIGMODEL_CHINA_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
   const DEFAULT_GLM_ENDPOINT = ZAI_CODING_ENDPOINT;
@@ -2799,6 +2800,13 @@
   const lessonAiConversations = {};
 
   function getGlmConfig() {
+    // One-time automatic migration: Ensure GLM-5.3 Flagship is the active default for all users
+    if (localStorage.getItem(GLM_MIGRATION_KEY) !== "true") {
+      localStorage.setItem(GLM_ENDPOINT_STORAGE, DEFAULT_GLM_ENDPOINT);
+      localStorage.setItem(GLM_MODEL_STORAGE, DEFAULT_GLM_MODEL);
+      localStorage.setItem(GLM_MIGRATION_KEY, "true");
+    }
+
     let endpoint = localStorage.getItem(GLM_ENDPOINT_STORAGE) || DEFAULT_GLM_ENDPOINT;
     let model = localStorage.getItem(GLM_MODEL_STORAGE) || DEFAULT_GLM_MODEL;
     const apiKey = localStorage.getItem(GLM_KEY_STORAGE) || "";
