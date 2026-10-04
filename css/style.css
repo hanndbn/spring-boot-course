@@ -794,12 +794,25 @@ body {
 }
 
 @media (max-width: 560px) {
-  .header { padding: 0 12px; gap: 10px; }
+  .header { padding: 0 10px; gap: 8px; }
   .brand-text { display: none; }
-  .main { padding: 16px 14px 70px; }
-  .quiz-card { padding: 20px 16px; }
-  .stat-card { padding: 14px; }
+  .header-right { gap: 6px; }
+  .header-progress { display: none; }
+  .btn-reset { display: none; }
+  .btn-auth { padding: 6px 10px; font-size: 12px; max-width: 140px; }
+  .auth-btn-text { max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+  .main { padding: 14px 12px 70px; }
+  .quiz-card { padding: 18px 12px; }
+  .stat-card { padding: 12px; }
   .stat-num { font-size: 18px; }
+  .hero-actions { flex-direction: column; width: 100%; gap: 8px; }
+  .hero-actions .btn { width: 100%; justify-content: center; text-align: center; }
+}
+
+@media (max-width: 380px) {
+  .auth-btn-text { display: none; }
+  .btn-auth { padding: 7px 9px; }
+  .search-box input { font-size: 12px; padding: 6px 8px 6px 28px; }
 }
 
 /* ============ DIAGRAMS & MERMAID ============ */
@@ -995,13 +1008,15 @@ body {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   animation: fadeIn 0.2s ease;
 }
 
@@ -1009,60 +1024,76 @@ body {
   position: relative;
   width: 100%;
   max-width: 420px;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  margin: auto;
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
-  padding: 28px;
+  padding: 26px 22px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
   animation: zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 }
 
 .modal-close {
   position: absolute;
-  top: 14px;
-  right: 16px;
-  background: none;
+  top: 10px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.06);
   border: none;
   font-size: 24px;
   color: #94a3b8;
   cursor: pointer;
   line-height: 1;
-  transition: color 0.2s;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
 }
 
 .modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
 }
 
 .auth-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  padding-right: 20px;
+  padding-left: 20px;
 }
 
 .auth-logo {
   display: inline-flex;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .auth-header h3 {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   color: #f8fafc;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
 }
 
 .auth-subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: #94a3b8;
   margin: 0;
+  line-height: 1.4;
 }
 
 .auth-tabs {
   display: flex;
   background: rgba(15, 23, 42, 0.6);
-  padding: 4px;
+  padding: 3px;
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -1086,30 +1117,31 @@ body {
 }
 
 .auth-form .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 13px;
 }
 
 .auth-form label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #cbd5e1;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .auth-form input {
   width: 100%;
-  padding: 10px 14px;
-  background: rgba(15, 23, 42, 0.8);
+  padding: 11px 13px;
+  background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   color: #f8fafc;
-  font-size: 14px;
+  font-size: 16px; /* 16px prevents iOS Safari from auto-zooming and distorting mobile view */
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
+  -webkit-appearance: none;
 }
 
 .auth-form input:focus {
@@ -1119,16 +1151,16 @@ body {
 
 .btn-submit-auth {
   width: 100%;
-  padding: 12px;
+  padding: 13px;
   background: linear-gradient(135deg, #22c55e, #16a34a);
   border: none;
   border-radius: 8px;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .btn-submit-auth:hover {
@@ -1140,6 +1172,23 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop {
+    padding: 10px;
+    align-items: flex-start;
+  }
+  .auth-modal {
+    padding: 18px 14px;
+    border-radius: 14px;
+    margin: 8px 0;
+    max-height: calc(100dvh - 16px);
+  }
+  .user-dropdown {
+    width: 220px;
+    right: -10px;
+  }
 }
 
 .auth-alert {
@@ -1291,13 +1340,80 @@ body {
   }
 }
 
-@media (max-width: 500px) {
-  .ud-stats-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 640px) {
+  .ud-container {
+    padding: 6px 0 50px;
   }
   .ud-profile-header {
     flex-direction: column;
+    align-items: stretch;
+    padding: 16px 14px;
+    gap: 14px;
+  }
+  .ud-profile-left {
+    gap: 12px;
+  }
+  .ud-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+  .ud-profile-meta h2 {
+    font-size: 18px;
+  }
+  .ud-profile-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  .ud-profile-actions .btn {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .ud-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .ud-stat-card {
+    padding: 12px 10px;
+  }
+  .ud-stat-num {
+    font-size: 20px;
+  }
+  .ud-module-card {
+    padding: 14px 12px;
+  }
+  .ud-mc-header {
+    flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
+  }
+  .ud-mc-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .ud-mc-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .ud-mc-action {
+    width: 100%;
+  }
+  .ud-mc-action .btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .ud-stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 
