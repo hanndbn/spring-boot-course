@@ -2795,7 +2795,7 @@
   const ZAI_CODING_ENDPOINT = "https://api.z.ai/api/coding/paas/v4/chat/completions";
   const BIGMODEL_CHINA_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
   const DEFAULT_GLM_ENDPOINT = ZAI_CODING_ENDPOINT;
-  const DEFAULT_GLM_MODEL = "glm-4.5";
+  const DEFAULT_GLM_MODEL = "glm-5.3";
   const lessonAiConversations = {};
 
   function getGlmConfig() {
@@ -2803,9 +2803,9 @@
     let model = localStorage.getItem(GLM_MODEL_STORAGE) || DEFAULT_GLM_MODEL;
     const apiKey = localStorage.getItem(GLM_KEY_STORAGE) || "";
 
-    // If using Z.AI coding endpoint but model is set to an unsupported legacy/China model (e.g. glm-4-flash), normalize to glm-4.5
-    if (endpoint.includes("z.ai/api/coding") && model !== "glm-4.5" && model !== "glm-5") {
-      model = "glm-4.5";
+    // If using Z.AI coding endpoint but model is set to an unsupported legacy/China model (e.g. glm-4-flash), normalize to glm-5.3
+    if (endpoint.includes("z.ai/api/coding") && model !== "glm-5.3" && model !== "glm-4.5" && model !== "glm-5") {
+      model = "glm-5.3";
       localStorage.setItem(GLM_MODEL_STORAGE, model);
     }
 
@@ -3014,18 +3014,26 @@ ${lesson ? lesson.content : ""}
     ];
 
     async function requestChatCompletion(targetEndpoint, targetModel, targetKey, messagesList) {
+      const payload = {
+        model: targetModel,
+        messages: messagesList,
+        temperature: 1.0,
+        max_tokens: 4096
+      };
+
+      // According to Z.AI official docs, enable thinking mode for reasoning models
+      if (targetModel.includes("glm-5") || targetEndpoint.includes("z.ai")) {
+        payload.thinking = { type: "enabled" };
+        payload.reasoning_effort = "max";
+      }
+
       const res = await fetch(targetEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${targetKey.trim()}`
         },
-        body: JSON.stringify({
-          model: targetModel,
-          messages: messagesList,
-          temperature: 0.6,
-          max_tokens: 4096
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -3062,14 +3070,14 @@ ${lesson ? lesson.content : ""}
         const isZai = cfg.endpoint.includes("z.ai");
 
         if (isBigModel || primaryErr.status === 400 || primaryErr.status === 403 || primaryErr.status === 404) {
-          // Fallback to Z.AI Coding Plan endpoint
+          // Fallback to Z.AI Coding Plan endpoint with glm-5.3
           fallbackEndpoint = ZAI_CODING_ENDPOINT;
-          fallbackModel = (cfg.model === "glm-5") ? "glm-5" : "glm-4.5";
-          fallbackLabel = "Z.AI Coding Plan";
-        } else if (isZai && cfg.model !== "glm-4.5" && cfg.model !== "glm-5") {
+          fallbackModel = "glm-5.3";
+          fallbackLabel = "Z.AI GLM-5.3 Flagship";
+        } else if (isZai && cfg.model !== "glm-5.3" && cfg.model !== "glm-4.5" && cfg.model !== "glm-5") {
           fallbackEndpoint = ZAI_CODING_ENDPOINT;
-          fallbackModel = "glm-4.5";
-          fallbackLabel = "Z.AI Coding Plan (glm-4.5)";
+          fallbackModel = "glm-5.3";
+          fallbackLabel = "Z.AI GLM-5.3 Flagship";
         }
 
         if (fallbackEndpoint && (fallbackEndpoint !== cfg.endpoint || fallbackModel !== cfg.model)) {
@@ -4773,20 +4781,20 @@ ${lesson ? lesson.content : ""}
     });
 
     // Preset buttons
+    $("#btnPresetZaiFlagship")?.addEventListener("click", () => {
+      const endpointInput = $("#glmEndpointInput");
+      const modelSelect = $("#glmModelSelect");
+      if (endpointInput) endpointInput.value = ZAI_CODING_ENDPOINT;
+      if (modelSelect) modelSelect.value = "glm-5.3";
+      toast("🌟 Đã chọn preset Z.AI GLM-5.3 Flagship (Deep Reasoning)!");
+    });
+
     $("#btnPresetZaiCoding")?.addEventListener("click", () => {
       const endpointInput = $("#glmEndpointInput");
       const modelSelect = $("#glmModelSelect");
       if (endpointInput) endpointInput.value = ZAI_CODING_ENDPOINT;
       if (modelSelect) modelSelect.value = "glm-4.5";
-      toast("⚡ Đã chọn preset Z.AI Coding Plan (glm-4.5)!");
-    });
-
-    $("#btnPresetZaiReasoning")?.addEventListener("click", () => {
-      const endpointInput = $("#glmEndpointInput");
-      const modelSelect = $("#glmModelSelect");
-      if (endpointInput) endpointInput.value = ZAI_CODING_ENDPOINT;
-      if (modelSelect) modelSelect.value = "glm-5";
-      toast("🧠 Đã chọn preset Z.AI GLM-5 Reasoning!");
+      toast("⚡ Đã chọn preset Z.AI GLM-4.5 (Siêu nhanh)!");
     });
 
     $("#btnPresetBigmodel")?.addEventListener("click", () => {
