@@ -2572,6 +2572,395 @@
     });
   }
 
+  // ---------- Lesson AI Teaching Assistant (GLM Powered) ----------
+  const GLM_KEY_STORAGE = "sbc_glm_api_key";
+  const GLM_MODEL_STORAGE = "sbc_glm_model";
+  const GLM_ENDPOINT_STORAGE = "sbc_glm_endpoint";
+  const DEFAULT_GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+  const DEFAULT_GLM_MODEL = "glm-4-flash";
+  const lessonAiConversations = {};
+
+  function getGlmConfig() {
+    return {
+      apiKey: localStorage.getItem(GLM_KEY_STORAGE) || "",
+      model: localStorage.getItem(GLM_MODEL_STORAGE) || DEFAULT_GLM_MODEL,
+      endpoint: localStorage.getItem(GLM_ENDPOINT_STORAGE) || DEFAULT_GLM_ENDPOINT
+    };
+  }
+
+  function saveGlmConfig(apiKey, model, endpoint) {
+    if (apiKey !== undefined) {
+      if (apiKey && apiKey.trim()) localStorage.setItem(GLM_KEY_STORAGE, apiKey.trim());
+      else localStorage.removeItem(GLM_KEY_STORAGE);
+    }
+    if (model) localStorage.setItem(GLM_MODEL_STORAGE, model.trim());
+    if (endpoint) localStorage.setItem(GLM_ENDPOINT_STORAGE, endpoint.trim());
+  }
+
+  function openAiConfigModal() {
+    const modal = $("#aiConfigModal");
+    if (!modal) return;
+    const cfg = getGlmConfig();
+    const keyInput = $("#glmApiKeyInput");
+    const modelSelect = $("#glmModelSelect");
+    const endpointInput = $("#glmEndpointInput");
+
+    if (keyInput) keyInput.value = cfg.apiKey;
+    if (modelSelect) modelSelect.value = cfg.model || DEFAULT_GLM_MODEL;
+    if (endpointInput) endpointInput.value = cfg.endpoint || DEFAULT_GLM_ENDPOINT;
+
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+    if (keyInput) setTimeout(() => keyInput.focus(), 80);
+  }
+
+  function closeAiConfigModal() {
+    const modal = $("#aiConfigModal");
+    if (!modal) return;
+    modal.style.display = "none";
+    document.body.style.overflow = "";
+  }
+
+  function renderLessonAiWidget(lessonId, c, m, lesson) {
+    const cfg = getGlmConfig();
+    const hasKey = !!cfg.apiKey;
+    const history = lessonAiConversations[lessonId] || [];
+
+    const defaultGreeting = `Xin chào! Tôi là Trợ lý AI Giảng Viên phụ trách bài học **[${escapeHtml(lesson.id)}] ${escapeHtml(lesson.title)}**.\n\nBạn có thể hỏi tôi bất kỳ thắc mắc nào về lý thuyết, mã nguồn Spring Boot, luồng xử lý hoặc bài toán thực chiến E-Commerce trong bài này. Toàn bộ ngữ cảnh của bài học đã được nạp sẵn để hỗ trợ bạn chính xác nhất!`;
+
+    return `
+      <section class="lesson-ai-assistant" id="lessonAiBox" aria-label="Trợ lý AI Giảng Viên">
+        <div class="ai-box-header">
+          <div class="ai-header-left">
+            <div class="ai-avatar-badge">
+              🤖
+              <span class="ai-pulse-dot" title="Sẵn sàng hỗ trợ"></span>
+            </div>
+            <div>
+              <div class="ai-box-title">
+                <span>Trợ lý AI Giảng Viên (GLM)</span>
+                <span class="ai-badge-model">${escapeHtml(cfg.model || DEFAULT_GLM_MODEL)}</span>
+              </div>
+              <div class="ai-box-subtitle">Hiểu sâu ngữ cảnh bài học ${escapeHtml(lesson.id)} &amp; kiến trúc Spring Boot Enterprise</div>
+            </div>
+          </div>
+          <div class="ai-header-actions">
+            ${history.length > 0 ? `<button type="button" class="btn-ai-header" id="btnClearAiChat" title="Xóa lịch sử đoạn hội thoại của bài này">🗑️ Xóa hội thoại</button>` : ""}
+            <button type="button" class="btn-ai-header" id="btnOpenAiConfig" title="Cấu hình Token &amp; Model GLM">⚙️ Cấu hình AI</button>
+          </div>
+        </div>
+
+        ${!hasKey ? `
+        <div class="ai-setup-banner">
+          <div class="ai-setup-icon">🔑</div>
+          <div class="ai-setup-content" style="flex: 1;">
+            <h4>Kích hoạt Trợ lý AI với Token GLM của bạn</h4>
+            <p>Nhập API Key GLM (Zhipu AI) để bắt đầu hỏi đáp chuyên sâu theo ngữ cảnh bài học này. Token được lưu bảo mật cục bộ tại trình duyệt của bạn (LocalStorage).</p>
+            <div class="ai-quick-key-row">
+              <input type="password" id="aiQuickKeyInput" placeholder="Dán API Key GLM tại đây..." autocomplete="off">
+              <button type="button" class="btn btn-primary" id="btnSaveQuickKey" style="padding: 8px 16px; font-size: 13px;">Lưu &amp; Kích hoạt</button>
+            </div>
+            <div class="ai-setup-help">
+              Chưa có token? Đăng ký nhận token miễn phí tại <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a> (glm-4-flash miễn phí 128k context, tốc độ cao).
+            </div>
+          </div>
+        </div>
+        ` : ""}
+
+        <div class="ai-chat-thread" id="aiChatThread">
+          <!-- Bot Initial Greeting -->
+          <div class="ai-msg ai-msg-bot">
+            <div class="ai-msg-avatar">🤖</div>
+            <div class="ai-msg-content">
+              ${renderMarkdown(defaultGreeting)}
+            </div>
+          </div>
+
+          ${history.map((msg) => `
+            <div class="ai-msg ${msg.role === 'user' ? 'ai-msg-user' : 'ai-msg-bot'}">
+              <div class="ai-msg-avatar">${msg.role === 'user' ? '👤' : '🤖'}</div>
+              <div class="ai-msg-content">${msg.role === 'user' ? escapeHtml(msg.content).replace(/\n/g, '<br>') : renderMarkdown(msg.content)}</div>
+            </div>
+          `).join("")}
+        </div>
+
+        <!-- Quick Action Chips -->
+        <div class="ai-chips-wrap">
+          <span class="ai-chips-label">💡 Gợi ý câu hỏi:</span>
+          <button type="button" class="ai-chip" data-prompt="Giải thích trực quan và dễ hiểu nhất phần trọng tâm của bài học này cho người mới">🎯 Giải thích dễ hiểu trọng tâm</button>
+          <button type="button" class="ai-chip" data-prompt="Liệt kê những lỗi sai và cạm bẫy thực tế (Pitfalls) hay gặp nhất khi triển khai kiến thức bài học này">⚠️ Những lỗi sai &amp; cạm bẫy hay gặp</button>
+          <button type="button" class="ai-chip" data-prompt="Cho ví dụ code thực chiến mở rộng trong hệ thống E-Commerce cho phần này">🛒 Code E-Commerce thực chiến</button>
+          <button type="button" class="ai-chip" data-prompt="Cách tối ưu hiệu năng và kiến trúc chuẩn Production cho bài học này">⚡ Tối ưu hiệu năng &amp; Production</button>
+        </div>
+
+        <div class="ai-input-bar">
+          <div class="ai-input-wrap">
+            <textarea id="aiQuestionInput" rows="1" placeholder="Đặt câu hỏi về bài học này... (Nhấn Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+            <button type="button" class="btn-ai-send" id="btnSendAiQuestion" title="Gửi câu hỏi cho AI">
+              <span>Gửi</span>
+              <span>➤</span>
+            </button>
+          </div>
+          <div class="ai-input-tip">
+            💡 Toàn bộ nội dung, mã nguồn và sơ đồ bài học <strong>${escapeHtml(lesson.title)}</strong> sẽ tự động được gửi kèm làm ngữ cảnh cho AI.
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  async function askLessonAi(lessonId, question) {
+    if (!question || !question.trim()) return;
+    const cleanQ = question.trim();
+
+    const cfg = getGlmConfig();
+    if (!cfg.apiKey) {
+      openAiConfigModal();
+      toast("⚠️ Vui lòng nhập API Key GLM của bạn để kích hoạt trợ lý AI!");
+      return;
+    }
+
+    if (!lessonAiConversations[lessonId]) {
+      lessonAiConversations[lessonId] = [];
+    }
+
+    // Add user message
+    lessonAiConversations[lessonId].push({ role: "user", content: cleanQ });
+
+    const thread = $("#aiChatThread");
+    if (thread) {
+      const userMsgEl = document.createElement("div");
+      userMsgEl.className = "ai-msg ai-msg-user";
+      userMsgEl.innerHTML = `
+        <div class="ai-msg-avatar">👤</div>
+        <div class="ai-msg-content">${escapeHtml(cleanQ).replace(/\n/g, "<br>")}</div>
+      `;
+      thread.appendChild(userMsgEl);
+
+      // Loading indicator
+      const loadingEl = document.createElement("div");
+      loadingEl.className = "ai-msg ai-msg-bot ai-loading";
+      loadingEl.id = "aiLoadingIndicator";
+      loadingEl.innerHTML = `
+        <div class="ai-msg-avatar">🤖</div>
+        <div class="ai-msg-content">
+          <div class="ai-typing-indicator"><span></span><span></span><span></span></div>
+          <span>Trợ lý AI đang suy luận câu trả lời theo ngữ cảnh bài học...</span>
+        </div>
+      `;
+      thread.appendChild(loadingEl);
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    const input = $("#aiQuestionInput");
+    const sendBtn = $("#btnSendAiQuestion");
+    if (input) {
+      input.value = "";
+      input.style.height = "auto";
+      input.disabled = true;
+    }
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Build context
+    const found = findLesson(lessonId);
+    const course = found ? found.course : null;
+    const mod = found ? found.module : null;
+    const lesson = found ? found.lesson : null;
+
+    const systemPrompt = `Bạn là Trợ lý Giảng viên AI cao cấp chuyên sâu về Spring Boot, Microservices và Hệ thống E-Commerce quy mô lớn.
+Nhiệm vụ của bạn là giải đáp thắc mắc, phân tích mã nguồn, và hướng dẫn học viên thực hành dựa trên ngữ cảnh chính xác của bài học hiện tại.
+
+[NGỮ CẢNH BÀI HỌC]:
+- Khóa học: ${course ? course.title : "Spring Boot"} (${course ? (course.shortTitle || course.id) : ""})
+- Phân hệ/Module: Module ${mod ? mod.id : ""} - ${mod ? mod.title : ""}
+- Bài học: [${lesson ? lesson.id : lessonId}] ${lesson ? lesson.title : ""} (${lesson ? lesson.minutes : 10} phút)
+- Nội dung chi tiết bài học:
+${lesson ? lesson.content : ""}
+
+[QUY TẮC PHẢN HỒI]:
+1. Luôn bám sát nội dung, tư tưởng và mã nguồn của bài học trên.
+2. Trả lời bằng tiếng Việt chuyên nghiệp, súc tích, dễ hiểu, chuẩn văn phong kỹ thuật Spring Boot (Spring Framework 6+, Spring Boot 3+).
+3. Khi đưa code minh họa, hãy kèm theo giải thích ngắn gọn, chú ý các cạm bẫy thực tế (Pitfalls), tối ưu hiệu năng (Performance) và Best Practices.
+4. Sử dụng định dạng Markdown chuẩn với code block có chỉ định ngôn ngữ (vd: \`\`\`java, \`\`\`yaml, \`\`\`sql).
+5. Nếu câu hỏi vượt ra ngoài bài học, hãy giải thích khái quát và gợi ý bài học hoặc tài liệu phù hợp.`;
+
+    const apiMessages = [
+      { role: "system", content: systemPrompt },
+      ...lessonAiConversations[lessonId]
+    ];
+
+    try {
+      const res = await fetch(cfg.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cfg.apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: cfg.model || DEFAULT_GLM_MODEL,
+          messages: apiMessages,
+          temperature: 0.6,
+          max_tokens: 3000
+        })
+      });
+
+      if (!res.ok) {
+        let errMsg = `Lỗi HTTP ${res.status}: ${res.statusText}`;
+        try {
+          const errJson = await res.json();
+          if (errJson && errJson.error) {
+            errMsg = errJson.error.message || errJson.error.code || JSON.stringify(errJson.error);
+          }
+        } catch (e) {}
+        throw new Error(errMsg);
+      }
+
+      const data = await res.json();
+      const reply = data?.choices?.[0]?.message?.content || "(Không nhận được phản hồi từ AI)";
+      lessonAiConversations[lessonId].push({ role: "assistant", content: reply });
+
+      const loadingEl = $("#aiLoadingIndicator");
+      if (loadingEl) loadingEl.remove();
+
+      if (thread) {
+        const botMsgEl = document.createElement("div");
+        botMsgEl.className = "ai-msg ai-msg-bot";
+        botMsgEl.innerHTML = `
+          <div class="ai-msg-avatar">🤖</div>
+          <div class="ai-msg-content">${renderMarkdown(reply)}</div>
+        `;
+        thread.appendChild(botMsgEl);
+        bindCopyButtons(botMsgEl);
+        bindZoomableMedia(botMsgEl);
+        if (window.mermaid) {
+          try {
+            const diags = botMsgEl.querySelectorAll(".mermaid");
+            if (diags.length > 0) window.mermaid.run({ nodes: diags });
+          } catch (e) {}
+        }
+        thread.scrollTop = thread.scrollHeight;
+      }
+
+      // If Clear button wasn't rendered before, ensure it shows
+      const headerActions = $(".ai-header-actions");
+      if (headerActions && !$("#btnClearAiChat")) {
+        const btnClear = document.createElement("button");
+        btnClear.type = "button";
+        btnClear.className = "btn-ai-header";
+        btnClear.id = "btnClearAiChat";
+        btnClear.title = "Xóa lịch sử đoạn hội thoại của bài này";
+        btnClear.textContent = "🗑️ Xóa hội thoại";
+        btnClear.addEventListener("click", () => {
+          if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử hỏi đáp của bài học này?")) {
+            delete lessonAiConversations[lessonId];
+            renderLesson(lessonId);
+          }
+        });
+        headerActions.insertBefore(btnClear, headerActions.firstChild);
+      }
+    } catch (err) {
+      console.error("GLM AI API Error:", err);
+      const loadingEl = $("#aiLoadingIndicator");
+      if (loadingEl) loadingEl.remove();
+
+      if (thread) {
+        const errEl = document.createElement("div");
+        errEl.className = "ai-msg ai-msg-bot";
+        errEl.innerHTML = `
+          <div class="ai-msg-avatar">⚠️</div>
+          <div class="ai-msg-content" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08);">
+            <p style="color: #fca5a5; font-weight: 600; margin-bottom: 4px;">Không thể kết nối đến GLM AI API:</p>
+            <p style="font-size: 13px; color: var(--text-2); margin: 0 0 8px;">${escapeHtml(err.message)}</p>
+            <p style="font-size: 12px; margin: 0;">
+              👉 Vui lòng kiểm tra lại API Key hoặc Endpoint: <button type="button" class="btn btn-secondary btn-sm" id="btnErrOpenConfig" style="padding: 3px 8px; font-size: 12px; margin-left: 6px;">⚙️ Kiểm tra Cấu hình</button>
+            </p>
+          </div>
+        `;
+        thread.appendChild(errEl);
+        $("#btnErrOpenConfig", errEl)?.addEventListener("click", openAiConfigModal);
+        thread.scrollTop = thread.scrollHeight;
+      }
+      toast(`❌ Lỗi AI: ${err.message}`, 4000);
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+      if (input) {
+        input.disabled = false;
+        input.focus();
+      }
+    }
+  }
+
+  function bindLessonAiEvents(root, lessonId, c, m, lesson) {
+    if (!root) return;
+
+    // Quick Jump button from meta
+    $("#btnJumpToAi", root)?.addEventListener("click", () => {
+      const box = $("#lessonAiBox", root);
+      if (box) {
+        box.scrollIntoView({ behavior: "smooth", block: "start" });
+        const input = $("#aiQuestionInput", root);
+        if (input) setTimeout(() => input.focus(), 300);
+      }
+    });
+
+    // Header actions
+    $("#btnOpenAiConfig", root)?.addEventListener("click", openAiConfigModal);
+    $("#btnClearAiChat", root)?.addEventListener("click", () => {
+      if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử hỏi đáp của bài học này?")) {
+        delete lessonAiConversations[lessonId];
+        renderLesson(lessonId);
+      }
+    });
+
+    // Quick key save button
+    $("#btnSaveQuickKey", root)?.addEventListener("click", () => {
+      const keyVal = $("#aiQuickKeyInput", root)?.value?.trim();
+      if (!keyVal) {
+        toast("⚠️ Vui lòng dán token GLM hợp lệ!");
+        return;
+      }
+      saveGlmConfig(keyVal);
+      toast("🎉 Đã lưu Token GLM thành công! Trợ lý AI đã sẵn sàng.");
+      renderLesson(lessonId);
+    });
+
+    // Suggestion chips
+    $$(".ai-chip", root).forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const prompt = chip.dataset.prompt;
+        if (!prompt) return;
+        const input = $("#aiQuestionInput", root);
+        if (input) input.value = prompt;
+        askLessonAi(lessonId, prompt);
+      });
+    });
+
+    // Input & Send button
+    const input = $("#aiQuestionInput", root);
+    const sendBtn = $("#btnSendAiQuestion", root);
+
+    if (input) {
+      input.addEventListener("input", () => {
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 140) + "px";
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          const val = input.value.trim();
+          if (val) askLessonAi(lessonId, val);
+        }
+      });
+    }
+
+    if (sendBtn) {
+      sendBtn.addEventListener("click", () => {
+        const val = input ? input.value.trim() : "";
+        if (val) askLessonAi(lessonId, val);
+      });
+    }
+  }
+
   // ---------- Lesson ----------
   function renderLesson(lessonId) {
     const found = findLesson(lessonId);
@@ -2704,9 +3093,11 @@
           <span>⏱ ${lesson.minutes} phút</span>
           <span>📦 Module ${m.id} — ${escapeHtml(m.title)}</span>
           <span class="ud-badge badge-user">${c.badge}</span>
+          <button type="button" class="btn-meta-ask-ai" id="btnJumpToAi" title="Cuộn nhanh xuống Trợ lý AI bài này">🤖 Hỏi AI bài này</button>
         </div>
       </div>
       <article class="lesson-body">${renderMarkdown(lesson.content)}</article>
+      ${renderLessonAiWidget(lessonId, c, m, lesson)}
       <button class="btn-complete ${done ? "done" : ""}" id="completeBtn">
         ${done ? "✓ Đã hoàn thành bài này" : "☐ Đánh dấu hoàn thành"}
       </button>
@@ -2759,6 +3150,7 @@
       b.addEventListener("click", () => gotoView(b.dataset.view)));
     bindCopyButtons(view);
     bindZoomableMedia(view);
+    bindLessonAiEvents(view, lessonId, c, m, lesson);
     if (window.mermaid) {
       setTimeout(() => {
         try {
@@ -4039,8 +4431,52 @@
       });
     }
 
-    // Keyboard shortcuts for Lightbox
+    // AI Config Modal Events
+    $("#aiConfigCloseBtn")?.addEventListener("click", closeAiConfigModal);
+    $("#aiConfigModal")?.addEventListener("click", (e) => {
+      if (e.target.id === "aiConfigModal") closeAiConfigModal();
+    });
+    $("#btnToggleGlmKey")?.addEventListener("click", () => {
+      const inp = $("#glmApiKeyInput");
+      const btn = $("#btnToggleGlmKey");
+      if (!inp) return;
+      if (inp.type === "password") {
+        inp.type = "text";
+        if (btn) btn.textContent = "🙈";
+      } else {
+        inp.type = "password";
+        if (btn) btn.textContent = "👁️";
+      }
+    });
+    $("#btnClearGlmKey")?.addEventListener("click", () => {
+      saveGlmConfig("");
+      const keyInput = $("#glmApiKeyInput");
+      if (keyInput) keyInput.value = "";
+      toast("🗑️ Đã xóa token GLM khỏi trình duyệt");
+      closeAiConfigModal();
+      if (state.view === "lesson" && state.currentLesson) {
+        renderLesson(state.currentLesson);
+      }
+    });
+    $("#btnSaveGlmConfig")?.addEventListener("click", () => {
+      const key = $("#glmApiKeyInput")?.value?.trim() || "";
+      const model = $("#glmModelSelect")?.value || DEFAULT_GLM_MODEL;
+      const endpoint = $("#glmEndpointInput")?.value?.trim() || DEFAULT_GLM_ENDPOINT;
+      saveGlmConfig(key, model, endpoint);
+      toast("✅ Đã lưu cấu hình AI thành công!");
+      closeAiConfigModal();
+      if (state.view === "lesson" && state.currentLesson) {
+        renderLesson(state.currentLesson);
+      }
+    });
+
+    // Keyboard shortcuts for Lightbox & Modals
     window.addEventListener("keydown", (e) => {
+      const aiModal = $("#aiConfigModal");
+      if (aiModal && aiModal.style.display !== "none" && e.key === "Escape") {
+        closeAiConfigModal();
+      }
+
       const modal = $("#imageLightboxModal");
       if (modal && modal.style.display !== "none") {
         if (e.key === "Escape") {
