@@ -1,16 +1,17 @@
 /* =====================================================
-   Spring Boot Mastery — App Engine
-   Router + Renderer + Markdown parser + Quiz + Progress
+   DevMastery — Multi-Course App Engine
+   Fullstack & Cloud Native Learning Platform
+   Router + Renderer + Multi-Course Architecture + Quiz Bank + Supabase Sync
    ===================================================== */
 (function () {
   "use strict";
 
-  const MODULES = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
   const STORE_KEY = "sbmastery-progress-v1";
   const TOKEN_KEY = "sbmastery-jwt-token";
   const USER_KEY = "sbmastery-user-info";
   const ENROLL_KEY = "sbmastery-enrolled-modules-";
   const COURSE_ENROLL_KEY = "sbmastery-enrolled-courses-";
+  const ACTIVE_COURSE_KEY = "sbmastery-active-course";
   const API_BASE_KEY = "sbmastery-api-base";
   let API_BASE = window.API_BASE_URL || localStorage.getItem(API_BASE_KEY) || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8080/api/v1" : "");
 
@@ -22,14 +23,33 @@
       shortTitle: "Spring Boot Mastery",
       icon: "🍃",
       badge: "Backend & Microservices",
+      category: "backend",
       level: "Zero to Production",
       hours: "~80h",
       modulesCount: 8,
       lessonsCount: 56,
-      quizCount: 98,
-      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 56 bài học, 98 câu quiz, thực chiến Microservices, Spring Security, Kafka, Docker & Kubernetes.",
+      quizCount: 256,
+      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 56 bài học, 256 câu quiz thực chiến, Microservices, Spring Security, Kafka, Docker & Kubernetes.",
       tags: ["Java 21", "Spring Boot 3", "JPA/Hibernate", "Spring Security", "Microservices", "Docker", "K8s"],
-      isAvailable: true
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "java-core-mastery",
+      title: "Java Core & Clean Code Professional",
+      shortTitle: "Java Core & Design Patterns",
+      icon: "☕",
+      badge: "Java Foundation & OOP",
+      category: "backend",
+      level: "Core to Advanced",
+      hours: "~35h",
+      modulesCount: 4,
+      lessonsCount: 15,
+      quizCount: 8,
+      desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Clean Code.",
+      tags: ["Java 21", "OOP", "SOLID", "Collections", "Virtual Threads", "Design Patterns"],
+      isAvailable: true,
+      modules: []
     },
     {
       id: "react-mastery",
@@ -37,14 +57,16 @@
       shortTitle: "React 19 & Next.js 15",
       icon: "⚛️",
       badge: "Frontend & Fullstack",
+      category: "frontend",
       level: "Intermediate & Advanced",
-      hours: "~60h",
-      modulesCount: 6,
-      lessonsCount: 42,
-      quizCount: 60,
-      desc: "Làm chủ React 19, Server Components, Server Actions, Next.js 15 App Router, TypeScript, Zustand, Tailwind CSS và Clean Architecture cho ứng dụng Enterprise.",
+      hours: "~45h",
+      modulesCount: 4,
+      lessonsCount: 9,
+      quizCount: 4,
+      desc: "Làm chủ React 19, Server Components, Server Actions, Next.js 15 App Router, TypeScript, Zustand và Clean Architecture cho ứng dụng Enterprise.",
       tags: ["React 19", "Next.js 15", "TypeScript", "Zustand", "Tailwind CSS", "Server Actions"],
-      isAvailable: true
+      isAvailable: true,
+      modules: []
     },
     {
       id: "devops-k8s",
@@ -52,57 +74,91 @@
       shortTitle: "DevOps & Kubernetes",
       icon: "☸️",
       badge: "DevOps & Cloud Native",
+      category: "devops",
       level: "Advanced & Production",
       hours: "~50h",
-      modulesCount: 5,
-      lessonsCount: 35,
-      quizCount: 50,
+      modulesCount: 4,
+      lessonsCount: 8,
+      quizCount: 4,
       desc: "Thực hành triển khai production: Docker containerization, Kubernetes cluster, Helm, CI/CD GitHub Actions, Prometheus, Grafana & ELK Stack.",
       tags: ["Docker", "Kubernetes", "CI/CD", "Helm", "Prometheus", "Grafana", "AWS"],
-      isAvailable: true
-    },
-    {
-      id: "java-core-mastery",
-      title: "Java Core & Clean Code Professional",
-      shortTitle: "Java Core & Design Patterns",
-      icon: "☕",
-      badge: "Java Foundation",
-      level: "Core & Best Practices",
-      hours: "~35h",
-      modulesCount: 4,
-      lessonsCount: 28,
-      quizCount: 40,
-      desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Unit Testing JUnit 5.",
-      tags: ["Java 21", "OOP", "SOLID", "Design Patterns", "Virtual Threads", "JUnit 5"],
-      isAvailable: true
+      isAvailable: true,
+      modules: []
     }
   ];
 
+  // Initialize course data from window globals
+  function initializeCoursesData() {
+    // 1. Spring Boot
+    const sb = COURSES.find(c => c.id === "spring-boot-mastery");
+    if (sb) {
+      sb.modules = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
+      sb.modulesCount = sb.modules.length;
+      sb.lessonsCount = sb.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.length : 0), 0);
+      sb.quizCount = sb.modules.reduce((acc, m) => {
+        const q = (m.lessons || []).find(l => l.type === "quiz");
+        return acc + (q && q.questions ? q.questions.length : 0);
+      }, 0);
+    }
+
+    // 2. Extra courses (Java, React, DevOps)
+    if (window.EXTRA_COURSES) {
+      Object.keys(window.EXTRA_COURSES).forEach(cid => {
+        const src = window.EXTRA_COURSES[cid];
+        const target = COURSES.find(c => c.id === cid);
+        if (target && src && src.modules) {
+          target.modules = src.modules;
+          target.modulesCount = src.modules.length;
+          target.lessonsCount = src.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.length : 0), 0);
+          target.quizCount = src.modules.reduce((acc, m) => {
+            const q = (m.lessons || []).find(l => l.type === "quiz");
+            return acc + (q && q.questions ? q.questions.length : 0);
+          }, 0);
+        }
+      });
+    }
+  }
+
   // ---------- State ----------
   const state = {
-    view: "dashboard",        // dashboard | lesson | quiz | curriculum | user-dashboard
+    view: "dashboard",        // dashboard | lesson | quiz | curriculum | user-dashboard | courses
+    activeCourseId: localStorage.getItem(ACTIVE_COURSE_KEY) || "spring-boot-mastery",
     currentLesson: null,      // lesson id
     currentQuizModule: null,  // module id
     completed: {},            // { lessonId: true }
     quizScores: {},           // { moduleId: {score, total} }
     enrolledCourses: {},      // { [courseId]: true }
     enrolledModules: {},      // legacy support
-    sidebarTab: "enrolled",   // "enrolled" | "all"
+    catalogCategory: "all",   // all | backend | frontend | devops
+    catalogSearch: "",
     pendingEnrollCourse: null,
-    pendingEnrollModule: null,
     pendingTargetLesson: null,
     searchIdx: [],
     currentUser: null,        // { id, username, email, fullName, role }
     token: null               // JWT string
   };
 
+  // Backward-compatibility: MODULES references active course modules
+  function getActiveCourse() {
+    return COURSES.find(c => c.id === state.activeCourseId) || COURSES[0];
+  }
+
+  function getActiveModules() {
+    return getActiveCourse().modules || [];
+  }
+
+  function getCourse(courseId) {
+    return COURSES.find(c => c.id === courseId) || COURSES[0];
+  }
+
   // ---------- Utils ----------
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
   function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    if (!s) return "";
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   function save() {
@@ -113,6 +169,7 @@
     const uid = state.currentUser ? state.currentUser.id : "guest";
     localStorage.setItem(ENROLL_KEY + uid, JSON.stringify(state.enrolledModules));
     localStorage.setItem(COURSE_ENROLL_KEY + uid, JSON.stringify(state.enrolledCourses));
+    localStorage.setItem(ACTIVE_COURSE_KEY, state.activeCourseId);
   }
 
   function load() {
@@ -146,6 +203,10 @@
       if (Object.keys(state.enrolledModules).length > 0) {
         state.enrolledCourses["spring-boot-mastery"] = true;
       }
+      const savedActive = localStorage.getItem(ACTIVE_COURSE_KEY);
+      if (savedActive && COURSES.some(c => c.id === savedActive)) {
+        state.activeCourseId = savedActive;
+      }
     } catch (e) { /* fresh */ }
   }
 
@@ -156,30 +217,34 @@
     if (state.enrolledCourses[cId]) return true;
     if (cId === "spring-boot-mastery") {
       if (Object.keys(state.enrolledModules).length > 0) return true;
-      const hasAnyProgress = MODULES.some(m => m.lessons.some(l => state.completed[l.id]) || !!state.quizScores[m.id]);
-      if (hasAnyProgress) return true;
+      const sb = COURSES.find(c => c.id === "spring-boot-mastery");
+      if (sb && (sb.modules || []).some(m => (m.lessons || []).some(l => state.completed[l.id]) || !!state.quizScores[m.id])) {
+        return true;
+      }
     }
     return false;
   }
 
   function isModuleEnrolled(moduleId) {
-    // All modules 0..7 belong to the Spring Boot Mastery course
-    return isCourseEnrolled("spring-boot-mastery");
+    return isCourseEnrolled(state.activeCourseId);
   }
 
   async function enrollCourse(courseId, silent = false) {
     const cId = String(courseId);
-    const course = COURSES.find(c => c.id === cId) || { title: cId };
+    const course = COURSES.find(c => c.id === cId) || { title: cId, shortTitle: cId };
     if (!state.currentUser) {
       state.pendingEnrollCourse = cId;
       openAuthModal("login");
-      toast(`🔑 Vui lòng đăng nhập để ghi danh khóa học "${course.title || cId}"!`);
+      toast(`🔑 Vui lòng đăng nhập để ghi danh khóa học <strong>${escapeHtml(course.title || cId)}</strong>!`);
       return false;
     }
 
     state.enrolledCourses[cId] = true;
     if (cId === "spring-boot-mastery") {
-      MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+      const sb = COURSES.find(c => c.id === "spring-boot-mastery");
+      if (sb && sb.modules) {
+        sb.modules.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+      }
     }
     save();
 
@@ -199,7 +264,7 @@
     if (!state.currentUser) return;
     const cId = String(courseId);
     const course = COURSES.find(c => c.id === cId) || { title: cId };
-    if (!confirm(`Bạn có chắc muốn hủy ghi danh khóa học "${course.title}" khỏi danh sách học cá nhân?\n(Ghi chú: Lịch sử và kết quả bài học đã làm vẫn được lưu trữ an toàn)`)) {
+    if (!confirm(`Bạn có chắc muốn hủy ghi danh khóa học "${course.title}" khỏi danh sách học cá nhân?\n(Lịch sử bài học đã làm vẫn được lưu trữ an toàn)`)) {
       return;
     }
 
@@ -222,15 +287,36 @@
     renderAll();
   }
 
+  function switchCourse(courseId, targetLessonId = null) {
+    const c = COURSES.find(x => x.id === courseId);
+    if (!c) return;
+    state.activeCourseId = c.id;
+    localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
+
+    // Update Brand Text
+    const brandText = $("#brandText");
+    if (brandText) {
+      brandText.innerHTML = `${escapeHtml(c.shortTitle)} <em>Mastery</em>`;
+    }
+
+    if (targetLessonId) {
+      gotoLesson(targetLessonId);
+    } else {
+      gotoView("dashboard");
+    }
+    renderAll();
+    toast(`📚 Đã chuyển sang khóa học: <strong>${escapeHtml(c.title)}</strong>`);
+  }
+
   // Backward-compatibility aliases
   async function enrollModule(moduleId, silent = false) {
-    return enrollCourse("spring-boot-mastery", silent);
+    return enrollCourse(state.activeCourseId, silent);
   }
   async function enrollAllModules() {
-    return enrollCourse("spring-boot-mastery");
+    return enrollCourse(state.activeCourseId);
   }
   async function unenrollModule(moduleId) {
-    return unenrollCourse("spring-boot-mastery");
+    return unenrollCourse(state.activeCourseId);
   }
 
   // ---------- Supabase Direct Cloud Integration ----------
@@ -291,45 +377,20 @@
           const mid = String(r.module_id);
           if (mid === "spring-boot-mastery" || ["0", "1", "2", "3", "4", "5", "6", "7"].includes(mid)) {
             state.enrolledCourses["spring-boot-mastery"] = true;
-            MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+            const sb = COURSES.find(c => c.id === "spring-boot-mastery");
+            if (sb && sb.modules) {
+              sb.modules.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+            }
           } else {
             state.enrolledCourses[mid] = true;
           }
         });
       }
 
-      // 2c. Nếu học viên đã có bài học hoàn thành hoặc điểm quiz ở Spring Boot, tự động ghi danh khóa Spring Boot Mastery
-      const hasSbProgress = MODULES.some(m => m.lessons.some(l => state.completed[l.id]) || !!state.quizScores[m.id]);
-      if (hasSbProgress && !state.enrolledCourses["spring-boot-mastery"]) {
-        state.enrolledCourses["spring-boot-mastery"] = true;
-        MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
-        supabaseCall("/user_enrollments", "POST", { user_id: uid, module_id: "spring-boot-mastery" }, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
-      }
-
-      // 3. Đẩy các bài học hoàn thành ở local lên Supabase nếu chưa có
-      const localLessonIds = Object.keys(state.completed).filter(id => state.completed[id]);
-      if (localLessonIds.length > 0) {
-        const payload = localLessonIds.map(id => ({ user_id: uid, lesson_id: id, completed: true }));
-        await supabaseCall("/user_lesson_progress", "POST", payload, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
-      }
-
-      // 4. Đẩy điểm quiz ở local lên Supabase
-      const quizKeys = Object.keys(state.quizScores);
-      if (quizKeys.length > 0) {
-        const qPayload = quizKeys.map(mId => ({
-          user_id: uid,
-          module_id: String(mId),
-          score: state.quizScores[mId].score,
-          total_questions: state.quizScores[mId].total,
-          passed: (state.quizScores[mId].score / state.quizScores[mId].total) >= 0.8
-        }));
-        await supabaseCall("/user_quiz_results", "POST", qPayload, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
-      }
-
       save();
       renderAll();
     } catch (e) {
-      console.warn("Cloud sync warning:", e.message);
+      console.warn("Sync cloud failed:", e);
     }
   }
 
@@ -338,13 +399,14 @@
     supabaseCall("/user_lesson_progress", "POST", {
       user_id: state.currentUser.id,
       lesson_id: lessonId,
-      completed: true
+      completed: true,
+      completed_at: new Date().toISOString()
     }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
   }
 
   function syncUncompleteLessonCloud(lessonId) {
     if (!state.currentUser) return;
-    supabaseCall("/user_lesson_progress?user_id=eq." + state.currentUser.id + "&lesson_id=eq." + encodeURIComponent(lessonId), "DELETE")
+    supabaseCall("/user_lesson_progress?user_id=eq." + state.currentUser.id + "&lesson_id=eq." + lessonId, "DELETE")
       .catch(err => console.warn(err));
   }
 
@@ -368,17 +430,16 @@
     const dropdownName = $("#dropdownName");
     const dropdownEmail = $("#dropdownEmail");
 
-    if (state.currentUser && state.token) {
-      if (authBtn) authBtn.classList.add("logged-in");
-      const displayName = state.currentUser.full_name || state.currentUser.fullName || state.currentUser.username || "Học viên";
-      const initial = (state.currentUser.full_name || state.currentUser.fullName || state.currentUser.username || "U").charAt(0).toUpperCase();
-      if (authBtnText) authBtnText.textContent = displayName;
-      if (dropdownAvatar) dropdownAvatar.textContent = initial;
+    if (state.currentUser) {
+      const displayName = state.currentUser.full_name || state.currentUser.fullName || state.currentUser.username;
+      authBtnText.textContent = displayName;
+      authBtn.title = "Xin chào, " + displayName;
+      if (dropdownAvatar) dropdownAvatar.textContent = displayName.charAt(0).toUpperCase();
       if (dropdownName) dropdownName.textContent = displayName;
       if (dropdownEmail) dropdownEmail.textContent = state.currentUser.email || "";
     } else {
-      if (authBtn) authBtn.classList.remove("logged-in");
-      if (authBtnText) authBtnText.textContent = "Đăng nhập";
+      authBtnText.textContent = "Đăng nhập";
+      authBtn.title = "Tài khoản học viên";
       if (userDropdown) userDropdown.style.display = "none";
     }
   }
@@ -429,38 +490,58 @@
     hideAuthAlert();
   }
 
+  // ---------- Navigation & Progress Helpers ----------
   function findLesson(id) {
-    for (const m of MODULES) {
-      const l = m.lessons.find((x) => x.id === id);
-      if (l) return { module: m, lesson: l };
+    // 1. Search active course
+    const active = getActiveCourse();
+    for (const m of (active.modules || [])) {
+      const l = (m.lessons || []).find((x) => x.id === id);
+      if (l) return { course: active, module: m, lesson: l };
+    }
+    // 2. Search all courses
+    for (const c of COURSES) {
+      for (const m of (c.modules || [])) {
+        const l = (m.lessons || []).find((x) => x.id === id);
+        if (l) return { course: c, module: m, lesson: l };
+      }
     }
     return null;
   }
 
-  function allItems() {
+  function allItems(courseId = state.activeCourseId) {
+    const c = COURSES.find(x => x.id === courseId) || getActiveCourse();
     const items = [];
-    MODULES.forEach((m) => m.lessons.forEach((l) => items.push({ module: m, lesson: l })));
+    (c.modules || []).forEach((m) => (m.lessons || []).forEach((l) => items.push({ course: c, module: m, lesson: l })));
     return items;
   }
 
-  function flatIndex() {
-    return allItems().filter((x) => x.lesson.type !== "quiz")
-      .concat(allItems().filter((x) => x.lesson.type === "quiz"));
+  function flatIndex(courseId = state.activeCourseId) {
+    const items = allItems(courseId);
+    return items.filter((x) => x.lesson.type !== "quiz")
+      .concat(items.filter((x) => x.lesson.type === "quiz"));
   }
 
   function moduleProgress(m) {
-    const done = m.lessons.filter((l) => state.completed[l.id]).length;
-    return { done, total: m.lessons.length, pct: Math.round((done / m.lessons.length) * 100) };
+    const lessons = m.lessons || [];
+    const done = lessons.filter((l) => state.completed[l.id]).length;
+    return { done, total: lessons.length, pct: lessons.length ? Math.round((done / lessons.length) * 100) : 0 };
   }
 
-  function overallProgress() {
-    const items = allItems();
+  function overallProgress(courseId = state.activeCourseId) {
+    const items = allItems(courseId);
     const done = items.filter((x) => state.completed[x.lesson.id]).length;
-    return { done, total: items.length, pct: Math.round((done / items.length) * 100) };
+    return { done, total: items.length, pct: items.length ? Math.round((done / items.length) * 100) : 0 };
   }
 
-  function nextIncompleteItem() {
-    return flatIndex().find((x) => !state.completed[x.lesson.id]);
+  function totalPlatformProgress() {
+    let totalDone = 0;
+    let totalLessons = 0;
+    COURSES.forEach(c => {
+      const items = allItems(c.id);
+      totalLessons += items.filter(x => x.lesson.type !== "quiz").length;
+      totalDone += items.filter(x => x.lesson.type !== "quiz" && state.completed[x.lesson.id]).length;
+    });
+    return { done: totalDone, total: totalLessons, pct: totalLessons ? Math.round((totalDone / totalLessons) * 100) : 0 };
   }
 
   function toast(msg) {
@@ -468,34 +549,30 @@
     t.innerHTML = msg;
     t.classList.add("show");
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove("show"), 2600);
+    t._timer = setTimeout(() => t.classList.remove("show"), 3200);
   }
 
-  // ---------- Markdown renderer (custom mini) ----------
-  function renderMarkdown(src) {
-    const lines = src.split("\n");
+  // ---------- Markdown Parser ----------
+  function renderMarkdown(md) {
+    if (!md) return "";
     let html = "";
+    const lines = md.split("\n");
     let i = 0;
 
     const codeBlock = (fence, lang) => {
-      let buf = [];
+      let code = [];
       i++;
       while (i < lines.length && !lines[i].startsWith(fence)) {
-        buf.push(lines[i]);
+        code.push(lines[i]);
         i++;
       }
       i++; // skip closing fence
-      const code = buf.join("\n");
-      const esc = escapeHtml(code);
-      if (lang === "mermaid") {
-        return `<div class="diagram-wrapper"><div class="diagram-header"><span class="diagram-badge">📊 SƠ ĐỒ MÔ PHỎNG KIẾN TRÚC</span></div><div class="mermaid">${esc}</div></div>`;
+      const rawCode = code.join("\n");
+      const cleanLang = (lang || "java").trim().toLowerCase();
+      if (cleanLang === "mermaid") {
+        return `<div class="mermaid">${escapeHtml(rawCode)}</div>`;
       }
-      if (lang && window.hljs) {
-        try {
-          return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code class="language-${lang} hljs">${window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value}</code></pre></div>`;
-        } catch (e) { /* fallthrough */ }
-      }
-      return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang || "code"}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code>${esc}</code></pre></div>`;
+      return codeHtml(rawCode, cleanLang);
     };
 
     while (i < lines.length) {
@@ -625,11 +702,10 @@
     return html;
   }
 
-  // Inline markdown & safe HTML tag re-hydration
   function inline(s) {
     if (!s) return "";
     s = escapeHtml(s);
-    // Restore safe inline tags that the author intended as HTML
+    // Restore safe inline tags
     s = s.replace(/&lt;code&gt;([\s\S]*?)&lt;\/code&gt;/gi, "<code>$1</code>");
     s = s.replace(/&lt;mark&gt;([\s\S]*?)&lt;\/mark&gt;/gi, "<mark>$1</mark>");
     s = s.replace(/&lt;kbd&gt;([\s\S]*?)&lt;\/kbd&gt;/gi, "<kbd>$1</kbd>");
@@ -655,60 +731,94 @@
     s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
-    // line break inside paragraph
     s = s.replace(/\n/g, "<br>");
     return s;
   }
 
   // ---------- Sidebar ----------
-  // ---------- Sidebar ----------
   function renderSidebar(activeLessonId) {
     const nav = $("#sidebarNav");
+    const activeCourse = getActiveCourse();
+    const modules = getActiveModules();
     const isGuest = !state.currentUser;
-    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
+    const isEnrolled = isCourseEnrolled(activeCourse.id);
     const enrolledCoursesCount = COURSES.filter(c => isCourseEnrolled(c.id)).length;
 
     let html = `
+      <!-- Course Switcher Top Header -->
+      <div class="sidebar-course-selector" id="sidebarCourseSelector">
+        <div class="scs-current" id="scsCurrentBtn" title="Bấm để chuyển đổi giữa các khóa học">
+          <span class="scs-icon">${activeCourse.icon}</span>
+          <div class="scs-info">
+            <span class="scs-label">Đang học khóa:</span>
+            <span class="scs-name">${escapeHtml(activeCourse.shortTitle)}</span>
+          </div>
+          <span class="scs-arrow">▾</span>
+        </div>
+        <div class="scs-dropdown" id="scsDropdown" style="display: none;">
+          <div class="scs-dropdown-title">CHỌN KHÓA HỌC:</div>
+          ${COURSES.map(c => `
+            <div class="scs-item ${c.id === activeCourse.id ? "active" : ""}" data-switch-course="${c.id}">
+              <span class="scs-item-icon">${c.icon}</span>
+              <div class="scs-item-body">
+                <div class="scs-item-title">${escapeHtml(c.shortTitle)}</div>
+                <div class="scs-item-sub">${c.modulesCount} Module · ${c.lessonsCount} bài</div>
+              </div>
+              ${c.id === activeCourse.id 
+                ? '<span class="scs-active-badge">Đang mở</span>' 
+                : isCourseEnrolled(c.id) 
+                ? '<span class="scs-enrolled-badge">Đã ghi danh</span>' 
+                : '<span class="scs-free-badge">Miễn phí</span>'
+              }
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
       <a class="nav-home ${state.view === "dashboard" ? "active" : ""}" data-view="dashboard">
-        🏠 Tổng quan
+        🏠 Tổng quan khóa học
+      </a>
+      <a class="nav-home ${state.view === "courses" ? "active" : ""}" data-view="courses">
+        🌟 Tất cả khóa học (Catalog)
       </a>
       <a class="nav-home ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
         📊 Tiến độ của tôi ${enrolledCoursesCount > 0 ? `(${enrolledCoursesCount} khóa)` : ""}
       </a>
       <a class="nav-home ${state.view === "curriculum" ? "active" : ""}" data-view="curriculum">
-        📚 Chương trình chi tiết
+        📚 Giáo trình chi tiết
       </a>`;
 
-    if (!isGuest && !isSbEnrolled) {
+    if (!isGuest && !isEnrolled) {
       html += `
         <div class="sidebar-course-cta">
-          <div class="s-cta-title">🍃 Spring Boot Mastery</div>
-          <p class="s-cta-desc">Chưa ghi danh khóa học</p>
-          <button class="btn btn-sm btn-primary s-cta-btn" id="btnSidebarEnroll">🚀 Ghi danh ngay</button>
+          <div class="s-cta-title">${activeCourse.icon} ${escapeHtml(activeCourse.shortTitle)}</div>
+          <p class="s-cta-desc">Chưa ghi danh khóa học này</p>
+          <button class="btn btn-sm btn-primary s-cta-btn" id="btnSidebarEnroll">🚀 Ghi danh khóa này</button>
         </div>`;
     }
 
     html += `
       <div class="sidebar-section-title">
-        <span>GIÁO TRÌNH SPRING BOOT (8 MODULE)</span>
+        <span>GIÁO TRÌNH ${activeCourse.shortTitle.toUpperCase()} (${modules.length} MODULE)</span>
       </div>`;
 
-    MODULES.forEach((m) => {
+    modules.forEach((m) => {
       const prog = moduleProgress(m);
-      const hasActive = m.lessons.some((l) => l.id === activeLessonId) ||
+      const hasActive = (m.lessons || []).some((l) => l.id === activeLessonId) ||
                         (state.view === "quiz" && state.currentQuizModule === m.id);
       const open = hasActive || prog.pct > 0;
 
       html += `
       <div class="nav-module mc-${m.id} ${open ? "open" : ""} ${prog.pct === 100 ? "done" : ""}">
         <div class="nav-module-head" data-module="${m.id}">
-          <span class="nm-badge" style="background: var(--mc-color)">${m.icon}</span>
+          <span class="nm-badge" style="background: var(--mc-color, #22c55e)">${m.icon}</span>
           <span class="nm-title">${m.id}. ${escapeHtml(m.title)}</span>
-          ${isSbEnrolled ? (prog.pct === 100 ? '<span class="nm-check">✓</span>' : '') : '<span class="nm-lock-icon">🔒</span>'}
+          ${isEnrolled ? (prog.pct === 100 ? '<span class="nm-check">✓</span>' : '') : '<span class="nm-lock-icon">🔒</span>'}
           <span class="nm-count">${prog.done}/${prog.total}</span>
         </div>
         <div class="nav-lessons">
-          ${m.lessons.map((l) => `
+          ${(m.lessons || []).map((l) => `
             <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
                  data-lesson="${l.id}">
               <span class="nl-dot"></span>
@@ -721,9 +831,31 @@
 
     nav.innerHTML = html;
 
+    // Course Selector interactions
+    const scsCurrentBtn = $("#scsCurrentBtn", nav);
+    const scsDropdown = $("#scsDropdown", nav);
+    if (scsCurrentBtn && scsDropdown) {
+      scsCurrentBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = scsDropdown.style.display !== "none";
+        scsDropdown.style.display = isOpen ? "none" : "block";
+      });
+      document.addEventListener("click", () => {
+        if (scsDropdown) scsDropdown.style.display = "none";
+      });
+    }
+
+    $$("[data-switch-course]", nav).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (scsDropdown) scsDropdown.style.display = "none";
+        switchCourse(el.dataset.switchCourse);
+      });
+    });
+
     const btnSidebarEnroll = $("#btnSidebarEnroll", nav);
     if (btnSidebarEnroll) {
-      btnSidebarEnroll.addEventListener("click", () => enrollCourse("spring-boot-mastery"));
+      btnSidebarEnroll.addEventListener("click", () => enrollCourse(activeCourse.id));
     }
     $$(".nav-home", nav).forEach((el) =>
       el.addEventListener("click", () => gotoView(el.dataset.view)));
@@ -733,85 +865,385 @@
       el.addEventListener("click", () => gotoLesson(el.dataset.lesson)));
   }
 
+  function formatHeroTitle(title) {
+    const main = (title || "").split("—")[0].trim();
+    const parts = main.split(" ");
+    if (parts.length <= 1) return escapeHtml(main);
+    const last = parts.pop();
+    return `${escapeHtml(parts.join(" "))} <span class="grad-text">${escapeHtml(last)}</span>`;
+  }
+
   // ---------- Dashboard ----------
   function renderDashboard() {
+    const activeCourse = getActiveCourse();
+    const modules = getActiveModules();
     const total = overallProgress();
     const items = allItems();
     const lessonsDone = items.filter((x) => x.lesson.type !== "quiz" && state.completed[x.lesson.id]).length;
     const lessonsTotal = items.filter((x) => x.lesson.type !== "quiz").length;
-    const modulesDone = MODULES.filter((m) => moduleProgress(m).pct === 100).length;
-    const scores = Object.values(state.quizScores);
+    const modulesDone = modules.filter((m) => moduleProgress(m).pct === 100).length;
+    
+    // Quiz avg for active course
+    const modIds = modules.map(m => m.id);
+    const scores = Object.keys(state.quizScores)
+      .filter(k => modIds.includes(k) || modIds.includes(parseInt(k, 10)))
+      .map(k => state.quizScores[k]);
     const avg = scores.length
       ? Math.round(scores.reduce((a, s) => a + (s.score / s.total) * 100, 0) / scores.length) + "%"
       : "—";
 
-    $("#statLessonsDone").textContent = `${lessonsDone}/${lessonsTotal}`;
-    $("#statModulesDone").textContent = `${modulesDone}/${MODULES.length}`;
-    $("#statQuizAvg").textContent = avg;
-    $("#headerProgressPct").textContent = total.pct + "%";
-    $("#dashRingText").textContent = total.pct + "%";
+    // Hero title & sub
+    const view = $("#view-dashboard");
+    if (!view) return;
 
-    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
-    const streakEl = $("#streakSub");
-    if (streakEl) {
-      const quizCount = MODULES.reduce((acc, m) => {
-        const q = m.lessons.find((l) => l.type === "quiz");
-        return acc + (q && q.questions ? q.questions.length : 0);
-      }, 0);
-      streakEl.textContent = `${lessonsTotal} bài · ${MODULES.length} module · ${quizCount} câu quiz`;
-    }
+    view.innerHTML = `
+      <div class="hero">
+        <div class="hero-badge">${activeCourse.icon} ${escapeHtml(activeCourse.badge)} · ${activeCourse.level}</div>
+        <h1>${formatHeroTitle(activeCourse.title)}</h1>
+        <p class="hero-sub">${escapeHtml(activeCourse.desc)}</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="continueBtn">▶ Tiếp tục học</button>
+          <button class="btn btn-secondary" data-view="courses">🌟 Khám phá các khóa khác</button>
+          <button class="btn btn-ghost" data-view="user-dashboard">📊 Tiến độ của tôi</button>
+          <button class="btn btn-ghost" data-view="curriculum">Xem giáo trình</button>
+        </div>
+      </div>
 
-    const CIRC = 226.2;
-    $("#dashRing").style.strokeDashoffset = CIRC - (CIRC * total.pct) / 100;
-    const HCIRC = 100.5;
-    $("#headerRing").style.strokeDashoffset = HCIRC - (HCIRC * total.pct) / 100;
-
-    const grid = $("#moduleGrid");
-    grid.innerHTML = MODULES.map((m) => {
-      const p = moduleProgress(m);
-      const firstLesson = m.lessons[0];
-      return `
-      <div class="module-card mc-${m.id}" data-lesson="${firstLesson.id}" data-module="${m.id}">
-        <div class="mc-top">
-          <div class="mc-badge">${m.icon}</div>
-          <div>
-            <div class="mc-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
-            <div class="mc-sub">${escapeHtml(m.subtitle)}</div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-ring-lg">
+            <svg width="90" height="90" viewBox="0 0 90 90">
+              <circle cx="45" cy="45" r="36" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>
+              <circle cx="45" cy="45" r="36" fill="none" stroke="url(#ringGrad2)" stroke-width="8" stroke-linecap="round" stroke-dasharray="226.2" stroke-dashoffset="${226.2 - (226.2 * total.pct) / 100}" id="dashRing" transform="rotate(-90 45 45)"/>
+              <defs><linearGradient id="ringGrad2" x1="0" y1="0" x2="90" y2="90"><stop stop-color="#8BE36B"/><stop offset="1" stop-color="#2DD4A7"/></linearGradient></defs>
+              <text x="45" y="50" text-anchor="middle" class="ring-text" id="dashRingText">${total.pct}%</text>
+            </svg>
+          </div>
+          <div class="stat-info">
+            <div class="stat-num" id="statLessonsDone">${lessonsDone}/${lessonsTotal}</div>
+            <div class="stat-label">Bài đã hoàn thành</div>
           </div>
         </div>
-        <div class="mc-desc">${escapeHtml(m.desc)}</div>
-        <div class="mc-meta">
-          <span>📖 ${m.lessons.filter(l => l.type === "lesson").length} bài</span>
-          <span>🏆 1 quiz</span>
-          <span>⏱ ${m.lessons.reduce((a, l) => a + l.minutes, 0)} phút</span>
+        <div class="stat-card">
+          <div class="stat-icon">🧩</div>
+          <div class="stat-info">
+            <div class="stat-num" id="statModulesDone">${modulesDone}/${modules.length}</div>
+            <div class="stat-label">Module đã xong</div>
+          </div>
         </div>
-        <div class="mc-progress">
-          <div class="mc-progress-bar"><div class="mc-progress-fill" style="width:${p.pct}%"></div></div>
-          <div class="mc-progress-text"><span>${p.done}/${p.total} hoàn thành</span><span>${p.pct}%</span></div>
+        <div class="stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-info">
+            <div class="stat-num" id="statQuizAvg">${avg}</div>
+            <div class="stat-label">Điểm quiz trung bình</div>
+          </div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-info">
+            <div class="stat-num">${activeCourse.hours}</div>
+            <div class="stat-label">Thời lượng ước tính</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-title">📚 Các Module Khóa Học: ${escapeHtml(activeCourse.shortTitle)}</h2>
+      <div class="module-grid" id="moduleGrid"></div>
+    `;
+
+    renderDashboardStats();
+
+    const streakEl = $("#streakSub");
+    if (streakEl) {
+      const quizCount = modules.reduce((acc, m) => {
+        const q = (m.lessons || []).find(l => l.type === "quiz");
+        return acc + (q && q.questions ? q.questions.length : 0);
+      }, 0);
+      streakEl.textContent = `${lessonsTotal} bài · ${modules.length} module · ${quizCount} câu quiz`;
+    }
+
+    const grid = $("#moduleGrid", view);
+    const isEnrolled = isCourseEnrolled(activeCourse.id);
+
+    grid.innerHTML = modules.map((m) => {
+      const prog = moduleProgress(m);
+      const firstIncomplete = (m.lessons || []).find((l) => !state.completed[l.id]) || m.lessons[0];
+      const allDone = prog.pct === 100;
+      const started = prog.done > 0;
+      const quiz = (m.lessons || []).find((l) => l.type === "quiz");
+
+      let statusBadge = "";
+      if (allDone) {
+        statusBadge = '<span class="status-badge done">✓ Hoàn thành</span>';
+      } else if (started) {
+        statusBadge = `<span class="status-badge in-progress">Đang học (${prog.done}/${prog.total})</span>`;
+      } else {
+        statusBadge = '<span class="status-badge not-started">Chưa học</span>';
+      }
+
+      const buttonLabel = allDone
+        ? "Ôn tập lại"
+        : started
+        ? `Học tiếp: ${escapeHtml(firstIncomplete.title)}`
+        : `Bắt đầu: ${escapeHtml(firstIncomplete.title)}`;
+
+      return `
+      <div class="module-card mc-${m.id} ${allDone ? "done" : ""}" data-module="${m.id}" data-lesson="${firstIncomplete ? firstIncomplete.id : ""}">
+        <div class="module-card-top">
+          <span class="module-card-badge">${m.icon}</span>
+          <span class="module-card-num">Module ${m.id}</span>
+          ${statusBadge}
+        </div>
+        <h3 class="module-card-title">${escapeHtml(m.title)}</h3>
+        <p class="module-card-desc">${escapeHtml(m.desc || "")}</p>
+        <div class="module-card-meta">
+          <span>📖 ${(m.lessons || []).length} bài</span>
+          <span>⏱ ~${(m.lessons || []).reduce((a, l) => a + (l.minutes || 0), 0)}p</span>
+          ${quiz ? `<span>🏆 ${quiz.questions ? quiz.questions.length : 0} câu quiz</span>` : ""}
+        </div>
+        <div class="module-card-progress">
+          <div class="mcp-bar">
+            <div class="mcp-fill" style="width: ${prog.pct}%"></div>
+          </div>
+          <span class="mcp-pct">${prog.pct}%</span>
+        </div>
+        <button class="btn btn-sm ${allDone ? "btn-ghost" : "btn-primary"} module-card-btn btn-card-action">
+          ${buttonLabel} →
+        </button>
         <div class="module-card-footer">
-          ${isSbEnrolled 
-            ? '<span class="mc-enrolled-pill">✓ Đã ghi danh khóa</span><button class="btn btn-sm btn-primary btn-card-action" data-lesson="' + firstLesson.id + '">Vào học tiếp →</button>'
-            : state.currentUser 
-            ? '<span class="mc-unenrolled-pill">Khóa 8 Module</span><button class="btn btn-sm btn-primary btn-card-enroll-course" data-course="spring-boot-mastery">🚀 Ghi danh khóa học</button>'
-            : '<span class="mc-unenrolled-pill">Khóa 8 Module</span><button class="btn btn-sm btn-primary btn-card-enroll-course" data-course="spring-boot-mastery">🔒 Đăng ký học</button>'
-          }
+          ${isEnrolled ? `
+            <span class="mc-enrolled-pill">✓ Đã mở khóa toàn bộ</span>
+          ` : `
+            <button class="btn btn-sm btn-primary btn-card-enroll-course" style="font-size:11px;padding:3px 8px;">
+              🚀 Ghi danh khóa học
+            </button>
+          `}
         </div>
       </div>`;
     }).join("");
 
     $$(".module-card", grid).forEach((card) => {
       card.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-card-enroll-course") || e.target.closest(".btn-card-enroll")) {
+        if (e.target.closest(".btn-card-enroll-course")) {
           e.stopPropagation();
-          enrollCourse("spring-boot-mastery");
-        } else if (e.target.closest(".btn-card-action")) {
-          e.stopPropagation();
-          gotoLesson(card.dataset.lesson);
+          enrollCourse(activeCourse.id);
         } else {
           gotoLesson(card.dataset.lesson);
         }
       });
+    });
+
+    $$("[data-view]", view).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        gotoView(el.dataset.view);
+      });
+    });
+
+    const continueBtn = $("#continueBtn", view);
+    if (continueBtn) {
+      continueBtn.addEventListener("click", async () => {
+        if (!state.currentUser) {
+          state.pendingEnrollCourse = activeCourse.id;
+          openAuthModal("login");
+          return;
+        }
+        if (!isCourseEnrolled(activeCourse.id)) {
+          await enrollCourse(activeCourse.id);
+        }
+        for (const m of modules) {
+          const nextInMod = (m.lessons || []).find(l => !state.completed[l.id]);
+          if (nextInMod) {
+            gotoLesson(nextInMod.id);
+            return;
+          }
+        }
+        gotoView("user-dashboard");
+      });
+    }
+  }
+
+  // ---------- Dedicated Course Catalog Page ----------
+  function renderCoursesCatalog() {
+    const view = $("#view-courses");
+    if (!view) return;
+
+    const filtered = COURSES.filter(c => {
+      if (state.catalogCategory !== "all" && c.category !== state.catalogCategory) return false;
+      if (state.catalogSearch) {
+        const q = state.catalogSearch.toLowerCase();
+        const matchTitle = c.title.toLowerCase().includes(q);
+        const matchTags = c.tags.some(t => t.toLowerCase().includes(q));
+        const matchDesc = c.desc.toLowerCase().includes(q);
+        if (!matchTitle && !matchTags && !matchDesc) return false;
+      }
+      return true;
+    });
+
+    const enrolledCount = COURSES.filter(c => isCourseEnrolled(c.id)).length;
+
+    let html = `
+      <div class="cat-page-container">
+        <!-- Catalog Hero -->
+        <div class="cat-hero">
+          <div class="cat-hero-badge">🎓 Hệ thống Đào tạo Fullstack &amp; Cloud Native Enterprise</div>
+          <h1>Khám Phá <span class="grad-text">Tất Cả Khóa Học</span></h1>
+          <p class="cat-hero-sub">
+            Lộ trình đào tạo bài bản và chuyên sâu từ Java Core, Spring Boot 3 &amp; Microservices, React 19 &amp; Next.js 15 đến Cloud Native DevOps &amp; Kubernetes. Ghi danh miễn phí và bắt đầu học ngay!
+          </p>
+
+          <!-- Search & Filter Controls -->
+          <div class="cat-controls">
+            <div class="cat-search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="catSearchInput" placeholder="Tìm kiếm theo tên khóa, công nghệ (Java, React, K8s, Kafka...)" value="${escapeHtml(state.catalogSearch)}">
+              ${state.catalogSearch ? '<button class="cat-search-clear" id="catSearchClear">&times;</button>' : ''}
+            </div>
+
+            <div class="cat-filter-tabs">
+              <button class="cat-tab ${state.catalogCategory === "all" ? "active" : ""}" data-category="all">
+                Tất cả (${COURSES.length})
+              </button>
+              <button class="cat-tab ${state.catalogCategory === "backend" ? "active" : ""}" data-category="backend">
+                🍃 Backend &amp; Java (2)
+              </button>
+              <button class="cat-tab ${state.catalogCategory === "frontend" ? "active" : ""}" data-category="frontend">
+                ⚛️ Frontend &amp; Web (1)
+              </button>
+              <button class="cat-tab ${state.catalogCategory === "devops" ? "active" : ""}" data-category="devops">
+                ☸️ DevOps &amp; Cloud (1)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Course Cards Grid -->
+        <div class="cat-cards-grid">
+          ${filtered.map(c => {
+            const enrolled = isCourseEnrolled(c.id);
+            const isActive = c.id === state.activeCourseId;
+            const prog = overallProgress(c.id);
+
+            return `
+            <div class="cat-card ${enrolled ? "enrolled" : ""} ${isActive ? "active-learning" : ""}">
+              <div class="cat-card-header">
+                <div class="cat-card-icon-box">${c.icon}</div>
+                <div class="cat-card-title-box">
+                  <div class="cat-card-badge-row">
+                    <span class="cat-badge-cat">${c.badge}</span>
+                    <span class="cat-badge-lvl">${c.level}</span>
+                    ${isActive ? '<span class="cat-badge-active">⚡ Đang học</span>' : ''}
+                  </div>
+                  <h3 class="cat-card-title">${escapeHtml(c.title)}</h3>
+                </div>
+              </div>
+
+              <p class="cat-card-desc">${escapeHtml(c.desc)}</p>
+
+              <!-- Tags -->
+              <div class="cat-card-tags">
+                ${c.tags.map(t => `<span class="cat-tag">${t}</span>`).join("")}
+              </div>
+
+              <!-- Syllabus Preview -->
+              <div class="cat-card-syllabus">
+                <div class="ccs-head">Lộ trình ${c.modulesCount} Module:</div>
+                <div class="ccs-list">
+                  ${(c.modules || []).slice(0, 4).map(m => `
+                    <div class="ccs-item">
+                      <span class="ccs-icon">${m.icon}</span>
+                      <span class="ccs-name">M${m.id}: ${escapeHtml(m.title)}</span>
+                    </div>
+                  `).join("")}
+                  ${c.modulesCount > 4 ? `<div class="ccs-more">+ và ${c.modulesCount - 4} module chuyên sâu khác...</div>` : ''}
+                </div>
+              </div>
+
+              <!-- Meta Stats -->
+              <div class="cat-card-meta">
+                <span>🧩 ${c.modulesCount} Module</span>
+                <span>📖 ${c.lessonsCount} Bài học</span>
+                <span>🏆 ${c.quizCount} Câu Quiz</span>
+                <span>⏱ ${c.hours}</span>
+              </div>
+
+              <!-- Progress if enrolled -->
+              ${enrolled ? `
+                <div class="cat-card-progress">
+                  <div class="ccp-bar"><div class="ccp-fill" style="width: ${prog.pct}%"></div></div>
+                  <div class="ccp-info">
+                    <span>Tiến độ học tập: ${prog.pct}%</span>
+                    <span>${prog.done}/${prog.total} mục xong</span>
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Actions -->
+              <div class="cat-card-footer">
+                ${enrolled ? `
+                  <div class="cat-enrolled-actions">
+                    <button class="btn btn-primary cat-btn-start" data-goto-course="${c.id}">
+                      ${isActive ? "Học tiếp bài đang dở →" : "🚀 Vào học khóa này →"}
+                    </button>
+                    <button class="btn-unenroll-cat" data-unenroll-course="${c.id}" title="Hủy ghi danh">
+                      ✕ Hủy ghi danh
+                    </button>
+                  </div>
+                ` : `
+                  <div class="cat-unenrolled-actions">
+                    <span class="cat-free-tag">Miễn phí 100%</span>
+                    <button class="btn btn-primary cat-btn-enroll" data-enroll-course="${c.id}">
+                      📝 Ghi danh khóa học
+                    </button>
+                  </div>
+                `}
+              </div>
+            </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+
+    view.innerHTML = html;
+
+    // Search events
+    const catSearchInput = $("#catSearchInput", view);
+    if (catSearchInput) {
+      catSearchInput.addEventListener("input", (e) => {
+        state.catalogSearch = e.target.value;
+        renderCoursesCatalog();
+        $("#catSearchInput")?.focus();
+      });
+    }
+
+    const catSearchClear = $("#catSearchClear", view);
+    if (catSearchClear) {
+      catSearchClear.addEventListener("click", () => {
+        state.catalogSearch = "";
+        renderCoursesCatalog();
+      });
+    }
+
+    // Category Tabs
+    $$(".cat-tab", view).forEach(tab => {
+      tab.addEventListener("click", () => {
+        state.catalogCategory = tab.dataset.category;
+        renderCoursesCatalog();
+      });
+    });
+
+    // Action buttons
+    $$("[data-enroll-course]", view).forEach(btn => {
+      btn.addEventListener("click", () => enrollCourse(btn.dataset.enrollCourse));
+    });
+
+    $$("[data-unenroll-course]", view).forEach(btn => {
+      btn.addEventListener("click", () => unenrollCourse(btn.dataset.unenrollCourse));
+    });
+
+    $$("[data-goto-course]", view).forEach(btn => {
+      btn.addEventListener("click", () => switchCourse(btn.dataset.gotoCourse));
     });
   }
 
@@ -819,8 +1251,14 @@
   function renderLesson(lessonId) {
     const found = findLesson(lessonId);
     if (!found) return gotoView("dashboard");
-    const { module: m, lesson } = found;
+    const { course: c, module: m, lesson } = found;
     state.currentLesson = lessonId;
+
+    // Auto-sync active course
+    if (state.activeCourseId !== c.id) {
+      state.activeCourseId = c.id;
+      localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
+    }
 
     const view = $("#view-lesson");
 
@@ -839,13 +1277,13 @@
             <div class="gate-icon-badge">🔒</div>
             <span class="gate-tag">Yêu cầu tài khoản học viên</span>
             <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Thuộc khóa <strong>Spring Boot Mastery</strong> · Module ${m.id}: ${escapeHtml(m.title)} · ~${lesson.minutes || 15} phút</p>
+            <p class="gate-subtitle">Thuộc khóa <strong>${escapeHtml(c.title)}</strong> · Module ${m.id}: ${escapeHtml(m.title)} · ~${lesson.minutes || 15} phút</p>
             <div class="gate-divider"></div>
             <p class="gate-desc">
-              Bạn chưa đăng nhập! Vui lòng đăng nhập hoặc tạo tài khoản miễn phí để ghi danh khóa học <strong>Spring Boot Mastery</strong>, mở khóa toàn bộ 8 module, thực hành code, lưu tiến độ trên đám mây và thi trắc nghiệm.
+              Bạn chưa đăng nhập! Vui lòng đăng nhập hoặc tạo tài khoản miễn phí để ghi danh khóa học <strong>${escapeHtml(c.title)}</strong>, mở khóa toàn bộ ${c.modulesCount} module, thực hành code, lưu tiến độ trên đám mây và thi trắc nghiệm.
             </p>
             <div class="gate-features">
-              <div class="gate-feat-item"><span class="feat-icon">🍃</span> Mở khóa trọn bộ 8 Module và 56 bài học Spring Boot Mastery</div>
+              <div class="gate-feat-item"><span class="feat-icon">${c.icon}</span> Mở khóa trọn bộ ${c.modulesCount} Module và ${c.lessonsCount} bài học ${escapeHtml(c.shortTitle)}</div>
               <div class="gate-feat-item"><span class="feat-icon">☁️</span> Đồng bộ bài học vĩnh viễn trên Supabase Cloud Database</div>
               <div class="gate-feat-item"><span class="feat-icon">🏆</span> Thi Quiz trắc nghiệm đánh giá kiến thức sau mỗi module</div>
             </div>
@@ -859,33 +1297,24 @@
           </div>
         </div>`;
 
-      const btnGateLogin = $("#btnGateLogin", view);
-      if (btnGateLogin) {
-        btnGateLogin.addEventListener("click", () => {
-          state.pendingTargetLesson = lessonId;
-          state.pendingEnrollCourse = "spring-boot-mastery";
-          openAuthModal("login");
-        });
-      }
-      const btnGateReg = $("#btnGateRegister", view);
-      if (btnGateReg) {
-        btnGateReg.addEventListener("click", () => {
-          state.pendingTargetLesson = lessonId;
-          state.pendingEnrollCourse = "spring-boot-mastery";
-          openAuthModal("register");
-        });
-      }
-      const btnGateBack = $("#btnGateBack", view);
-      if (btnGateBack) {
-        btnGateBack.addEventListener("click", () => gotoView("dashboard"));
-      }
+      $("#btnGateLogin", view)?.addEventListener("click", () => {
+        state.pendingTargetLesson = lessonId;
+        state.pendingEnrollCourse = c.id;
+        openAuthModal("login");
+      });
+      $("#btnGateRegister", view)?.addEventListener("click", () => {
+        state.pendingTargetLesson = lessonId;
+        state.pendingEnrollCourse = c.id;
+        openAuthModal("register");
+      });
+      $("#btnGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
       $$(".breadcrumb [data-view]", view).forEach((b) =>
         b.addEventListener("click", () => gotoView(b.dataset.view)));
       return;
     }
 
-    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học Spring Boot Mastery
-    if (!isCourseEnrolled("spring-boot-mastery")) {
+    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học
+    if (!isCourseEnrolled(c.id)) {
       view.innerHTML = `
         <div class="lesson-header">
           <div class="breadcrumb">
@@ -899,19 +1328,19 @@
             <div class="gate-icon-badge badge-enroll">🎓</div>
             <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
             <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Khóa học: <strong>Spring Boot Mastery — Từ Zero đến Production</strong></p>
+            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(c.title)}</strong></p>
             <div class="gate-divider"></div>
             <p class="gate-desc">
-              Bài học này nằm trong khóa học <strong>Spring Boot Mastery</strong> (8 Module · 56 Bài học · 98 Câu quiz).<br>
-              Bạn chỉ cần ghi danh khóa học <strong>1 lần duy nhất</strong> (hoàn toàn miễn phí) để mở khóa toàn bộ 8 module cùng 56 bài học!
+              Bài học này nằm trong khóa học <strong>${escapeHtml(c.title)}</strong> (${c.modulesCount} Module · ${c.lessonsCount} Bài học · ${c.quizCount} Câu quiz).<br>
+              Bạn chỉ cần ghi danh khóa học <strong>1 lần duy nhất</strong> (hoàn toàn miễn phí) để mở khóa toàn bộ ${c.modulesCount} module cùng ${c.lessonsCount} bài học!
             </p>
             <div class="gate-features">
-              <div class="gate-feat-item"><span class="feat-icon">✨</span> Ghi danh 1 lần mở khóa toàn bộ 8 module (không cần đăng ký lẻ từng bài)</div>
+              <div class="gate-feat-item"><span class="feat-icon">✨</span> Ghi danh 1 lần mở khóa toàn bộ các module (không cần đăng ký lẻ từng bài)</div>
               <div class="gate-feat-item"><span class="feat-icon">💻</span> Toàn quyền truy cập source code dự án mẫu &amp; sơ đồ kiến trúc</div>
               <div class="gate-feat-item"><span class="feat-icon">📈</span> Tự động lưu tiến độ vào Dashboard cá nhân trên Supabase Cloud</div>
             </div>
             <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnGateEnroll">🚀 Ghi danh khóa Spring Boot Mastery (Miễn phí)</button>
+              <button class="btn btn-primary btn-lg" id="btnGateEnroll">🚀 Ghi danh khóa ${escapeHtml(c.shortTitle)} (Miễn phí)</button>
               <button class="btn btn-ghost btn-lg" id="btnGateGoDashboard">📊 Về trang học tập của tôi</button>
             </div>
             <div class="gate-footer">
@@ -920,27 +1349,18 @@
           </div>
         </div>`;
 
-      const btnGateEnroll = $("#btnGateEnroll", view);
-      if (btnGateEnroll) {
-        btnGateEnroll.addEventListener("click", async () => {
-          await enrollCourse("spring-boot-mastery");
-          renderLesson(lessonId);
-        });
-      }
-      const btnGateGoDash = $("#btnGateGoDashboard", view);
-      if (btnGateGoDash) {
-        btnGateGoDash.addEventListener("click", () => gotoView("user-dashboard"));
-      }
-      const btnGateBack = $("#btnGateBack", view);
-      if (btnGateBack) {
-        btnGateBack.addEventListener("click", () => gotoView("dashboard"));
-      }
+      $("#btnGateEnroll", view)?.addEventListener("click", async () => {
+        await enrollCourse(c.id);
+        renderLesson(lessonId);
+      });
+      $("#btnGateGoDashboard", view)?.addEventListener("click", () => gotoView("user-dashboard"));
+      $("#btnGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
       $$(".breadcrumb [data-view]", view).forEach((b) =>
         b.addEventListener("click", () => gotoView(b.dataset.view)));
       return;
     }
 
-    const flat = flatIndex();
+    const flat = flatIndex(c.id);
     const idx = flat.findIndex((x) => x.lesson.id === lessonId);
     const prev = flat[idx - 1];
     const next = flat[idx + 1];
@@ -949,15 +1369,16 @@
     view.innerHTML = `
       <div class="lesson-header">
         <div class="breadcrumb">
-          <a data-view="dashboard">Tổng quan</a><span class="sep">›</span>
+          <a data-view="dashboard">${escapeHtml(c.shortTitle)}</a><span class="sep">›</span>
           <span>Module ${m.id}: ${escapeHtml(m.title)}</span><span class="sep">›</span>
           <span>${escapeHtml(lesson.title)}</span>
         </div>
         <h1 class="lesson-title">${escapeHtml(lesson.title)}</h1>
         <div class="lesson-meta">
-          <span>📖 Bài ${lessonId}</span>
+          <span>📖 ${lessonId}</span>
           <span>⏱ ${lesson.minutes} phút</span>
           <span>📦 Module ${m.id} — ${escapeHtml(m.title)}</span>
+          <span class="ud-badge badge-user">${c.badge}</span>
         </div>
       </div>
       <article class="lesson-body">${renderMarkdown(lesson.content)}</article>
@@ -1020,11 +1441,13 @@
   }
 
   // ---------- Quiz ----------
-  const quizState = { module: null, idx: 0, answers: [], finished: false };
+  const quizState = { course: null, module: null, idx: 0, answers: [], finished: false };
 
   function gotoQuiz(moduleId) {
-    const m = MODULES.find((x) => x.id === moduleId);
-    const quiz = m && m.lessons.find((l) => l.type === "quiz");
+    const activeCourse = getActiveCourse();
+    const modules = getActiveModules();
+    const m = modules.find((x) => String(x.id) === String(moduleId));
+    const quiz = m && (m.lessons || []).find((l) => l.type === "quiz");
     if (!quiz) return gotoView("dashboard");
     showView("quiz");
     const view = $("#view-quiz");
@@ -1050,30 +1473,30 @@
           </div>
         </div>`;
       $("#btnQuizGateLogin", view)?.addEventListener("click", () => {
-        state.pendingEnrollCourse = "spring-boot-mastery";
+        state.pendingEnrollCourse = activeCourse.id;
         openAuthModal("login");
       });
       $("#btnQuizGateRegister", view)?.addEventListener("click", () => {
-        state.pendingEnrollCourse = "spring-boot-mastery";
+        state.pendingEnrollCourse = activeCourse.id;
         openAuthModal("register");
       });
       $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
       return;
     }
 
-    // Access check 2: Chưa ghi danh khóa học Spring Boot Mastery
-    if (!isCourseEnrolled("spring-boot-mastery")) {
+    // Access check 2: Chưa ghi danh khóa học
+    if (!isCourseEnrolled(activeCourse.id)) {
       view.innerHTML = `
         <div class="lesson-gate-container">
           <div class="lesson-gate-card">
             <div class="gate-icon-badge badge-enroll">🎓</div>
             <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
             <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">Khóa học: <strong>Spring Boot Mastery</strong> (${quiz.questions.length} câu hỏi)</p>
+            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(activeCourse.title)}</strong> (${quiz.questions.length} câu hỏi)</p>
             <div class="gate-divider"></div>
-            <p class="gate-desc">Bạn chưa ghi danh khóa học <strong>Spring Boot Mastery</strong>. Hãy ghi danh ngay để mở khóa toàn bộ bài thi Quiz và bài học trong khóa!</p>
+            <p class="gate-desc">Bạn chưa ghi danh khóa học <strong>${escapeHtml(activeCourse.title)}</strong>. Hãy ghi danh ngay để mở khóa toàn bộ bài thi Quiz và bài học trong khóa!</p>
             <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnQuizGateEnroll">🚀 Ghi danh khóa Spring Boot Mastery (Miễn phí)</button>
+              <button class="btn btn-primary btn-lg" id="btnQuizGateEnroll">🚀 Ghi danh khóa ${escapeHtml(activeCourse.shortTitle)} (Miễn phí)</button>
               <button class="btn btn-ghost btn-lg" id="btnQuizGateBack">📊 Về Dashboard của tôi</button>
             </div>
             <div class="gate-footer">
@@ -1082,7 +1505,7 @@
           </div>
         </div>`;
       $("#btnQuizGateEnroll", view)?.addEventListener("click", async () => {
-        await enrollCourse("spring-boot-mastery");
+        await enrollCourse(activeCourse.id);
         gotoQuiz(moduleId);
       });
       $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("user-dashboard"));
@@ -1090,6 +1513,7 @@
       return;
     }
 
+    quizState.course = activeCourse;
     quizState.module = m;
     quizState.quiz = quiz;
     quizState.idx = 0;
@@ -1100,27 +1524,29 @@
   }
 
   function renderQuiz() {
-    const { quiz, idx, answers } = quizState;
+    const { quiz, idx, answers, course } = quizState;
     const view = $("#view-quiz");
     const total = quiz.questions.length;
+    const scoreKey = quizState.course.id === "spring-boot-mastery" 
+      ? quizState.module.id 
+      : `${quizState.course.id}-${quizState.module.id}`;
 
     if (quizState.finished) {
       const score = answers.filter((a, i) => a === quiz.questions[i].answer).length;
-      state.quizScores[quizState.module.id] = { score, total };
+      state.quizScores[scoreKey] = { score, total };
       state.completed[quiz.id] = true;
       save();
-      syncQuizCloud(quizState.module.id, score, total);
+      syncQuizCloud(scoreKey, score, total);
       syncCompleteLessonCloud(quiz.id);
       const pct = Math.round((score / total) * 100);
       const emoji = pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📖";
       const msg = pct >= 80
-        ? "Xuất sắc! Bạn đã nắm vững kiến thức module này. Tiếp tục phát huy!"
+        ? "Xuất sắc! Bạn đã nắm vững toàn bộ kiến thức chuyên sâu của module này. Tiếp tục phát huy!"
         : pct >= 50
-        ? "Khá ổn! Xem lại các câu sai ở trên (giải thích kèm theo) rồi thử lại nhé."
-        : "Đừng nản — hãy đọc lại bài học, mọi giải thích đều có ở trên. Bạn làm được!";
+        ? "Khá ổn! Hãy xem lại các câu sai ở phần phân tích chi tiết bên dưới rồi thi lại để đạt điểm tối đa nhé."
+        : "Đừng nản — hãy đọc lại bài học, mọi giải thích chi tiết đều có ở phần xem lại đáp án. Bạn làm được!";
 
-      const items = allItems();
-      const flat = flatIndex();
+      const flat = flatIndex(course.id);
       const qIdx = flat.findIndex((x) => x.lesson.id === quiz.id);
       const next = flat[qIdx + 1];
 
@@ -1129,12 +1555,12 @@
           <div class="quiz-result">
             <div class="qr-emoji">${emoji}</div>
             <div class="qr-score">${score}<span class="qr-total">/${total}</span></div>
-            <div style="font-weight:700;font-size:15px;color:var(--text-2)">${pct}% đúng</div>
+            <div style="font-weight:700;font-size:16px;color:var(--text-2);margin-bottom:8px;">${pct}% câu trả lời chính xác</div>
             <p class="qr-msg">${msg}</p>
             <div class="qr-actions">
-              <button class="btn btn-ghost" id="retryQuiz">🔄 Làm lại</button>
+              <button class="btn btn-ghost" id="retryQuiz">🔄 Thi lại Quiz</button>
               ${next ? `<button class="btn btn-primary" id="nextAfterQuiz">Tiếp tục: ${escapeHtml(next.lesson.title)} →</button>`
-                     : `<button class="btn btn-primary" data-view="dashboard">Về tổng quan 🎉</button>`}
+                     : `<button class="btn btn-primary" data-view="dashboard">Về tổng quan khóa học 🎉</button>`}
             </div>
           </div>
         </div>`;
@@ -1150,21 +1576,38 @@
     const q = quiz.questions[idx];
     const chosen = answers[idx];
     const letters = ["A", "B", "C", "D", "E"];
+    const answeredCount = answers.filter(a => a !== null).length;
 
     view.innerHTML = `
       <div class="quiz-wrap">
         <div class="quiz-head">
-          <div class="q-badge">🏆 ${escapeHtml(quiz.title)}</div>
-          <h2>Câu ${idx + 1} / ${total}</h2>
-          <p>Chọn đáp án rồi bấm Xác nhận — bạn sẽ thấy giải thích ngay.</p>
+          <div class="q-badge">🏆 ${escapeHtml(quiz.title)} · ${escapeHtml(course.shortTitle)}</div>
+          <h2>Câu hỏi ${idx + 1} / ${total}</h2>
+          <p>Đã trả lời: <strong>${answeredCount}/${total}</strong> câu · Chọn đáp án rồi bấm Tiếp để xem giải thích.</p>
         </div>
-        <div class="quiz-progress">
-          ${quiz.questions.map((_, i) =>
-            `<div class="qp-dot ${i === idx ? "current" : answers[i] !== null ? "answered" : ""}"></div>`).join("")}
+
+        <!-- Question Navigator Grid (Interactive 30-50 questions) -->
+        <div class="quiz-nav-container">
+          <div class="qnc-title">BẢNG ĐIỀU HƯỚNG CÂU HỎI (${total} CÂU):</div>
+          <div class="quiz-nav-grid">
+            ${quiz.questions.map((_, i) => {
+              const isCurrent = i === idx;
+              const isAnswered = answers[i] !== null;
+              const isCorrect = isAnswered && answers[i] === quiz.questions[i].answer;
+              let cls = "qn-btn";
+              if (isCurrent) cls += " current";
+              if (isAnswered) cls += (isCorrect ? " correct" : " wrong");
+              return `<button class="${cls}" data-jump-q="${i}" title="Câu ${i + 1}">${i + 1}</button>`;
+            }).join("")}
+          </div>
         </div>
+
         <div class="quiz-card">
-          <div class="quiz-qnum">Câu hỏi ${idx + 1} / ${total}${q.level ? ` · <span class="q-level ${q.level}">${q.level === "hard" ? "🔥 Khó" : q.level === "medium" ? "⚡ Vừa" : "🎯 Cơ bản"}</span>` : ""}</div>
-          ${q.scenario ? `<div class="quiz-scenario"><div class="qs-label">📋 Tình huống</div><div class="qs-text">${inline(q.scenario)}</div></div>` : ""}
+          <div class="quiz-qnum">
+            <span>Câu hỏi ${idx + 1} / ${total}</span>
+            ${q.level ? `<span class="q-level ${q.level}">${q.level === "hard" ? "🔥 Khó / Senior" : q.level === "medium" ? "⚡ Vừa / Thực chiến" : "🎯 Cơ bản"}</span>` : ""}
+          </div>
+          ${q.scenario ? `<div class="quiz-scenario"><div class="qs-label">📋 Tình huống thực tế</div><div class="qs-text">${inline(q.scenario)}</div></div>` : ""}
           <div class="quiz-question">${inline(q.q)}</div>
           ${q.code ? `<div class="quiz-code">${codeHtml(q.code, q.codeLang || "java")}</div>` : ""}
           <div class="quiz-options">
@@ -1194,24 +1637,27 @@
         <div class="quiz-actions">
           <button class="btn-secondary" id="quizPrev" ${idx === 0 ? "disabled" : ""}>← Trước</button>
           <button class="btn-primary btn" id="quizNext" style="border:none">
-            ${chosen === null ? "Xác nhận →" : idx === total - 1 ? "Xem kết quả 🏁" : "Tiếp →"}
+            ${chosen === null ? "Xác nhận →" : idx === total - 1 ? "Xem kết quả 🏁" : "Câu tiếp →"}
           </button>
         </div>
       </div>`;
+
+    // Jump to specific question
+    $$("[data-jump-q]", view).forEach(btn => {
+      btn.addEventListener("click", () => {
+        quizState.idx = parseInt(btn.dataset.jumpQ, 10);
+        renderQuiz();
+      });
+    });
 
     $$(".quiz-opt", view).forEach((b) =>
       b.addEventListener("click", () => {
         if (answers[idx] !== null) return;
         answers[idx] = parseInt(b.dataset.opt, 10);
-        if (idx === total - 1) {
+        if (idx === total - 1 && answers.every(a => a !== null)) {
           quizState.finished = true;
         }
         renderQuiz();
-        if (quizState.finished) {
-          state.completed[quiz.id] = true;
-          save();
-          renderSidebar(null);
-        }
       }));
 
     $("#quizPrev").addEventListener("click", () => {
@@ -1236,22 +1682,25 @@
   // ---------- Curriculum ----------
   function renderCurriculum() {
     const view = $("#view-curriculum");
-    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
+    const activeCourse = getActiveCourse();
+    const modules = getActiveModules();
+    const isEnrolled = isCourseEnrolled(activeCourse.id);
+
     view.innerHTML = `
       <div class="curr-intro">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
           <div>
-            <h2>📚 Khóa học: Spring Boot Mastery — Từ Zero đến Production</h2>
-            <p>8 module · ${allItems().length} bài học + quiz · ~80 giờ — click từng bài để bắt đầu học ngay.</p>
+            <h2>📚 Giáo trình: ${escapeHtml(activeCourse.title)}</h2>
+            <p>${modules.length} module · ${allItems().length} bài học + quiz · ${activeCourse.hours} — click từng bài để bắt đầu học ngay.</p>
           </div>
-          ${isSbEnrolled ? `
+          ${isEnrolled ? `
             <span class="mc-enrolled-pill" style="font-size:13px;padding:6px 12px;">✓ Đã ghi danh khóa học</span>
           ` : `
             <button class="btn btn-primary btn-sm" id="btnCurrEnrollCourse">🚀 Ghi danh khóa học (Miễn phí)</button>
           `}
         </div>
       </div>
-      ${MODULES.map((m) => {
+      ${modules.map((m) => {
         const p = moduleProgress(m);
         return `
         <div class="curr-module mc-${m.id}">
@@ -1259,13 +1708,13 @@
             <div class="cm-badge">${m.icon}</div>
             <div class="cm-info">
               <div class="cm-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
-              <div class="cm-meta">${m.lessons.length} mục · ${m.lessons.reduce((a, l) => a + l.minutes, 0)} phút · ${p.done}/${p.total} xong</div>
+              <div class="cm-meta">${(m.lessons || []).length} mục · ${(m.lessons || []).reduce((a, l) => a + (l.minutes || 0), 0)} phút · ${p.done}/${p.total} xong</div>
             </div>
-            ${isSbEnrolled ? '<span class="mc-enrolled-pill" style="margin-right:10px;">✓ Đã mở khóa</span>' : '<span class="mc-unenrolled-pill" style="margin-right:10px;">🔒 Chưa ghi danh</span>'}
+            ${isEnrolled ? '<span class="mc-enrolled-pill" style="margin-right:10px;">✓ Đã mở khóa</span>' : '<span class="mc-unenrolled-pill" style="margin-right:10px;">🔒 Chưa ghi danh</span>'}
             <svg class="cm-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </div>
           <div class="curr-lessons">
-            ${m.lessons.map((l) => `
+            ${(m.lessons || []).map((l) => `
               <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
                 <span class="cl-check">✓</span>
                 <span class="cl-title">${escapeHtml(l.title)}</span>
@@ -1276,40 +1725,25 @@
         </div>`;
       }).join("")}`;
 
-    $("#btnCurrEnrollCourse", view)?.addEventListener("click", () => enrollCourse("spring-boot-mastery"));
+    $("#btnCurrEnrollCourse", view)?.addEventListener("click", () => enrollCourse(activeCourse.id));
     $$(".curr-module-head", view).forEach((h) =>
       h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
     $$(".curr-lesson", view).forEach((el) =>
       el.addEventListener("click", () => gotoLesson(el.dataset.lesson)));
   }
 
-  // ---------- User Dashboard & Detailed Progress Page ----------
+  // ---------- User Dashboard & Personal Progress Page ----------
   function renderUserDashboard() {
     const view = $("#view-user-dashboard");
     if (!view) return;
 
-    const total = overallProgress();
     const scores = Object.values(state.quizScores);
     const avgScore = scores.length
       ? Math.round(scores.reduce((a, s) => a + (s.score / s.total) * 100, 0) / scores.length) + "%"
       : "—";
 
-    const all = allItems();
-    const doneLessonsCount = all.filter((x) => x.lesson.type !== "quiz" && state.completed[x.lesson.id]).length;
-    const totalLessonsCount = all.filter((x) => x.lesson.type !== "quiz").length;
-    const modulesDone = MODULES.filter((m) => moduleProgress(m).pct === 100).length;
-    const doneMinutes = all
-      .filter((x) => state.completed[x.lesson.id])
-      .reduce((acc, x) => acc + (x.lesson.minutes || 0), 0);
-    const doneHours = Math.round((doneMinutes / 60) * 10) / 10;
-
     const enrolledCourses = COURSES.filter((c) => isCourseEnrolled(c.id));
-    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
-    const completedCoursesCount = enrolledCourses.filter((c) => {
-      if (c.id === "spring-boot-mastery") return total.pct === 100;
-      return false;
-    }).length;
-
+    const platProg = totalPlatformProgress();
     const user = state.currentUser;
     const displayName = user ? (user.full_name || user.fullName || user.username) : "Khách thăm quan";
     const initial = displayName.charAt(0).toUpperCase();
@@ -1352,18 +1786,18 @@
               <span class="ud-stat-icon">🎓</span>
             </div>
             <div class="ud-stat-num">${enrolledCourses.length} / ${COURSES.length}</div>
-            <div class="ud-stat-sub">${completedCoursesCount} khóa đã hoàn thành 100%</div>
+            <div class="ud-stat-sub">Đang theo học ${enrolledCourses.length} lộ trình chuyên sâu</div>
           </div>
 
           <div class="ud-stat-card">
             <div class="ud-stat-top">
-              <span class="ud-stat-title">Bài học hoàn thành (Spring Boot)</span>
+              <span class="ud-stat-title">Tổng bài học hoàn thành</span>
               <span class="ud-stat-icon">📖</span>
             </div>
-            <div class="ud-stat-num">${doneLessonsCount} / ${totalLessonsCount}</div>
+            <div class="ud-stat-num">${platProg.done} / ${platProg.total}</div>
             <div class="ud-stat-progress">
-              <div class="ud-progress-bar"><div class="ud-progress-fill" style="width: ${total.pct}%"></div></div>
-              <span>${total.pct}%</span>
+              <div class="ud-progress-bar"><div class="ud-progress-fill" style="width: ${platProg.pct}%"></div></div>
+              <span>${platProg.pct}%</span>
             </div>
           </div>
 
@@ -1373,16 +1807,16 @@
               <span class="ud-stat-icon">🏆</span>
             </div>
             <div class="ud-stat-num">${avgScore}</div>
-            <div class="ud-stat-sub">Đã thi ${scores.length}/${MODULES.length} bài thi module</div>
+            <div class="ud-stat-sub">Đã thi ${scores.length} bài thi module</div>
           </div>
 
           <div class="ud-stat-card">
             <div class="ud-stat-top">
-              <span class="ud-stat-title">Thời lượng tích lũy</span>
-              <span class="ud-stat-icon">⏱️</span>
+              <span class="ud-stat-title">Lộ trình Platform</span>
+              <span class="ud-stat-icon">🚀</span>
             </div>
-            <div class="ud-stat-num">~${doneHours}h</div>
-            <div class="ud-stat-sub">Tương đương ${doneMinutes} phút thực học</div>
+            <div class="ud-stat-num">4 Khóa</div>
+            <div class="ud-stat-sub">Java, Spring Boot, React, Kubernetes</div>
           </div>
         </div>
 
@@ -1393,6 +1827,7 @@
               <h3>🎓 Khóa học đã ghi danh của tôi (${enrolledCourses.length}/${COURSES.length} khóa)</h3>
               <p>Toàn bộ các khóa học bạn đã đăng ký kèm tiến độ học tập chi tiết.</p>
             </div>
+            <button class="btn btn-secondary btn-sm" data-view="courses">🌟 Khám phá thêm khóa học</button>
           </div>
         </div>
 
@@ -1413,122 +1848,84 @@
         ` : `
           <div class="ud-courses-list">
             ${enrolledCourses.map((c) => {
-              if (c.id === "spring-boot-mastery") {
-                const nextIncomplete = all.find((x) => !state.completed[x.lesson.id]);
-                const isCompleted = total.pct === 100;
-                const isStarted = total.pct > 0;
+              const cProg = overallProgress(c.id);
+              const cItems = allItems(c.id);
+              const nextIncomplete = cItems.find(x => !state.completed[x.lesson.id]);
+              const isActive = c.id === state.activeCourseId;
 
-                let statusBadge = "";
-                if (isCompleted) {
-                  statusBadge = '<span class="ud-mod-status done">🏆 Hoàn thành 100%</span>';
-                } else if (isStarted) {
-                  statusBadge = `<span class="ud-mod-status in-progress">⚡ Đang học (${total.pct}%)</span>`;
-                } else {
-                  statusBadge = '<span class="ud-mod-status not-started">⏳ Chưa bắt đầu</span>';
-                }
-
-                return `
-                <div class="ud-course-card">
-                  <div class="ud-course-header">
-                    <div class="ud-course-left">
-                      <span class="ud-course-icon">${c.icon}</span>
-                      <div>
-                        <div class="ud-course-title">${escapeHtml(c.title)}</div>
-                        <div class="ud-course-meta">
-                          <span>🧩 ${c.modulesCount} Module</span>
-                          <span>📖 ${c.lessonsCount} Bài học</span>
-                          <span>🏆 ${c.quizCount} Câu Quiz</span>
-                          <span>⏱ ${c.hours}</span>
-                          <span class="ud-badge badge-user">${c.badge}</span>
-                        </div>
+              return `
+              <div class="ud-course-card ${isActive ? "active-learning" : ""}">
+                <div class="ud-course-header">
+                  <div class="ud-course-left">
+                    <span class="ud-course-icon">${c.icon}</span>
+                    <div>
+                      <div class="ud-course-title">
+                        ${escapeHtml(c.title)}
+                        ${isActive ? '<span class="cat-badge-active" style="margin-left:8px;">⚡ Đang học</span>' : ''}
+                      </div>
+                      <div class="ud-course-meta">
+                        <span>🧩 ${c.modulesCount} Module</span>
+                        <span>📖 ${c.lessonsCount} Bài học</span>
+                        <span>🏆 ${c.quizCount} Câu Quiz</span>
+                        <span>⏱ ${c.hours}</span>
+                        <span class="ud-badge badge-user">${c.badge}</span>
                       </div>
                     </div>
-                    <div class="ud-course-right">
-                      ${statusBadge}
-                    </div>
                   </div>
+                  <div class="ud-course-right">
+                    ${cProg.pct === 100 
+                      ? '<span class="ud-mod-status done">🏆 Hoàn thành 100%</span>' 
+                      : cProg.pct > 0 
+                      ? `<span class="ud-mod-status in-progress">⚡ Đang học (${cProg.pct}%)</span>` 
+                      : '<span class="ud-mod-status not-started">⏳ Chưa bắt đầu</span>'
+                    }
+                  </div>
+                </div>
 
-                  <div class="ud-course-desc">${escapeHtml(c.desc)}</div>
+                <div class="ud-course-desc">${escapeHtml(c.desc)}</div>
 
-                  <!-- Progress Bar -->
-                  <div class="ud-course-progress-box">
-                    <div class="ud-course-bar">
-                      <div class="ud-course-fill" style="width: ${total.pct}%"></div>
-                    </div>
-                    <div class="ud-course-counts">
-                      <span>${doneLessonsCount}/${totalLessonsCount} bài học hoàn thành · ${modulesDone}/${MODULES.length} module xong · ${scores.length}/${MODULES.length} quiz đã làm</span>
-                      <span>${total.pct}%</span>
-                    </div>
+                <!-- Progress Bar -->
+                <div class="ud-course-progress-box">
+                  <div class="ud-course-bar">
+                    <div class="ud-course-fill" style="width: ${cProg.pct}%"></div>
                   </div>
+                  <div class="ud-course-counts">
+                    <span>${cProg.done}/${cProg.total} bài học hoàn thành</span>
+                    <span>${cProg.pct}%</span>
+                  </div>
+                </div>
 
-                  <!-- Mini Modules Tracker -->
-                  <div class="ud-mini-modules">
-                    ${MODULES.map((m) => {
-                      const p = moduleProgress(m);
-                      const cls = p.pct === 100 ? "done" : p.pct > 0 ? "in-progress" : "";
-                      return `<div class="ud-mini-chip ${cls}" data-lesson-id="${m.lessons[0].id}" title="Module ${m.id}: ${escapeHtml(m.title)} (${p.done}/${p.total})">
-                        M${m.id}: ${p.done}/${p.total} ${p.pct === 100 ? '✓' : ''}
-                      </div>`;
-                    }).join("")}
-                  </div>
+                <!-- Mini Modules Tracker -->
+                <div class="ud-mini-modules">
+                  ${(c.modules || []).map((m) => {
+                    const p = moduleProgress(m);
+                    const cls = p.pct === 100 ? "done" : p.pct > 0 ? "in-progress" : "";
+                    const firstL = m.lessons && m.lessons[0];
+                    return `<div class="ud-mini-chip ${cls}" data-goto-lesson="${firstL ? firstL.id : ""}" title="Module ${m.id}: ${escapeHtml(m.title)} (${p.done}/${p.total})">
+                      M${m.id}: ${p.done}/${p.total} ${p.pct === 100 ? '✓' : ''}
+                    </div>`;
+                  }).join("")}
+                </div>
 
-                  <!-- Next Step & Actions -->
-                  <div class="ud-course-footer">
-                    <div class="ud-course-next">
-                      ${isCompleted
-                        ? '<span class="ud-next-done">🎉 Bạn đã hoàn thành toàn bộ khóa học Spring Boot Mastery!</span>'
-                        : nextIncomplete
-                        ? `<span class="ud-next-label">Bài tiếp theo cần học:</span> <strong>${nextIncomplete.lesson.type === "quiz" ? "🏆 Bài thi Quiz tổng hợp M" + nextIncomplete.module.id : "📖 " + escapeHtml(nextIncomplete.lesson.title)}</strong>`
-                        : ""
-                      }
-                    </div>
-                    <div class="ud-course-actions">
-                      <button class="btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh khóa học này">✕ Hủy ghi danh</button>
-                      <button class="btn btn-ghost btn-sm" data-view-curriculum="true">📚 Xem 8 Module</button>
-                      ${isCompleted
-                        ? `<button class="btn btn-ghost btn-sm" data-lesson-id="${all[0].lesson.id}">🔄 Ôn tập lại</button>`
-                        : nextIncomplete
-                        ? `<button class="btn btn-primary btn-sm" data-lesson-id="${nextIncomplete.lesson.id}">Học tiếp →</button>`
-                        : `<button class="btn btn-primary btn-sm" data-lesson-id="${all[0].lesson.id}">Bắt đầu →</button>`
-                      }
-                    </div>
+                <!-- Next Step & Actions -->
+                <div class="ud-course-footer">
+                  <div class="ud-course-next">
+                    ${cProg.pct === 100
+                      ? '<span class="ud-next-done">🎉 Bạn đã hoàn thành toàn bộ khóa học này!</span>'
+                      : nextIncomplete
+                      ? `<span class="ud-next-label">Bài tiếp theo:</span> <strong>${escapeHtml(nextIncomplete.lesson.title)}</strong>`
+                      : ""
+                    }
                   </div>
-                </div>`;
-              } else {
-                // Other enrolled courses
-                return `
-                <div class="ud-course-card course-preview">
-                  <div class="ud-course-header">
-                    <div class="ud-course-left">
-                      <span class="ud-course-icon">${c.icon}</span>
-                      <div>
-                        <div class="ud-course-title">${escapeHtml(c.title)}</div>
-                        <div class="ud-course-meta">
-                          <span>🧩 ${c.modulesCount} Module</span>
-                          <span>📖 ${c.lessonsCount} Bài học</span>
-                          <span>⏱ ${c.hours}</span>
-                          <span class="ud-badge badge-user">${c.badge}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="ud-course-right">
-                      <span class="ud-mod-status in-progress">🚀 Đã ghi danh (Bản xem trước)</span>
-                    </div>
+                  <div class="ud-course-actions">
+                    <button class="btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh">✕ Hủy ghi danh</button>
+                    <button class="btn btn-ghost btn-sm" data-switch-curriculum="${c.id}">📚 Xem giáo trình</button>
+                    <button class="btn btn-primary btn-sm" data-switch-course="${c.id}" data-target-lesson="${nextIncomplete ? nextIncomplete.lesson.id : (cItems[0] ? cItems[0].lesson.id : '')}">
+                      ${isActive ? "Học tiếp bài này →" : "🚀 Vào học khóa này →"}
+                    </button>
                   </div>
-                  <div class="ud-course-desc">${escapeHtml(c.desc)}</div>
-                  <div class="ud-tags-row">
-                    ${c.tags.map(t => `<span class="ud-tag">${t}</span>`).join("")}
-                  </div>
-                  <div class="ud-course-footer">
-                    <div class="ud-course-next">
-                      <span class="ud-next-label">Trạng thái:</span> <em>Đang cập nhật nội dung các bài thực hành và lab dự án.</em>
-                    </div>
-                    <div class="ud-course-actions">
-                      <button class="btn-unenroll" data-unenroll-course="${c.id}">✕ Hủy ghi danh</button>
-                    </div>
-                  </div>
-                </div>`;
-              }
+                </div>
+              </div>`;
             }).join("")}
           </div>
         `}
@@ -1540,11 +1937,13 @@
               <h3>🌟 Khám phá tất cả khóa học trên nền tảng (${COURSES.length} khóa học)</h3>
               <p>Ghi danh các khóa học chuyên sâu từ Backend, Frontend đến DevOps để hoàn thiện bộ kỹ năng Fullstack Enterprise.</p>
             </div>
+            <button class="btn btn-secondary btn-sm" data-view="courses">Xem trang Catalog đầy đủ →</button>
           </div>
 
           <div class="ud-catalog-grid">
             ${COURSES.map((c) => {
               const enrolled = isCourseEnrolled(c.id);
+              const isActive = c.id === state.activeCourseId;
               return `
               <div class="ud-catalog-card ${enrolled ? "enrolled-card" : ""}">
                 <div>
@@ -1568,11 +1967,10 @@
                 </div>
                 <div class="ud-cat-footer">
                   ${enrolled ? `
-                    <span class="mc-enrolled-pill">✓ Đang trong danh sách học</span>
-                    ${c.id === "spring-boot-mastery" 
-                      ? `<button class="btn btn-primary btn-sm" data-goto-course="spring-boot-mastery">Vào học ngay →</button>`
-                      : `<button class="btn btn-ghost btn-sm" data-unenroll-course="${c.id}">✕ Hủy ghi danh</button>`
-                    }
+                    <span class="mc-enrolled-pill">✓ Đã trong danh sách học</span>
+                    <button class="btn btn-primary btn-sm" data-switch-course="${c.id}">
+                      ${isActive ? "Đang học khóa này →" : "Vào học ngay →"}
+                    </button>
                   ` : `
                     <span class="mc-unenrolled-pill">Miễn phí 100%</span>
                     <button class="btn btn-primary btn-sm" data-enroll-course="${c.id}">
@@ -1589,7 +1987,7 @@
 
     view.innerHTML = html;
 
-    // Event listeners
+    // Listeners
     $("#udBtnSync", view)?.addEventListener("click", async () => {
       toast("⏳ Đang đồng bộ với Supabase...");
       await syncLocalAndCloud();
@@ -1621,87 +2019,101 @@
       btn.addEventListener("click", () => unenrollCourse(btn.dataset.unenrollCourse));
     });
 
-    $$("[data-goto-course]", view).forEach((btn) => {
+    $$("[data-switch-course]", view).forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (btn.dataset.gotoCourse === "spring-boot-mastery") {
-          const firstIncomplete = all.find((x) => !state.completed[x.lesson.id]);
-          if (firstIncomplete) gotoLesson(firstIncomplete.lesson.id);
-          else gotoView("dashboard");
-        }
+        const targetLesson = btn.dataset.targetLesson;
+        switchCourse(btn.dataset.switchCourse, targetLesson || null);
       });
     });
 
-    $$("[data-view-curriculum]", view).forEach((btn) => {
-      btn.addEventListener("click", () => gotoView("curriculum"));
+    $$("[data-switch-curriculum]", view).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.activeCourseId = btn.dataset.switchCurriculum;
+        localStorage.setItem(ACTIVE_COURSE_KEY, state.activeCourseId);
+        gotoView("curriculum");
+      });
     });
 
-    $$("[data-lesson-id]", view).forEach((btn) => {
-      btn.addEventListener("click", () => gotoLesson(btn.dataset.lessonId));
+    $$("[data-goto-lesson]", view).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.gotoLesson) gotoLesson(btn.dataset.gotoLesson);
+      });
+    });
+
+    $$("[data-view]", view).forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        gotoView(el.dataset.view);
+      });
     });
   }
 
   // ---------- Search ----------
   function buildSearchIndex() {
     state.searchIdx = [];
-    MODULES.forEach((m) => m.lessons.forEach((l) => {
-      if (l.type === "quiz") {
-        l.questions.forEach((q, i) =>
+    COURSES.forEach(c => {
+      (c.modules || []).forEach((m) => (m.lessons || []).forEach((l) => {
+        if (l.type === "quiz") {
+          (l.questions || []).forEach((q, i) =>
+            state.searchIdx.push({
+              title: `Quiz: ${q.q.slice(0, 60)}...`,
+              snippet: `${c.shortTitle} · M${m.id} · Câu ${i + 1}`,
+              target: l.id,
+              courseId: c.id
+            })
+          );
+        } else {
           state.searchIdx.push({
-            title: `Quiz: ${q.q.slice(0, 60)}...`,
-            meta: `${m.title} · Câu ${i + 1}`,
-            target: l.id, isQuiz: true, moduleId: m.id,
-            hay: (q.q + " " + q.explain).toLowerCase()
-          }));
-      } else {
-        state.searchIdx.push({
-          title: l.title, meta: `Module ${m.id} · ${m.title}`,
-          target: l.id, isQuiz: false,
-          hay: (l.title + " " + l.content).toLowerCase()
-        });
-      }
-    }));
+            title: l.title,
+            snippet: `${c.shortTitle} · Module ${m.id}: ${m.title}`,
+            target: l.id,
+            courseId: c.id
+          });
+        }
+      }));
+    });
   }
 
   function doSearch(q) {
     const box = $("#searchResults");
-    if (!q || q.length < 2) { box.classList.remove("open"); return; }
-    const needle = q.toLowerCase();
-    const hits = state.searchIdx
-      .filter((x) => x.hay.includes(needle))
-      .slice(0, 8);
-    if (!hits.length) {
-      box.innerHTML = `<div class="search-item"><span class="si-title">Không tìm thấy kết quả cho "${escapeHtml(q)}"</span></div>`;
-      box.classList.add("open");
+    if (!q || q.trim().length < 2) {
+      box.classList.remove("open");
+      box.innerHTML = "";
       return;
     }
-    box.innerHTML = hits.map((h, i) => `
-      <div class="search-item ${i === 0 ? "active" : ""}" data-target="${h.target}" data-quiz="${h.isQuiz}" data-module="${h.moduleId || ""}">
-        <span class="si-title">${mark(h.title, q)}</span>
-        <span class="si-meta">${escapeHtml(h.meta)}</span>
-      </div>`).join("");
+    const needle = q.toLowerCase();
+    const hits = state.searchIdx
+      .filter((x) => x.title.toLowerCase().includes(needle) || x.snippet.toLowerCase().includes(needle))
+      .slice(0, 8);
+
+    if (hits.length === 0) {
+      box.innerHTML = `<div class="search-empty">Không tìm thấy bài học nào phù hợp</div>`;
+    } else {
+      box.innerHTML = hits
+        .map((h) => `
+          <div class="search-item" data-target="${h.target}" data-course="${h.courseId || ""}">
+            <div class="si-title">${escapeHtml(h.title)}</div>
+            <div class="si-mod">${escapeHtml(h.snippet)}</div>
+          </div>`)
+        .join("");
+
+      $$(".search-item", box).forEach((el) =>
+        el.addEventListener("click", () => {
+          box.classList.remove("open");
+          $("#searchInput").value = "";
+          if (el.dataset.course) {
+            state.activeCourseId = el.dataset.course;
+          }
+          gotoLesson(el.dataset.target);
+        }));
+    }
     box.classList.add("open");
-
-    $$(".search-item[data-target]", box).forEach((el) =>
-      el.addEventListener("click", () => {
-        box.classList.remove("open");
-        $("#searchInput").value = "";
-        if (el.dataset.quiz === "true") gotoQuiz(parseInt(el.dataset.module, 10));
-        else gotoLesson(el.dataset.target);
-      }));
-  }
-
-  function mark(text, q) {
-    const idx = text.toLowerCase().indexOf(q.toLowerCase());
-    if (idx < 0) return escapeHtml(text);
-    return escapeHtml(text.slice(0, idx)) +
-      `<mark>${escapeHtml(text.slice(idx, idx + q.length))}</mark>` +
-      escapeHtml(text.slice(idx + q.length));
   }
 
   // ---------- Router ----------
   function showView(name) {
     state.view = name;
-    ["dashboard", "lesson", "quiz", "curriculum", "user-dashboard"].forEach((v) => {
+    ["dashboard", "lesson", "quiz", "curriculum", "user-dashboard", "courses"].forEach((v) => {
       const el = $("#view-" + v);
       if (el) el.hidden = v !== name;
     });
@@ -1711,6 +2123,7 @@
 
   function gotoView(name) {
     if (name === "dashboard") { showView("dashboard"); renderAll(); }
+    else if (name === "courses") { showView("courses"); renderCoursesCatalog(); renderSidebar(null); }
     else if (name === "curriculum") { showView("curriculum"); renderCurriculum(); renderSidebar(null); }
     else if (name === "user-dashboard") { showView("user-dashboard"); renderUserDashboard(); renderSidebar(null); }
   }
@@ -1718,6 +2131,10 @@
   function gotoLesson(id) {
     const found = findLesson(id);
     if (!found) return;
+    if (found.course && state.activeCourseId !== found.course.id) {
+      state.activeCourseId = found.course.id;
+      localStorage.setItem(ACTIVE_COURSE_KEY, found.course.id);
+    }
     if (found.lesson.type === "quiz") return gotoQuiz(found.module.id);
     showView("lesson");
     renderLesson(id);
@@ -1727,16 +2144,22 @@
 
   function renderDashboardStats() {
     const total = overallProgress();
-    $("#headerProgressPct").textContent = total.pct + "%";
-    const HCIRC = 100.5;
-    $("#headerRing").style.strokeDashoffset = HCIRC - (HCIRC * total.pct) / 100;
+    const pctEl = $("#headerProgressPct");
+    if (pctEl) pctEl.textContent = total.pct + "%";
+    const ring = $("#headerRing");
+    if (ring) {
+      const HCIRC = 100.5;
+      ring.style.strokeDashoffset = HCIRC - (HCIRC * total.pct) / 100;
+    }
   }
 
   function renderAll() {
     renderSidebar(state.currentLesson);
     renderDashboard();
+    if (state.view === "courses") renderCoursesCatalog();
     if (state.view === "curriculum") renderCurriculum();
     if (state.view === "user-dashboard") renderUserDashboard();
+    renderDashboardStats();
   }
 
   // ---------- Sidebar mobile ----------
@@ -1747,8 +2170,16 @@
 
   // ---------- Init ----------
   function init() {
+    initializeCoursesData();
     load();
     buildSearchIndex();
+
+    // Brand title update
+    const activeCourse = getActiveCourse();
+    const brandText = $("#brandText");
+    if (brandText) {
+      brandText.innerHTML = `${escapeHtml(activeCourse.shortTitle)} <em>Mastery</em>`;
+    }
 
     $("#menuToggle").addEventListener("click", () => {
       $("#sidebar").classList.toggle("open");
@@ -1756,24 +2187,10 @@
     });
     $("#backdrop").addEventListener("click", closeSidebar);
 
-    $("#continueBtn").addEventListener("click", async () => {
-      if (!state.currentUser) {
-        state.pendingEnrollCourse = "spring-boot-mastery";
-        openAuthModal("login");
-        toast("🔑 Vui lòng đăng nhập để bắt đầu học!");
-        return;
-      }
-      if (!isCourseEnrolled("spring-boot-mastery")) {
-        await enrollCourse("spring-boot-mastery");
-      }
-      for (const m of MODULES) {
-        const nextInMod = m.lessons.find(l => !state.completed[l.id]);
-        if (nextInMod) {
-          gotoLesson(nextInMod.id);
-          return;
-        }
-      }
-      gotoView("user-dashboard");
+    // Header Catalog Button
+    $("#btnHeaderCatalog")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      gotoView("courses");
     });
 
     $$("[data-view]").forEach((el) => {
@@ -1797,227 +2214,202 @@
       }
     });
     document.addEventListener("click", (e) => {
-      if (!e.target.closest(".search-box"))
+      if (!e.target.closest(".search-box")) {
         $("#searchResults").classList.remove("open");
-    });
-
-    $("#resetProgress").addEventListener("click", () => {
-      if (!confirm("Xóa toàn bộ tiến độ học tập?")) return;
-      state.completed = {};
-      state.quizScores = {};
-      save();
-      renderAll();
-      toast("🗑️ Đã xóa tiến độ — bắt đầu lại từ đầu!");
-    });
-
-    // ---------- Auth Modal & User Event Listeners ----------
-    const tabLogin = $("#tabLogin");
-    const tabRegister = $("#tabRegister");
-    const modalClose = $("#modalClose");
-    const authModalBackdrop = $("#authModalBackdrop");
-    const loginForm = $("#loginForm");
-    const registerForm = $("#registerForm");
-    const authBtn = $("#authBtn");
-    const userDropdown = $("#userDropdown");
-    const btnLogout = $("#btnLogout");
-    const btnSyncCloud = $("#btnSyncCloud");
-    const btnGoUserDashboard = $("#btnGoUserDashboard");
-
-    if (btnGoUserDashboard) {
-      btnGoUserDashboard.addEventListener("click", () => {
-        if (userDropdown) userDropdown.style.display = "none";
-        gotoView("user-dashboard");
-      });
-    }
-
-    if (tabLogin) tabLogin.addEventListener("click", () => openAuthModal("login"));
-    if (tabRegister) tabRegister.addEventListener("click", () => openAuthModal("register"));
-    if (modalClose) modalClose.addEventListener("click", closeAuthModal);
-    if (authModalBackdrop) {
-      authModalBackdrop.addEventListener("click", (e) => {
-        if (e.target === authModalBackdrop) closeAuthModal();
-      });
-    }
-
-    if (authBtn) {
-      authBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (state.currentUser && state.token) {
-          userDropdown.style.display = userDropdown.style.display === "none" ? "block" : "none";
-        } else {
-          openAuthModal("login");
-        }
-      });
-    }
-
-    document.addEventListener("click", (e) => {
-      if (userDropdown && !e.target.closest("#userMenuWrapper")) {
-        userDropdown.style.display = "none";
       }
     });
 
-    if (btnLogout) {
-      btnLogout.addEventListener("click", () => {
-        state.currentUser = null;
-        state.token = null;
-        state.enrolledModules = {};
-        state.enrolledCourses = {};
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        userDropdown.style.display = "none";
+    $("#resetProgress").addEventListener("click", () => {
+      if (confirm("Bạn có chắc muốn xóa toàn bộ tiến độ học và điểm quiz trên trình duyệt này không?")) {
+        state.completed = {};
+        state.quizScores = {};
+        save();
+        renderAll();
+        toast("🗑️ Đã xóa tiến độ!");
+      }
+    });
+
+    // Auth events
+    $("#authBtn").addEventListener("click", () => {
+      if (state.currentUser) {
+        const dd = $("#userDropdown");
+        dd.style.display = dd.style.display === "none" ? "block" : "none";
+      } else {
+        openAuthModal("login");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      const wrapper = $("#userMenuWrapper");
+      if (wrapper && !wrapper.contains(e.target)) {
+        const dd = $("#userDropdown");
+        if (dd) dd.style.display = "none";
+      }
+    });
+
+    $("#tabLogin")?.addEventListener("click", () => openAuthModal("login"));
+    $("#tabRegister")?.addEventListener("click", () => openAuthModal("register"));
+    $("#modalClose")?.addEventListener("click", closeAuthModal);
+    $("#authModalBackdrop")?.addEventListener("click", (e) => {
+      if (e.target.id === "authModalBackdrop") closeAuthModal();
+    });
+
+    $("#loginForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const u = $("#loginUsername").value.trim();
+      const p = $("#loginPassword").value;
+      const btn = $("#btnLoginSubmit");
+      const btnText = btn.querySelector(".btn-text");
+
+      try {
+        btn.disabled = true;
+        btnText.textContent = "Đang đăng nhập...";
+        hideAuthAlert();
+
+        const passHash = await hashPassword(p);
+        const users = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(u) + ",email.eq." + encodeURIComponent(u) + ")&password_hash.eq." + passHash + "&select=*");
+
+        if (!users || users.length === 0) {
+          throw new Error("Sai tên đăng nhập hoặc mật khẩu! Vui lòng kiểm tra lại.");
+        }
+
+        const user = users[0];
+        state.currentUser = user;
+        state.token = "sb_jwt_" + user.id + "_" + Date.now();
+        localStorage.setItem(TOKEN_KEY, state.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+        showAuthAlert("Đăng nhập thành công!", false);
+        toast(`👋 Chào mừng bạn trở lại, <strong>${escapeHtml(user.full_name || user.username)}</strong>!`);
+
+        await syncLocalAndCloud();
         updateAuthUI();
-        if (state.view === "lesson" || state.view === "quiz") {
-          gotoView("dashboard");
-        } else {
-          renderAll();
-        }
-        toast("👋 Đã đăng xuất thành công.");
-      });
-    }
 
-    if (btnSyncCloud) {
-      btnSyncCloud.addEventListener("click", async () => {
-        userDropdown.style.display = "none";
-        toast("⏳ Đang đồng bộ tiến độ với máy chủ...");
-        try {
-          await syncLocalAndCloud();
-          toast("☁️ Đồng bộ tiến độ thành công!");
-        } catch (e) {
-          toast("⚠️ Không thể kết nối máy chủ để đồng bộ.");
-        }
-      });
-    }
-
-    if (loginForm) {
-      loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const username = $("#loginUsername").value.trim();
-        const password = $("#loginPassword").value;
-        const submitBtn = $("#btnLoginSubmit");
-        const btnText = submitBtn.querySelector(".btn-text") || submitBtn;
-        const originalText = btnText.textContent;
-        try {
-          btnText.textContent = "Đang kiểm tra...";
-          submitBtn.disabled = true;
-          hideAuthAlert();
-
-          const users = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(username) + ",email.eq." + encodeURIComponent(username) + ")&select=*");
-          if (!users || users.length === 0) {
-            throw new Error("Không tìm thấy tài khoản với Username hoặc Email này.");
-          }
-
-          const user = users[0];
-          const hashed = await hashPassword(password);
-          if (user.password_hash !== hashed) {
-            throw new Error("Mật khẩu không chính xác.");
-          }
-
-          state.currentUser = user;
-          state.token = "sb-session-" + user.id;
-          localStorage.setItem(TOKEN_KEY, state.token);
-          localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
-          updateAuthUI();
+        setTimeout(() => {
           closeAuthModal();
-          toast("🎉 Chào mừng trở lại, " + (state.currentUser.full_name || state.currentUser.username) + "!");
-          await syncLocalAndCloud();
+          btn.disabled = false;
+          btnText.textContent = "Đăng Nhập";
 
           if (state.pendingEnrollCourse) {
-            const pCourse = state.pendingEnrollCourse;
+            enrollCourse(state.pendingEnrollCourse);
             state.pendingEnrollCourse = null;
-            await enrollCourse(pCourse, true);
-          } else if (state.pendingEnrollModule) {
-            state.pendingEnrollModule = null;
-            await enrollCourse("spring-boot-mastery", true);
           }
           if (state.pendingTargetLesson) {
-            const pTarget = state.pendingTargetLesson;
+            gotoLesson(state.pendingTargetLesson);
             state.pendingTargetLesson = null;
-            gotoLesson(pTarget);
-            return;
           }
-          renderAll();
-        } catch (err) {
-          showAuthAlert(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
-        } finally {
-          btnText.textContent = originalText;
-          submitBtn.disabled = false;
+        }, 500);
+      } catch (err) {
+        showAuthAlert(err.message || "Đăng nhập thất bại.");
+        btn.disabled = false;
+        btnText.textContent = "Đăng Nhập";
+      }
+    });
+
+    $("#registerForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fullName = $("#regFullName").value.trim();
+      const u = $("#regUsername").value.trim();
+      const em = $("#regEmail").value.trim();
+      const p = $("#regPassword").value;
+      const btn = $("#btnRegisterSubmit");
+      const btnText = btn.querySelector(".btn-text");
+
+      try {
+        btn.disabled = true;
+        btnText.textContent = "Đang tạo tài khoản...";
+        hideAuthAlert();
+
+        if (p.length < 6) throw new Error("Mật khẩu phải có tối thiểu 6 ký tự!");
+        if (u.length < 3) throw new Error("Tên đăng nhập phải có ít nhất 3 ký tự!");
+
+        const exist = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(u) + ",email.eq." + encodeURIComponent(em) + ")&select=id");
+        if (exist && exist.length > 0) {
+          throw new Error("Username hoặc Email này đã tồn tại trong hệ thống!");
         }
-      });
-    }
 
-    if (registerForm) {
-      registerForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const fullName = $("#regFullName").value.trim();
-        const username = $("#regUsername").value.trim();
-        const email = $("#regEmail").value.trim();
-        const password = $("#regPassword").value;
-        const submitBtn = $("#btnRegisterSubmit");
-        const btnText = submitBtn.querySelector(".btn-text") || submitBtn;
-        const originalText = btnText.textContent;
-        try {
-          btnText.textContent = "Đang tạo tài khoản...";
-          submitBtn.disabled = true;
-          hideAuthAlert();
+        const passHash = await hashPassword(p);
+        const newUser = {
+          username: u,
+          email: em,
+          password_hash: passHash,
+          full_name: fullName || u,
+          role: "ROLE_USER"
+        };
 
-          const existing = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(username) + ",email.eq." + encodeURIComponent(email) + ")&select=id");
-          if (existing && existing.length > 0) {
-            throw new Error("Username hoặc Email này đã tồn tại trong hệ thống.");
-          }
+        const created = await supabaseCall("/users", "POST", newUser, { "Prefer": "return=representation" });
+        const user = Array.isArray(created) ? created[0] : (created || newUser);
 
-          const hashed = await hashPassword(password);
-          const created = await supabaseCall("/users", "POST", {
-            username: username,
-            email: email,
-            password_hash: hashed,
-            full_name: fullName || username,
-            role: "ROLE_USER"
-          }, { "Prefer": "return=representation" });
+        state.currentUser = user;
+        state.token = "sb_jwt_" + (user.id || u) + "_" + Date.now();
+        localStorage.setItem(TOKEN_KEY, state.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
 
-          if (!created || created.length === 0) {
-            throw new Error("Không thể tạo tài khoản trên máy chủ.");
-          }
+        showAuthAlert("Tạo tài khoản thành công!", false);
+        toast(`🎉 Chúc mừng bạn đã đăng ký tài khoản thành công!`);
 
-          state.currentUser = created[0];
-          state.token = "sb-session-" + state.currentUser.id;
-          localStorage.setItem(TOKEN_KEY, state.token);
-          localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
-          updateAuthUI();
+        await syncLocalAndCloud();
+        updateAuthUI();
+
+        setTimeout(() => {
           closeAuthModal();
-          toast("✨ Đăng ký thành công! Chào mừng " + (state.currentUser.full_name || state.currentUser.username));
-          await syncLocalAndCloud();
+          btn.disabled = false;
+          btnText.textContent = "Tạo Tài Khoản";
 
           if (state.pendingEnrollCourse) {
-            const pCourse = state.pendingEnrollCourse;
+            enrollCourse(state.pendingEnrollCourse);
             state.pendingEnrollCourse = null;
-            await enrollCourse(pCourse, true);
-          } else if (state.pendingEnrollModule) {
-            state.pendingEnrollModule = null;
-            await enrollCourse("spring-boot-mastery", true);
           }
           if (state.pendingTargetLesson) {
-            const pTarget = state.pendingTargetLesson;
+            gotoLesson(state.pendingTargetLesson);
             state.pendingTargetLesson = null;
-            gotoLesson(pTarget);
-            return;
           }
-          renderAll();
-        } catch (err) {
-          showAuthAlert(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
-        } finally {
-          btnText.textContent = originalText;
-          submitBtn.disabled = false;
-        }
-      });
-    }
+        }, 600);
+      } catch (err) {
+        showAuthAlert(err.message || "Đăng ký thất bại.");
+        btn.disabled = false;
+        btnText.textContent = "Tạo Tài Khoản";
+      }
+    });
+
+    $("#btnLogout")?.addEventListener("click", () => {
+      state.currentUser = null;
+      state.token = null;
+      state.enrolledModules = {};
+      state.enrolledCourses = {};
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      updateAuthUI();
+      renderAll();
+      toast("👋 Đã đăng xuất.");
+    });
+
+    $("#btnGoUserDashboard")?.addEventListener("click", () => {
+      const dd = $("#userDropdown");
+      if (dd) dd.style.display = "none";
+      gotoView("user-dashboard");
+    });
+
+    $("#btnSyncCloud")?.addEventListener("click", async () => {
+      const dd = $("#userDropdown");
+      if (dd) dd.style.display = "none";
+      toast("⏳ Đang đồng bộ với Supabase Cloud...");
+      await syncLocalAndCloud();
+      toast("☁️ Đã đồng bộ tiến độ mới nhất!");
+    });
 
     updateAuthUI();
-    if (state.token) {
+    if (state.currentUser) {
       syncLocalAndCloud();
     }
 
     renderAll();
   }
 
-  document.addEventListener("DOMContentLoaded", init);
+  // Boot
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 })();
