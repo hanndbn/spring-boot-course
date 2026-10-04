@@ -263,25 +263,25 @@
       badge: "Foundation Level",
       category: "backend",
       level: "foundation",
-      hours: "~12h",
-      moduleIds: [0, 1, 2],
+      hours: "~10h",
+      moduleIds: [1, 2],
       certificateTitle: "DevMastery Verified — Spring Boot Foundation",
       instructor: "DevMastery Architecture Council",
       bestseller: true,
       themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
-      desc: "Nắm vững nguyên lý cốt lõi Spring Framework, IoC Container, Bean Lifecycle và xây dựng RESTful API chuẩn RFC 7807 ProblemDetails.",
+      desc: "Khóa học thực chiến tập trung 100% vào Spring Boot: Nắm vững IoC Container, Dependency Injection, Bean Lifecycle, Auto-Configuration và xây dựng hệ thống RESTful API chuẩn RFC 7807 ProblemDetails.",
       outcomes: [
-        "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails",
-        "Làm chủ vòng đời Bean, ApplicationContext và khắc phục cạm bẫy Circular Dependency",
-        "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web, Service và Repository Layer",
-        "Viết Unit Test cho Service Layer sử dụng Mockito và AssertJ đạt độ bao phủ chuẩn"
+        "Hiểu sâu nguyên lý IoC Container, Dependency Injection và vòng đời Spring Bean",
+        "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails cho E-Commerce",
+        "Làm chủ cơ chế Auto-Configuration và tự đóng gói Custom Spring Boot Starter",
+        "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web Controller, Service và DTO"
       ],
       prerequisites: [
-        "Đã nắm vững cú pháp Java Core cơ bản (OOP, Interface, Collections, Java Record)",
-        "Biết sử dụng Git cơ bản và hiểu nguyên lý hoạt động của HTTP/REST"
+        "Đã có kiến thức cú pháp Java cơ bản",
+        "Hiểu nguyên lý hoạt động của HTTP/REST"
       ],
       notFor: [
-        "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java Core trước)",
+        "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java cơ bản trước)",
         "Kỹ sư Senior đã thành thạo Spring Core cần học kiến trúc phân tán (nên học khóa Architect)"
       ],
       stackVersion: {
@@ -291,7 +291,33 @@
         lastReviewedDate: "2026-10-04",
         maintainer: "DevMastery Architecture Council"
       },
-      tags: ["Java 21", "Spring Boot 3", "IoC/DI", "REST API", "RFC 7807", "Clean Architecture"],
+      tags: ["Spring Boot 3", "IoC/DI", "REST API", "RFC 7807", "Clean Architecture", "Auto-Config"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "java-21-foundation",
+      title: "Nền Tảng Java 21 LTS & Bộ Công Cụ Backend",
+      shortTitle: "Nền Tảng Java 21 (Phụ trợ)",
+      icon: "☕",
+      badge: "Khóa học phụ trợ",
+      category: "backend",
+      level: "foundation",
+      hours: "~6h",
+      moduleIds: [0],
+      certificateTitle: "DevMastery Verified — Java 21 Foundation",
+      instructor: "DevMastery Architecture Council",
+      bestseller: false,
+      themeGradient: "linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%)",
+      desc: "Khóa học bổ trợ tùy chọn: Dành cho những ai muốn củng cố chuyên sâu cú pháp Java 21 LTS, Stream API, Record, Sealed Interface và Maven trước khi vào Spring Boot.",
+      outcomes: [
+        "Làm chủ cú pháp Java 21 LTS: Record, Sealed Interface, Pattern Matching",
+        "Hiểu sâu Stream API, Lambda và xử lý dữ liệu lập trình hàm",
+        "Quản trị dự án Maven đa module chuẩn doanh nghiệp"
+      ],
+      prerequisites: ["Kiến thức lập trình căn bản"],
+      tags: ["Java 21", "Stream API", "Record", "Maven"],
       stats: null,
       isAvailable: true,
       modules: []
@@ -449,11 +475,12 @@
   function initializeCoursesData() {
     const allMods = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
 
-    // 1. Distribute modules across the 3 Spring Boot Track courses
+    // 1. Distribute modules across the Spring Boot Track & Java Foundation courses
     const springTrackMap = [
-      { id: "spring-boot-foundation", modIds: [0, 1, 2] },
+      { id: "spring-boot-foundation", modIds: [1, 2] },
       { id: "spring-boot-professional", modIds: [3, 4, 5] },
-      { id: "spring-boot-architect", modIds: [6, 7] }
+      { id: "spring-boot-architect", modIds: [6, 7] },
+      { id: "java-21-foundation", modIds: [0] }
     ];
 
     springTrackMap.forEach(st => {
@@ -1826,13 +1853,54 @@
                 <span class="nm-count">${mProg.done}/${mProg.total}</span>
               </div>
               <div class="nav-lessons">
-                ${(m.lessons || []).map((l) => `
-                  <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
-                       data-lesson="${l.id}">
-                    <span class="nl-dot"></span>
-                    <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
-                    <span class="nl-mins">${l.minutes}p</span>
-                  </div>`).join("")}
+                ${m.topics && m.topics.length > 0 ? (
+                  m.topics.map((t) => {
+                    const tLessons = (m.lessons || []).filter(l => l.type !== "quiz" && l.id.split("-")[1] === String(t.id));
+                    if (!tLessons.length) return "";
+                    const doneCount = tLessons.filter(l => state.completed[l.id]).length;
+                    const hasActiveTopic = tLessons.some(l => l.id === activeLessonId);
+                    return `
+                      <div class="nav-topic-group ${hasActiveTopic ? "open" : ""}">
+                        <div class="nav-topic-head" data-topic="${m.id}-${t.id}">
+                          <span class="nth-icon">🎯</span>
+                          <span class="nth-title">Mục ${m.id}.${t.id}: ${escapeHtml(t.title)}</span>
+                          <span class="nth-count ${doneCount === tLessons.length ? "done" : ""}">${doneCount}/${tLessons.length}</span>
+                        </div>
+                        <div class="nav-topic-lessons">
+                          ${tLessons.map((l) => `
+                            <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
+                                 data-lesson="${l.id}">
+                              <span class="nl-dot"></span>
+                              <span class="nl-title">${escapeHtml(l.title)}</span>
+                              <span class="nl-mins">${l.minutes}p</span>
+                            </div>
+                          `).join("")}
+                        </div>
+                      </div>
+                    `;
+                  }).join("") +
+                  (() => {
+                    const q = (m.lessons || []).find(l => l.type === "quiz");
+                    if (!q) return "";
+                    const isQuizActive = state.view === "quiz" && state.currentQuizModule === m.id;
+                    const quizDone = state.quizScores && typeof state.quizScores[m.id] === "number";
+                    return `
+                      <div class="nav-module-quiz ${isQuizActive ? "active" : ""} ${quizDone ? "done" : ""}" data-module-quiz="${m.id}">
+                        <span class="nmq-icon">🏆</span>
+                        <span class="nmq-title">${escapeHtml(q.title)}</span>
+                        <span class="nmq-badge">${quizDone ? (state.quizScores[m.id] + "%") : "Sát hạch"}</span>
+                      </div>
+                    `;
+                  })()
+                ) : (
+                  (m.lessons || []).map((l) => `
+                    <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
+                         data-lesson="${l.id}">
+                      <span class="nl-dot"></span>
+                      <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
+                      <span class="nl-mins">${l.minutes}p</span>
+                    </div>`).join("")
+                )}
               </div>
             </div>`;
           }).join("")}
@@ -1874,6 +1942,13 @@
       el.addEventListener("click", () => gotoView(el.dataset.view)));
     $$(".nav-module-head", nav).forEach((el) =>
       el.addEventListener("click", () => el.parentElement.classList.toggle("open")));
+    $$(".nav-topic-head", nav).forEach((el) =>
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        el.parentElement.classList.toggle("open");
+      }));
+    $$(".nav-module-quiz", nav).forEach((el) =>
+      el.addEventListener("click", () => startQuiz(parseInt(el.dataset.moduleQuiz, 10))));
     $$(".nav-lesson", nav).forEach((el) =>
       el.addEventListener("click", () => gotoLesson(el.dataset.lesson)));
   }
@@ -3080,18 +3155,23 @@ ${lesson ? lesson.content : ""}
     const next = flat[idx + 1];
     const done = !!state.completed[lessonId];
 
+    const topicId = (lessonId || "").split("-")[1];
+    const currentTopic = (m.topics || []).find(t => String(t.id) === topicId);
+
     view.innerHTML = `
       <div class="lesson-header">
         <div class="breadcrumb">
           <a data-view="dashboard">${escapeHtml(c.shortTitle)}</a><span class="sep">›</span>
           <span>Module ${m.id}: ${escapeHtml(m.title)}</span><span class="sep">›</span>
+          ${currentTopic ? `<span>Mục ${m.id}.${currentTopic.id}: ${escapeHtml(currentTopic.title)}</span><span class="sep">›</span>` : ""}
           <span>${escapeHtml(lesson.title)}</span>
         </div>
         <h1 class="lesson-title">${escapeHtml(lesson.title)}</h1>
         <div class="lesson-meta">
           <span>📖 ${lessonId}</span>
           <span>⏱ ${lesson.minutes} phút</span>
-          <span>📦 Module ${m.id} — ${escapeHtml(m.title)}</span>
+          <span>📦 Module ${m.id}</span>
+          ${currentTopic ? `<span class="ud-topic-badge">🎯 Mục ${m.id}.${currentTopic.id}: ${escapeHtml(currentTopic.title)}</span>` : ""}
           <span class="ud-badge badge-user">${c.badge}</span>
           <button type="button" class="btn-meta-ask-ai" id="btnJumpToAi" title="Cuộn nhanh xuống Trợ lý AI bài này">🤖 Hỏi AI bài này</button>
         </div>
@@ -3641,13 +3721,65 @@ ${lesson ? lesson.content : ""}
             <svg class="cm-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </div>
           <div class="curr-lessons">
-            ${(m.lessons || []).map((l) => `
-              <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
-                <span class="cl-check">✓</span>
-                <span class="cl-title">${escapeHtml(l.title)}</span>
-                <span class="cl-type ${l.type}">${l.type === "quiz" ? "Quiz" : l.minutes >= 100 ? "Project" : "Bài học"}</span>
-                <span class="cl-mins">${l.minutes} phút</span>
-              </div>`).join("")}
+            ${m.topics && m.topics.length > 0 ? `
+              <div class="curr-topics-container">
+                ${m.topics.map(t => {
+                  const tLessons = (m.lessons || []).filter(l => l.type !== "quiz" && l.id.split("-")[1] === String(t.id));
+                  if (!tLessons.length) return "";
+                  const doneCount = tLessons.filter(l => state.completed[l.id]).length;
+                  return `
+                    <div class="curr-topic-block">
+                      <div class="ctb-head">
+                        <span class="ctb-badge">Mục ${m.id}.${t.id}</span>
+                        <div class="ctb-body">
+                          <h4 class="ctb-title">${escapeHtml(t.title)}</h4>
+                          <p class="ctb-desc">${escapeHtml(t.desc || "")}</p>
+                        </div>
+                        <div class="ctb-progress">
+                          <span class="ctb-prog-text">${doneCount}/${tLessons.length} xong</span>
+                          <div class="ctb-prog-bar">
+                            <div class="ctb-prog-fill" style="width: ${Math.round((doneCount / tLessons.length) * 100)}%"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="ctb-lessons">
+                        ${tLessons.map(l => `
+                          <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
+                            <span class="cl-check">✓</span>
+                            <span class="cl-title">${escapeHtml(l.title)}</span>
+                            <span class="cl-type ${l.type}">${l.type === "theory" ? "Lý thuyết" : l.type === "practice" ? "Thực hành" : l.type === "pitfall" ? "Cạm bẫy" : "Synthesis"}</span>
+                            <span class="cl-mins">${l.minutes} phút</span>
+                          </div>
+                        `).join("")}
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+              ${(() => {
+                const q = (m.lessons || []).find(l => l.type === "quiz");
+                if (!q) return "";
+                const quizScore = state.quizScores && state.quizScores[m.id];
+                return `
+                  <div class="curr-quiz-cta" data-module-quiz="${m.id}">
+                    <span class="cqc-icon">🏆</span>
+                    <div class="cqc-info">
+                      <h4>${escapeHtml(q.title)}</h4>
+                      <p>Sát hạch toàn diện tư duy kiến trúc và kỹ năng giải quyết sự cố Module ${m.id}${typeof quizScore === "number" ? ` · Điểm cao nhất: <strong>${quizScore}%</strong>` : ""}</p>
+                    </div>
+                    <button class="btn btn-warning btn-sm" style="flex-shrink:0;">${typeof quizScore === "number" ? "Thi lại ↻" : "Bắt đầu sát hạch →"}</button>
+                  </div>
+                `;
+              })()}
+            ` : (
+              (m.lessons || []).map((l) => `
+                <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
+                  <span class="cl-check">✓</span>
+                  <span class="cl-title">${escapeHtml(l.title)}</span>
+                  <span class="cl-type ${l.type}">${l.type === "quiz" ? "Quiz" : l.minutes >= 100 ? "Project" : "Bài học"}</span>
+                  <span class="cl-mins">${l.minutes} phút</span>
+                </div>`).join("")
+            )}
           </div>
         </div>`;
       }).join("")}`;
@@ -3655,6 +3787,8 @@ ${lesson ? lesson.content : ""}
     $("#btnCurrEnrollCourse", view)?.addEventListener("click", () => enrollCourse(activeCourse.id));
     $$(".curr-module-head", view).forEach((h) =>
       h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
+    $$(".curr-quiz-cta", view).forEach((el) =>
+      el.addEventListener("click", () => startQuiz(parseInt(el.dataset.moduleQuiz, 10))));
     $$(".curr-lesson", view).forEach((el) =>
       el.addEventListener("click", () => gotoLesson(el.dataset.lesson)));
   }

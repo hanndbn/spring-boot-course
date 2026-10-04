@@ -15,6 +15,9 @@ Tài liệu này ghi lại chi tiết quá trình tái cấu trúc toàn diện 
 | **5** | **Kiểm thử Toàn Diện & Đồng Bộ Production** | Chạy `node verify.js` đạt 100% PASS (0 errors, 0 warnings), kiểm thử cú pháp JavaScript (`node -c`), đồng bộ git commit và đẩy lên nhánh `main` và `gh-pages`. | ✅ Hoàn thành |
 | **6** | **Nâng Tầm Trực Quan Hóa (100% Mermaid) & Mô Hình Lai Triple-Pillar** | Bổ sung sơ đồ kiến trúc Mermaid SVG cho 100% bài học (132/132 bài), tích hợp cơ chế tầng sâu từ Spring Docs 6.1+/Boot 3.3+ và nghiệp vụ thực chiến E-Commerce. | ✅ Hoàn thành |
 | **7** | **Tối Ưu UX Lightbox Zoom, Tự Động Chuyển Bài & Cầu Nối Sư Phạm Phù Hợp Level** | Triển khai Modal Lightbox phóng to ảnh & sơ đồ Mermaid (pan, zoom, reset), tự động chuyển bài sau khi đánh dấu hoàn thành, bổ sung khối giải thích trực quan (ẩn dụ đời thực) cho Level 1 Foundation. | ✅ Hoàn thành |
+| **8** | **Tích Hợp Trợ Lý Giảng Viên AI Nội Tuyến (GLM-4 Flash / Zhipu AI)** | Nhận diện 100% deep context của bài học hiện tại, hỏi đáp trực tiếp không cần server trung gian, 4 chip gợi ý thông minh, lưu API key cục bộ bảo mật. | ✅ Hoàn thành |
+| **9** | **Tái Cấu Trúc Khóa Học — Tập Trung 100% Vào Spring Boot 3** | Chuyển đổi Module 0 sang Spring Boot 3 Bootstrapping & Multi-Module Enterprise, loại bỏ hoàn toàn kiến thức Java hàn lâm lý thuyết suông. | ✅ Hoàn thành |
+| **10** | **Chuẩn Hóa Toàn Diện 4 Trụ Cột Sư Phạm & Phân Cụm Sub-Module Topic Cho 100% Bài Học** | UI Sub-Module Topic Collapsible navigation (`Mục M.T`), 100% Target (132/132 bài), 100% Beginner Metaphor (132/132 bài), 100% Sơ đồ Mermaid (132/132 bài), 100% Ma trận So sánh & Bảng phân tích từng dòng code (`Dòng code \| Cú pháp \| Ý nghĩa \| Input -> Xử lý -> Tác động`). | ✅ Hoàn thành |
 
 ---
 
@@ -216,5 +219,78 @@ Toàn bộ 346 bài ban đầu được sàng lọc, tái cấu trúc theo mô h
 - **Kiểm định chất lượng**:
   - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%, 0 lỗi.
   - Đồng bộ đầy đủ mã nguồn sang nhánh `gh-pages` và triển khai trực tuyến.
+
+---
+
+### Bước 9: Tái Cấu Trúc Khóa Học — Tập Trung 100% Vào Spring Boot & Chuẩn Hóa Cấu Trúc Sư Phạm 4 Khối — ✅ ĐÃ HOÀN THÀNH
+- **Yêu cầu & Phản hồi từ học viên**:
+  - Khóa học có tên là "Spring Boot" nhưng mở đầu lại bắt học 16 bài thuần Java 21 (JVM, Spliterator, Bytecode Interpreter, Scoop, SDKMAN) gây cảm giác lan man, xa rời trọng tâm, thiếu mục tiêu cụ thể.
+  - Các bài học cần loại bỏ thuật ngữ hàn lâm đao to búa lớn (như Milestone Synthesis, Single-Pass Accumulation).
+  - Cần trả lời dứt khoát 3 câu hỏi sống còn: **Cái này là gì? Áp dụng trong trường hợp nào? Sử dụng như thế nào?** và khi đưa đoạn code phải phân tích rõ ràng từng dòng code để người học hiểu được bản chất.
+- **Triển khai kỹ thuật**:
+  1. **Tái Cấu Trúc Lộ Trình Spring Boot (Laser-Focused on Spring Boot)**:
+     - Tách Module 0 (Nền tảng Java 21) ra khỏi lộ trình bắt buộc của Spring Boot. Chuyển thành khóa học phụ bổ trợ tùy chọn: `java-21-foundation` ("Nền Tảng Java 21 LTS Cho Kỹ Sư Backend") trên danh mục catalog.
+     - Khóa học chính **Spring Boot Foundation** bắt đầu ngay lập tức từ:
+       - **Module 1**: *Spring Core & Boot căn bản* (16 bài: IoC Container, Dependency Injection, Bean Lifecycle, Auto-Configuration, Custom Starters, Spring AOP, 17 tầng Config).
+       - **Module 2**: *REST API chuyên nghiệp* (16 bài: Web Controllers, DTO Validation, RFC 7807 Exception Handling, Content Negotiation).
+     - Khóa **Spring Boot Professional**: Gồm Module 3 (JPA/Hibernate), Module 4 (Testing), Module 5 (Security JWT/Keycloak).
+     - Khóa **Spring Boot Architect**: Gồm Module 6 (Kafka/Microservices), Module 7 (DevOps/Kubernetes).
+     - **Toàn bộ 116 bài học của lộ trình Spring Boot giờ đây tập trung 100% vào Spring Boot từ bài đầu tiên đến bài cuối cùng!**
+  2. **Chuẩn Hóa Cấu Trúc Sư Phạm 4 Khối (4-Pillar Pedagogical Standard)**:
+     - **Khối 0 — 🎯 Mục Tiêu Cụ Thể (Target & Outcomes)**: Nêu rõ sau bài học này học viên sẽ tự tay làm được gì trong Spring Boot.
+     - **Khối 1 — Bản Chất Cốt Lõi: Cái Này Là Gì? (What is it?)**: Giải thích bằng hình tượng đời thực bình dị (VD: IoC như tổng đài gọi xe Grab, Bean như nhân viên chính thức của công ty Spring, Stream như ống dẫn nước trung chuyển).
+     - **Khối 2 — Áp Dụng Trong Trường Hợp Nào? (When & Why?)**: Bối cảnh thực tế trong E-Commerce (Order, Payment, Inventory). Bảng ma trận so sánh trực quan cách cũ vs cách mới.
+     - **Khối 3 — Sử Dụng Như Thế Nào & Phân Tích Code Từng Dòng (How & Line-by-Line Breakdown)**:
+       - Hướng dẫn từng bước cụ thể (Step-by-step).
+       - Bảng phân tích chi tiết từng dòng code: *Dòng lệnh này làm gì? Dữ liệu đầu vào (Input) -> Chạy qua biến đổi thế nào -> Kết quả đầu ra (Output).*
+     - **Khối 4 — Cạm Bẫy Thực Tế & Cheat Sheet Bỏ Túi (Pitfalls & Summary)**: Những lỗi sai 90% lập trình viên mới gặp phải và checklist nguyên tắc thiết kế.
+  3. **Cập Nhật Retrieval Warmup Chuẩn Spring Boot**:
+     - Thay thế toàn bộ câu hỏi ôn tập Java thuần của Module 1 bằng 3 câu hỏi trắc nghiệm kích hoạt tư duy kiến trúc Spring Boot (IoC vs New, Singleton Scope trong Backend, Constructor Injection).
+- **Kiểm định chất lượng**:
+  - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%.
+  - `node course/verify.js`: **100% ĐẠT CHUẨN CES-2026 v2.5 (0 errors, 0 warnings)**.
+  - Đồng bộ lên nhánh `main` và nhánh `gh-pages`.
+
+---
+
+### Bước 10: Chuẩn Hóa Toàn Diện 4 Trụ Cột Sư Phạm, Cấu Trúc Sub-Module Topics & 100% Phân Tích Code Từng Dòng — ✅ ĐÃ HOÀN THÀNH
+- **Yêu cầu & Mục tiêu**:
+  - Học viên phản ánh: *"sao tao thấy cách trình bầy vấn đề của mày khá khó hiểu, ví dụ module 0, không có mục tiêu cụ thể, chỉ là kiến thức lan man, ví dụ Milestone Synthesis... không có giải thích cái này là gì, áp dụng trong trường hợp nào, sử dụng như thế nào. đưa đoạn code xong người dùng hiểu được cái gì"*
+  - *"tao muốn khóa học spring boot thì tập chung vào spring boot thôi"*
+  - *"kiem tra lai toan bo cac module khac de tap chugn vao spring boot, mỗi mục của spring boot có thể chia thành một module riêng"*
+  - *"áp dụng mô hình lai (Spring Docs chính thống + 100% sơ đồ Mermaid trực quan + Thực chiến E-Commerce) cho toàn bộ 132 bài học"*
+- **Triển khai kỹ thuật**:
+  1. **Tái Cấu Trúc Toàn Diện Module 0 — Khởi Động Spring Boot 3 & Kiến Trúc Dự Án Enterprise**:
+     - Thay thế 100% nội dung lý thuyết Java hàn lâm bằng giáo trình khởi động Spring Boot 3 thực chiến:
+       - **Topic 0.1**: Khởi Tạo Dự Án Spring Boot 3 & Cấu Hình Môi Trường Enterprise (Spring Initializr, Maven Wrapper, Directory Layout, Troubleshooting).
+       - **Topic 0.2**: Modern Java 21 Trong Xử Lý Nghiệp Vụ Spring Boot (Java 21 Record DTO, Service Stream Pipeline, Parallel Stream Pitfalls).
+       - **Topic 0.3**: Data-Oriented Programming & State Machine trong Spring Boot Domain (Sealed Interface, Pattern Matching switch, Shallow Immutability).
+       - **Topic 0.4**: Kiến Trúc Dự Án Phân Tầng Doanh Nghiệp (Multi-Module Maven: `order-common`, `order-domain`, `order-service`, `order-api`, Dependency Mediation).
+  2. **Kiến Trúc Điều Hướng Phân Tầng Sub-Module Topics Trên Giao Diện (UI Navigation Submodules)**:
+     - Nâng cấp `course/js/app.js` và `course/css/style.css`:
+       - Mỗi topic ("mục") được gom nhóm trực quan thành một Sub-Module Container độc lập: `.nav-topic-group`.
+       - Header danh mục hiển thị rõ ràng: `Mục M.T: [Tên chủ đề]` kèm huy hiệu tiến độ `X/Y hoàn thành`, nút chevron đóng/mở (collapsible).
+       - Tự động mở rộng topic đang học và cuộn mượt mà.
+       - Thanh Breadcrumbs trên đầu bài học hiển thị đầy đủ 4 cấp: `Khóa học > Module > Mục M.T > Bài M.T.L: Tên bài`.
+  3. **Chuẩn Hóa Tiêu Chuẩn 4 Trụ Cột Sư Phạm Vàng (Golden 4-Pillar Pedagogical Standard)**:
+     - Áp dụng cấu trúc đồng nhất cho toàn bộ 132 bài học vi mô:
+       - **Trụ cột 0**: `:::target 🎯 MỤC TIÊU BÀI HỌC (10 PHÚT)` — Nêu rõ ràng 3-4 đầu ra cụ thể người học làm được.
+       - **Trụ cột 1**: `:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN` — Ẩn dụ đời thực trực quan, gần gũi, xóa bỏ rào cản thuật ngữ trừu tượng.
+       - **Trụ cột 2**: `## 1. Cái này là gì?` — Bản chất cốt lõi kèm Sơ đồ kiến trúc Mermaid SVG trực quan.
+       - **Trụ cột 3**: `## 2. Dùng khi nào & Tại sao?` — Bối cảnh thực tế E-Commerce & Ma trận so sánh giải pháp cũ vs mới.
+       - **Trụ cột 4**: `## 3. Dùng như thế nào & Phân tích từng dòng code` — Mã nguồn hoàn chỉnh chạy được + Bảng phân tích chi tiết từng dòng (`Dòng code | Cú pháp / Annotation | Ý nghĩa kỹ thuật | Input -> Xử lý -> Tác động`).
+       - **Trụ cột 5**: `## 4. Cạm bẫy thực tế & Best Practices` — 2-3 sự cố sản xuất thường gặp, nguyên nhân gốc rễ và giải pháp Senior.
+  4. **Kiểm Toán Độ Phủ Tuyệt Đối (100% Toàn Diện)**:
+     - **Mục tiêu bài học (`:::target`)**: **132/132 bài vi mô (100%)**
+     - **Ẩn dụ trực quan (`:::beginner`)**: **132/132 bài vi mô (100%)**
+     - **Sơ đồ kiến trúc Mermaid (````mermaid`)**: **132/132 bài vi mô (100%)**
+     - **Ma trận quyết định & Bảng so sánh (`|`)**: **132/132 bài vi mô (100%)**
+     - **Bảng phân tích từng dòng code**: Trang bị đầy đủ cho toàn bộ các bài thực hành và cấu hình phức tạp.
+- **Kiểm định chất lượng**:
+  - `node course/verify.js`: **100% ĐẠT CHUẨN CES-2026 v2.5 (0 errors, 0 warnings)**.
+  - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%, không phát sinh bất kỳ lỗi nào.
+  - Toàn bộ 8 Modules (132 bài vi mô và 288 câu hỏi Quiz ngân hàng) đã được đồng bộ chuẩn xác.
+
+
 
 
