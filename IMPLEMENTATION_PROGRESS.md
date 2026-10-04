@@ -217,4 +217,36 @@ Toàn bộ 346 bài ban đầu được sàng lọc, tái cấu trúc theo mô h
   - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%, 0 lỗi.
   - Đồng bộ đầy đủ mã nguồn sang nhánh `gh-pages` và triển khai trực tuyến.
 
+---
+
+### Bước 9: Tái Cấu Trúc Khóa Học — Tập Trung 100% Vào Spring Boot & Chuẩn Hóa Cấu Trúc Sư Phạm 4 Khối — ✅ ĐÃ HOÀN THÀNH
+- **Yêu cầu & Phản hồi từ học viên**:
+  - Khóa học có tên là "Spring Boot" nhưng mở đầu lại bắt học 16 bài thuần Java 21 (JVM, Spliterator, Bytecode Interpreter, Scoop, SDKMAN) gây cảm giác lan man, xa rời trọng tâm, thiếu mục tiêu cụ thể.
+  - Các bài học cần loại bỏ thuật ngữ hàn lâm đao to búa lớn (như Milestone Synthesis, Single-Pass Accumulation).
+  - Cần trả lời dứt khoát 3 câu hỏi sống còn: **Cái này là gì? Áp dụng trong trường hợp nào? Sử dụng như thế nào?** và khi đưa đoạn code phải phân tích rõ ràng từng dòng code để người học hiểu được bản chất.
+- **Triển khai kỹ thuật**:
+  1. **Tái Cấu Trúc Lộ Trình Spring Boot (Laser-Focused on Spring Boot)**:
+     - Tách Module 0 (Nền tảng Java 21) ra khỏi lộ trình bắt buộc của Spring Boot. Chuyển thành khóa học phụ bổ trợ tùy chọn: `java-21-foundation` ("Nền Tảng Java 21 LTS Cho Kỹ Sư Backend") trên danh mục catalog.
+     - Khóa học chính **Spring Boot Foundation** bắt đầu ngay lập tức từ:
+       - **Module 1**: *Spring Core & Boot căn bản* (16 bài: IoC Container, Dependency Injection, Bean Lifecycle, Auto-Configuration, Custom Starters, Spring AOP, 17 tầng Config).
+       - **Module 2**: *REST API chuyên nghiệp* (16 bài: Web Controllers, DTO Validation, RFC 7807 Exception Handling, Content Negotiation).
+     - Khóa **Spring Boot Professional**: Gồm Module 3 (JPA/Hibernate), Module 4 (Testing), Module 5 (Security JWT/Keycloak).
+     - Khóa **Spring Boot Architect**: Gồm Module 6 (Kafka/Microservices), Module 7 (DevOps/Kubernetes).
+     - **Toàn bộ 116 bài học của lộ trình Spring Boot giờ đây tập trung 100% vào Spring Boot từ bài đầu tiên đến bài cuối cùng!**
+  2. **Chuẩn Hóa Cấu Trúc Sư Phạm 4 Khối (4-Pillar Pedagogical Standard)**:
+     - **Khối 0 — 🎯 Mục Tiêu Cụ Thể (Target & Outcomes)**: Nêu rõ sau bài học này học viên sẽ tự tay làm được gì trong Spring Boot.
+     - **Khối 1 — Bản Chất Cốt Lõi: Cái Này Là Gì? (What is it?)**: Giải thích bằng hình tượng đời thực bình dị (VD: IoC như tổng đài gọi xe Grab, Bean như nhân viên chính thức của công ty Spring, Stream như ống dẫn nước trung chuyển).
+     - **Khối 2 — Áp Dụng Trong Trường Hợp Nào? (When & Why?)**: Bối cảnh thực tế trong E-Commerce (Order, Payment, Inventory). Bảng ma trận so sánh trực quan cách cũ vs cách mới.
+     - **Khối 3 — Sử Dụng Như Thế Nào & Phân Tích Code Từng Dòng (How & Line-by-Line Breakdown)**:
+       - Hướng dẫn từng bước cụ thể (Step-by-step).
+       - Bảng phân tích chi tiết từng dòng code: *Dòng lệnh này làm gì? Dữ liệu đầu vào (Input) -> Chạy qua biến đổi thế nào -> Kết quả đầu ra (Output).*
+     - **Khối 4 — Cạm Bẫy Thực Tế & Cheat Sheet Bỏ Túi (Pitfalls & Summary)**: Những lỗi sai 90% lập trình viên mới gặp phải và checklist nguyên tắc thiết kế.
+  3. **Cập Nhật Retrieval Warmup Chuẩn Spring Boot**:
+     - Thay thế toàn bộ câu hỏi ôn tập Java thuần của Module 1 bằng 3 câu hỏi trắc nghiệm kích hoạt tư duy kiến trúc Spring Boot (IoC vs New, Singleton Scope trong Backend, Constructor Injection).
+- **Kiểm định chất lượng**:
+  - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%.
+  - `node course/verify.js`: **100% ĐẠT CHUẨN CES-2026 v2.5 (0 errors, 0 warnings)**.
+  - Đồng bộ lên nhánh `main` và nhánh `gh-pages`.
+
+
 

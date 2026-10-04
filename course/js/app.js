@@ -263,25 +263,25 @@
       badge: "Foundation Level",
       category: "backend",
       level: "foundation",
-      hours: "~12h",
-      moduleIds: [0, 1, 2],
+      hours: "~10h",
+      moduleIds: [1, 2],
       certificateTitle: "DevMastery Verified — Spring Boot Foundation",
       instructor: "DevMastery Architecture Council",
       bestseller: true,
       themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
-      desc: "Nắm vững nguyên lý cốt lõi Spring Framework, IoC Container, Bean Lifecycle và xây dựng RESTful API chuẩn RFC 7807 ProblemDetails.",
+      desc: "Khóa học thực chiến tập trung 100% vào Spring Boot: Nắm vững IoC Container, Dependency Injection, Bean Lifecycle, Auto-Configuration và xây dựng hệ thống RESTful API chuẩn RFC 7807 ProblemDetails.",
       outcomes: [
-        "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails",
-        "Làm chủ vòng đời Bean, ApplicationContext và khắc phục cạm bẫy Circular Dependency",
-        "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web, Service và Repository Layer",
-        "Viết Unit Test cho Service Layer sử dụng Mockito và AssertJ đạt độ bao phủ chuẩn"
+        "Hiểu sâu nguyên lý IoC Container, Dependency Injection và vòng đời Spring Bean",
+        "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails cho E-Commerce",
+        "Làm chủ cơ chế Auto-Configuration và tự đóng gói Custom Spring Boot Starter",
+        "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web Controller, Service và DTO"
       ],
       prerequisites: [
-        "Đã nắm vững cú pháp Java Core cơ bản (OOP, Interface, Collections, Java Record)",
-        "Biết sử dụng Git cơ bản và hiểu nguyên lý hoạt động của HTTP/REST"
+        "Đã có kiến thức cú pháp Java cơ bản",
+        "Hiểu nguyên lý hoạt động của HTTP/REST"
       ],
       notFor: [
-        "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java Core trước)",
+        "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java cơ bản trước)",
         "Kỹ sư Senior đã thành thạo Spring Core cần học kiến trúc phân tán (nên học khóa Architect)"
       ],
       stackVersion: {
@@ -291,7 +291,33 @@
         lastReviewedDate: "2026-10-04",
         maintainer: "DevMastery Architecture Council"
       },
-      tags: ["Java 21", "Spring Boot 3", "IoC/DI", "REST API", "RFC 7807", "Clean Architecture"],
+      tags: ["Spring Boot 3", "IoC/DI", "REST API", "RFC 7807", "Clean Architecture", "Auto-Config"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "java-21-foundation",
+      title: "Nền Tảng Java 21 LTS & Bộ Công Cụ Backend",
+      shortTitle: "Nền Tảng Java 21 (Phụ trợ)",
+      icon: "☕",
+      badge: "Khóa học phụ trợ",
+      category: "backend",
+      level: "foundation",
+      hours: "~6h",
+      moduleIds: [0],
+      certificateTitle: "DevMastery Verified — Java 21 Foundation",
+      instructor: "DevMastery Architecture Council",
+      bestseller: false,
+      themeGradient: "linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%)",
+      desc: "Khóa học bổ trợ tùy chọn: Dành cho những ai muốn củng cố chuyên sâu cú pháp Java 21 LTS, Stream API, Record, Sealed Interface và Maven trước khi vào Spring Boot.",
+      outcomes: [
+        "Làm chủ cú pháp Java 21 LTS: Record, Sealed Interface, Pattern Matching",
+        "Hiểu sâu Stream API, Lambda và xử lý dữ liệu lập trình hàm",
+        "Quản trị dự án Maven đa module chuẩn doanh nghiệp"
+      ],
+      prerequisites: ["Kiến thức lập trình căn bản"],
+      tags: ["Java 21", "Stream API", "Record", "Maven"],
       stats: null,
       isAvailable: true,
       modules: []
@@ -449,11 +475,12 @@
   function initializeCoursesData() {
     const allMods = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
 
-    // 1. Distribute modules across the 3 Spring Boot Track courses
+    // 1. Distribute modules across the Spring Boot Track & Java Foundation courses
     const springTrackMap = [
-      { id: "spring-boot-foundation", modIds: [0, 1, 2] },
+      { id: "spring-boot-foundation", modIds: [1, 2] },
       { id: "spring-boot-professional", modIds: [3, 4, 5] },
-      { id: "spring-boot-architect", modIds: [6, 7] }
+      { id: "spring-boot-architect", modIds: [6, 7] },
+      { id: "java-21-foundation", modIds: [0] }
     ];
 
     springTrackMap.forEach(st => {

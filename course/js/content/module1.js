@@ -37,40 +37,40 @@ window.COURSE_MODULES.push(
   ],
   "retrievalWarmup": [
     {
-      "question": "Trong Module 0, khi khai báo một Java 21 Record chứa danh sách List<String>, tại sao Compact Constructor bắt buộc phải dùng List.copyOf()?",
+      "question": "Trong kiến trúc Spring Boot, tại sao nguyên lý Inversion of Control (IoC) lại vượt trội hơn việc lập trình viên tự khởi tạo đối tượng bằng từ khóa 'new'?",
       "options": [
-        "Để thực hiện Defensive Copying bảo đảm tính bất biến sâu (Deep Immutability), ngăn bên ngoài sửa đổi phần tử trong List",
-        "Để tăng tốc độ tuần tự hóa JSON của Jackson",
-        "Để tự động chuyển đổi danh sách thành LinkedList",
-        "Để Hibernate có thể ánh xạ vào bảng trung gian của cơ sở dữ liệu"
+        "Vì IoC Container đảo ngược quyền quản lý vòng đời đối tượng, giúp giảm thiểu Tight Coupling và dễ dàng thay thế Mock dependency khi viết Unit Test",
+        "Vì từ khóa 'new' làm tiêu tốn gấp 10 lần bộ nhớ Heap của JVM so với Spring Bean",
+        "Vì từ khóa 'new' bị cấm hoàn toàn trong tất cả các phiên bản Java từ Java 17 trở lên",
+        "Vì IoC Container tự động mã hóa cơ sở dữ liệu mỗi khi đối tượng được sinh ra"
       ],
       "answer": 0,
-      "explain": "Record chỉ có tính bất biến nông (final reference). Nếu chứa mutable collection như ArrayList, bên ngoài vẫn có thể gọi .add() hoặc .clear() làm sai lệch dữ liệu. List.copyOf() tạo ra một unmodifiable list bất biến sâu.",
-      "targetLessonId": "0-3-3"
+      "explain": "IoC Container quản lý việc tạo, cấu hình và tiêm các dependency. Nhờ đó các class không bị gắn chặt (loose coupling), cho phép hoán đổi các implementation (như MockService trong test hoặc các cổng thanh toán khác nhau) mà không sửa code nghiệp vụ.",
+      "targetLessonId": "1-1-1"
     },
     {
-      "question": "Tại sao trong ứng dụng Web Spring Boot, việc lạm dụng collection.parallelStream() để gọi HTTP REST API lại dẫn đến nguy cơ sập toàn bộ máy chủ JVM?",
+      "question": "Trong Spring Boot, tại sao hầu hết các Service, Repository và Controller đều được mặc định cấu hình là Singleton Scope?",
       "options": [
-        "Vì parallelStream mặc định dùng chung ForkJoinPool.commonPool() của cả JVM; các tác vụ I/O blocking sẽ chiếm trọn worker threads làm đóng băng mọi request khác",
-        "Vì parallelStream tự động ngắt kết nối mạng sau 30 giây",
-        "Vì parallelStream chỉ chạy được trên CPU 1 nhân",
-        "Vì Spring Security chặn mọi luồng con do parallelStream sinh ra"
+        "Vì Singleton chỉ tạo đúng 1 instance duy nhất dùng chung cho mọi request, giúp tối ưu hóa tối đa bộ nhớ RAM và CPU",
+        "Vì Spring Boot không hỗ trợ các scope khác ngoài Singleton",
+        "Vì Singleton cho phép lưu trữ trạng thái riêng tư của từng khách hàng vào biến toàn cục một cách an toàn",
+        "Vì Singleton tự động ngắt kết nối database sau mỗi 5 giây không sử dụng"
       ],
       "answer": 0,
-      "explain": "ForkJoinPool.commonPool() có số worker threads giới hạn bằng (CPU Cores - 1). Nếu ném các tác vụ chờ mạng I/O vào đây, toàn bộ thread pool sẽ bị block, khiến cả JVM tê liệt.",
-      "targetLessonId": "0-2-3"
+      "explain": "Singleton Bean là stateless (phi trạng thái), được nạp 1 lần duy nhất lúc khởi động và phục vụ hàng triệu request đồng thời, giúp ứng dụng tiết kiệm RAM tối đa.",
+      "targetLessonId": "1-1-2"
     },
     {
-      "question": "Theo giải thuật Dependency Mediation của Apache Maven, khi có 2 phiên bản của cùng một thư viện xuất hiện trong cây phụ thuộc, phiên bản nào sẽ được chọn?",
+      "question": "Khi triển khai Dependency Injection trong Spring Boot 3+, tại sao Constructor Injection là chuẩn mực tối thượng được cộng đồng kiến trúc sư toàn cầu khuyến nghị?",
       "options": [
-        "Phiên bản ở độ sâu gần gốc dự án hơn (Nearest-Wins)",
-        "Phiên bản có số version cao nhất",
-        "Phiên bản có dung lượng file JAR nhỏ nhất",
-        "Phiên bản được release gần đây nhất"
+        "Constructor Injection cho phép khai báo các dependency là final (bất biến), bảo đảm an toàn đa luồng và bắt buộc truyền đủ dependency khi viết Unit Test độc lập",
+        "Constructor Injection giúp ứng dụng khởi động nhanh hơn 50% so với Field Injection",
+        "Constructor Injection tự động sinh ra mã bytecode bằng CGLIB mà không cần trình biên dịch javac",
+        "Constructor Injection cho phép bỏ qua hoàn toàn việc khai báo bean trong ApplicationContext"
       ],
       "answer": 0,
-      "explain": "Maven áp dụng nguyên tắc Nearest-Wins: dependency nào ở tầng nông hơn trong cây phân giải sẽ được chọn, bất kể version đó mới hay cũ hơn.",
-      "targetLessonId": "0-4-1"
+      "explain": "Constructor Injection kết hợp với 'final' fields bảo đảm tính bất biến (Immutability), ngăn chặn việc quên inject dependency lúc test và giúp phát hiện lỗi Circular Dependency ngay từ thời điểm biên dịch hoặc khởi động.",
+      "targetLessonId": "1-1-1"
     }
   ],
   "lessons": [
