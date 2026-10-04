@@ -1,8 +1,8 @@
-# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.2)
-## DevMastery Course & Curriculum Engineering Standard — Consensus Edition
+# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.3)
+## DevMastery Course & Curriculum Engineering Standard — Rigorous Edition
 
 > **Tài liệu đặc tả kỹ thuật bắt buộc dành cho Giảng viên, Kỹ sư Nội dung và Hệ thống AI Agent khi biên soạn hoặc thẩm định bất kỳ khóa học nào trên DevMastery Academy.**  
-> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 3-Agent (Product - Systems Architecture - Cognitive Science) và cơ chế Phân tầng Cấp độ & Thi Vượt Cấp (Multi-Level & Skill Placement Engine).*
+> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 5-Expert Council (Product, Systems Architecture, Cognitive Science, Data Engineering, DevOps) và xử lý triệt để các mâu thuẫn vận hành thực tế.*
 
 ---
 
@@ -11,9 +11,12 @@
 1. **Text-First & Interactive (Kiểu Educative):** Kỹ sư đọc và đối chiếu code nhanh gấp 2–3 lần xem video 40 giờ. Không dùng video thụ động; 100% nội dung là tài liệu kỹ thuật có thể tra cứu nhanh (`Ctrl + K`), copyable snippets và sơ đồ rõ ràng.
 2. **Nhịp độ hoàn thành Micro-Pacing (Kiểu Udemy):** Phân rã bài học theo **Single Responsibility Principle (SRP)**. Mỗi bài giải quyết trọn vẹn đúng 1 vấn đề trong **5 – 10 phút**.
 3. **Cạm bẫy & Sự cố Hậu kiểm (Kiểu ByteByteGo):** Không dạy ví dụ đồ chơi (Toy Code: `foo/bar`, `Cat/Dog`). 100% bài học xuất phát từ ngữ cảnh sản xuất: Ngân hàng, Cổng thanh toán, Sàn thương mại điện tử, Hệ thống phân tán chịu tải cao.
-4. **Cơ chế Hai Làn Học Tập (Dual-Track Progression):**
+4. **Cơ chế Hai Làn Học Tập & Quy Tắc Phân Quyền (Dual-Track Governance):**
    * **Làn Khảo sát (Audit Track):** Học viên tự do truy cập bất kỳ bài nào, không bị khóa cổng 80%, phù hợp kỹ sư cần tra cứu nhanh giải pháp gỡ lỗi tức thì tại doanh nghiệp.
    * **Làn Chứng chỉ (Certified Track):** Bắt buộc vượt qua cổng 80% Quiz từng Module và nộp Đồ án Capstone pass kiểm thử tự động mới được cấp Chứng chỉ số ký xác thực (Verified Certificate).
+   * **Quy tắc phân xử Challenge Solution & Hidden Test (Consensus Rule):**
+     * **Lời giải mẫu Thử thách (Reference Solution):** Mở cho học viên Audit Track tham khảo sau khi thử sức (giấu trong thẻ `<details>` hoặc modal xác nhận). Tuy nhiên, nếu tài khoản đã bấm xem lời giải ở Audit Track, bài giải đó sẽ bị gắn cờ `inspected: true` và **vĩnh viễn không được tính vào tiến độ thi lấy bằng của Certified Track** (muốn lấy bằng phải giải bài variant khác hoặc thi Test-Out).
+     * **Bộ kiểm thử ẩn (Hidden Test Harness):** **KHÓA TUYỆT ĐỐI 100% TRÊN CẢ HAI TRACK**. Mã nguồn bộ test ẩn chỉ nằm trên GitHub Actions runner bí mật của hệ thống. Cả hai làn chỉ nhận được Test Scorecard thông báo tên test case và nguyên nhân assertion fail, bảo vệ 100% tính toàn vẹn của kỳ thi.
 
 ---
 
@@ -24,14 +27,14 @@
 | Thông số | Bản MVP (Minimum Viable Course) | Khóa Standard hoàn chỉnh | Trần tối đa (Hard Ceiling) |
 |---|:---:|:---:|:---:|
 | **Số lượng Module** | **4 Module** | **5 – 6 Module** | **8 Module** |
-| **Số bài học / Module** | **12 – 16 bài** | **15 – 20 bài** | **22 bài** |
+| **Số bài học / Module** | **12 – 16 bài** | **15 – 20 bài** | **22 bài** (Đã tính Synthesis) |
 | **Tổng số bài học toàn khóa** | **60 – 80 bài** | **90 – 120 bài** | **Tối đa 150 bài** |
 | **Số câu Quiz / Module** | **10 – 12 câu** | **12 – 16 câu** | **Tối đa 18 câu** |
 | **Thời lượng đọc & lab / bài** | **5 – 8 phút** | **6 – 10 phút** | **Tối đa 15 phút** |
 | **Đồ án Capstone** | 1 đồ án Mini-Service | 1 đồ án End-to-End | 1 hệ thống hoàn chỉnh |
 
 > [!IMPORTANT]
-> **Quy tắc trần cứng (Ceiling Rule):** Tuyệt đối không sinh khóa học vượt quá 150 bài vi mô hoặc module quá 22 bài. Nếu một chủ đề quá rộng, bắt buộc phải tách thành các khóa học độc lập theo từng cấp độ (Level).
+> **Quy tắc trần cứng (Ceiling Rule):** Tuyệt đối không sinh khóa học vượt quá 150 bài vi mô hoặc module quá 22 bài. **Bài Milestone Synthesis bắt buộc tính vào trần 22 bài này** (không được coi là bài phụ nằm ngoài định mức). Nếu một chủ đề quá rộng, bắt buộc phải tách thành các khóa học độc lập theo từng cấp độ (Level).
 
 ### 2.1. Quy Chuẩn Phân Tầng Cấp Độ (Multi-Level Course Segmentation — 3-Stage Career Track)
 
@@ -41,41 +44,52 @@ Mọi ngăn xếp công nghệ lớn (như Java/Spring Boot, React/Next.js, Clou
 
 ```mermaid
 flowchart LR
-    L1["<b>LEVEL 1: FOUNDATION</b><br>Spring Boot Core & Clean REST API<br><i>(Zero → Junior)</i><br>⏱ ~12h · 30-35 bài micro<br>🎓 Bằng: Junior Developer"] 
-    --> L2["<b>LEVEL 2: PROFESSIONAL</b><br>Enterprise Security, JPA & Testing<br><i>(Junior → Mid-Level)</i><br>⏱ ~15h · 35-40 bài micro<br>🎓 Bằng: Enterprise Engineer"]
-    --> L3["<b>LEVEL 3: ARCHITECT</b><br>Microservices, Kafka & High-Scale<br><i>(Mid → Senior/Lead)</i><br>⏱ ~18h · 40-45 bài micro<br>🎓 Bằng: Solutions Architect"]
+    L1["<b>LEVEL 1: FOUNDATION</b><br>Spring Boot Core & Clean REST API<br>⏱ ~12h · 30-35 bài micro<br>🎓 Bằng: DevMastery Certified: Spring Boot Foundation"] 
+    --> L2["<b>LEVEL 2: PROFESSIONAL</b><br>Enterprise Security, JPA & Testing<br>⏱ ~15h · 35-40 bài micro<br>🎓 Bằng: DevMastery Certified: Spring Boot Professional"]
+    --> L3["<b>LEVEL 3: ARCHITECT</b><br>Microservices, Kafka & High-Scale<br>⏱ ~18h · 40-45 bài micro<br>🎓 Bằng: DevMastery Certified: Spring Boot Architect"]
 ```
 
-#### Phân tách thực tế đối với khóa Spring Boot:
-* **Khóa 1 (Level 1 — Foundation): `spring-boot-foundation`**
+#### Quy chuẩn Tách biệt Thực thể (Object Separation Principle):
+* **Lộ trình (Track / Career Path)** và **Khóa học (Course)** là **HAI OBJECT HOÀN TOÀN TÁCH BIỆT**:
+  * `Track` gom nhóm các Khóa học theo thứ tự tăng dần.
+  * `Course` là một đơn vị độc lập, bắt buộc có `level` thuộc danh sách enum hợp lệ: `"Foundation" | "Professional" | "Architect"`.
+  * **CẤM TUYỆT ĐỐI** gán `level: "Zero to Production"` trong schema Khóa. Một khóa học không thể bao thầu toàn bộ phổ kiến thức từ con số 0 đến cấp độ sản xuất cao cấp.
+* **Danh xưng chứng chỉ:** Bắt buộc là **Tên Khóa Học Đã Xác Thực** (`DevMastery Certified: [Tên Khóa]`), tuyệt đối không cấp chức danh nghề nghiệp ("Junior Developer", "Enterprise Engineer", "Solutions Architect") vì chức danh nghề thuộc quyền bổ nhiệm của doanh nghiệp tuyển dụng.
+
+#### Phân tách thực tế đối với Lộ trình Spring Boot:
+* **Khóa 1 (Level: `Foundation`): `spring-boot-foundation`**
   - Gồm Module 0 (Java 21/Maven) + Module 1 (Spring Core/IoC/DI) + Module 2 (REST API, RFC 7807).
   - Mục tiêu: Từ Zero viết được REST API chuẩn mực doanh nghiệp, hiểu rõ Bean lifecycle.
-* **Khóa 2 (Level 2 — Professional): `spring-boot-professional`**
+  - Chứng chỉ: `DevMastery Certified: Spring Boot Foundation`.
+* **Khóa 2 (Level: `Professional`): `spring-boot-professional`**
   - Gồm Module 3 (JPA/Hibernate N+1, Locking) + Module 4 (JUnit 5, Testcontainers) + Module 5 (Spring Security 6, JWT, Keycloak).
   - Mục tiêu: Tối ưu hóa Database, bảo mật ngân hàng, test tự động đạt chuẩn CI/CD.
-* **Khóa 3 (Level 3 — Architect): `spring-boot-architect`**
+  - Chứng chỉ: `DevMastery Certified: Spring Boot Professional`.
+* **Khóa 3 (Level: `Architect`): `spring-boot-architect`**
   - Gồm Module 6 (Kafka, Transactional Outbox, Saga, Redis) + Module 7 (Kubernetes, Observability, Capstone Project).
   - Mục tiêu: Thiết kế hệ thống phân tán chịu tải cao, giao dịch phân tán không mất dữ liệu, tự động hóa deploy cloud.
+  - Chứng chỉ: `DevMastery Certified: Spring Boot Architect`.
 
 ---
 
 ## 3. Cấu Trúc Thứ Bậc Dữ Liệu Đồng Nhất (Unified Hierarchy)
 
-Để mã bài học (`Bài 1.2.3`), URL deep-link và Sidebar luôn khớp nhau 100%, cấu trúc phân cấp dữ liệu trong code bắt buộc tuân thủ **4 cấp độ đồng nhất**:
+Để mã bài học (`Bài 1.2.3`), URL deep-link và Sidebar luôn khớp nhau 100%, cấu trúc phân cấp dữ liệu trong code bắt buộc tuân thủ **5 cấp độ từ Lộ trình xuống Bài học**:
 
 ```mermaid
 graph TD
-    Course["Khóa học (Course)<br>id: spring-boot-mastery"] --> M["Module (Học phần lớn)<br>id: 1, title: Spring Core"]
+    Track["Lộ trình (Track)<br>id: spring-boot-track"] --> Course["Khóa học (Course)<br>id: spring-boot-foundation<br>level: Foundation"]
+    Course --> M["Module (Học phần lớn)<br>id: 1, title: Spring Core"]
     M --> T["Topic Cluster (Cụm chủ đề)<br>id: 2, title: Dependency Injection"]
     T --> L1["Micro-Lesson 1.2.1 (Theory - 6p)"]
     T --> L2["Micro-Lesson 1.2.2 (Practice - 8p)"]
     T --> L3["Micro-Lesson 1.2.3 (Pitfall - 5p)"]
-    T --> L4["Milestone Synthesis 1.2.4 (Tổng hợp luồng - 6p)"]
+    T --> L4["Milestone Synthesis 1.2.4 (Tổng hợp luồng - 6p, tính vào trần 22 bài)"]
     M --> QZ["🏆 Capstone Quiz Module 1 (12 - 16 câu scenario)"]
 ```
 
 ### Quy tắc sinh Lesson ID & Title:
-* **Mã ID:** `[moduleId]-[topicIndex]-[subIndex]` (Ví dụ: `1-2-1`, `1-2-2`, `1-2-3`).
+* **Mã ID bài học:** `[moduleId]-[topicIndex]-[subIndex]` (Ví dụ: `1-2-1`, `1-2-2`, `1-2-3`, `1-2-4`).
 * **Tiêu đề bài học:**
   $$\text{Bài } [Module].[Topic].[Sub]: \text{ [Tên Kỹ Thuật Đơn Nhất]}$$
   *Ví dụ:* `Bài 1.2.1: Cơ chế ngầm: Inversion of Control & ApplicationContext Pipeline`
@@ -85,36 +99,72 @@ graph TD
 
 ## 4. Đặc Tả Dữ Liệu (Data Schema Standards)
 
-### 4.1. Course Schema (`course_[tech].js` / `app.js`)
-Loại bỏ hoàn toàn các số liệu marketing hardcode (`rating`, `studentsCount`). Phải có `outcomes`, `prerequisites`, `notFor`, `stackVersion`.
+> [!IMPORTANT]
+> **Quy tắc Dữ liệu Tĩnh (Static Data Rule):** Mọi mẫu schema và dữ liệu ví dụ trong spec bắt buộc là **object tĩnh, hợp lệ 100%, copy-paste dùng được ngay**. Tuyệt đối không nhét biểu thức logic, điều kiện ternary `(a ? b : c)` hay hàm tính toán vào data structure.
+
+### 4.1. Track Schema (`track_[tech].json` / `track.js`)
+Lộ trình là object gom nhóm các khóa học độc lập theo từng chặng milestone:
 
 ```javascript
 {
-  id: "spring-boot-mastery",
-  title: "Spring Boot Mastery — Từ Zero Đến Production",
-  shortTitle: "Spring Boot Mastery",
-  icon: "🍃",
-  badge: "Backend & Microservices",
-  category: "backend",                    // "backend" | "frontend" | "devops" | "cloud"
-  level: "Zero to Production",            // "Foundation" | "Zero to Production" | "Advanced"
-  hours: "~35h",                          // Tổng giờ đọc và hoàn thành lab thực tế
+  id: "spring-boot-track",
+  title: "Lộ Trình Kỹ Sư Spring Boot & Kiến Trúc Phân Tán",
+  slug: "spring-boot-career-track",
+  category: "backend",
+  desc: "Lộ trình 3 chặng từ nền tảng Spring Boot đến kiến trúc Microservices và bảo mật doanh nghiệp.",
+  stages: [
+    {
+      level: "Foundation",
+      courseId: "spring-boot-foundation",
+      title: "Spring Boot Foundation — Core & Clean REST API",
+      certificate: "DevMastery Certified: Spring Boot Foundation"
+    },
+    {
+      level: "Professional",
+      courseId: "spring-boot-professional",
+      title: "Spring Boot Professional — JPA, Security & Testing",
+      certificate: "DevMastery Certified: Spring Boot Professional"
+    },
+    {
+      level: "Architect",
+      courseId: "spring-boot-architect",
+      title: "Spring Boot Architect — Kafka, Outbox & High-Scale",
+      certificate: "DevMastery Certified: Spring Boot Architect"
+    }
+  ]
+}
+```
+
+### 4.2. Course Schema (`course_[tech].json` / `course.js`)
+Mỗi khóa học là một thực thể độc lập thuộc một level duy nhất (`Foundation`, `Professional`, hoặc `Architect`). Cấm tuyệt đối `level: "Zero to Production"`.
+
+```javascript
+{
+  id: "spring-boot-foundation",
+  trackId: "spring-boot-track",
+  title: "Spring Boot 3 Core & RESTful API Architecture",
+  shortTitle: "Spring Boot Foundation",
+  icon: "🌱",
+  badge: "Foundation Level",
+  category: "backend",
+  level: "Foundation",                    // "Foundation" | "Professional" | "Architect" (CẤM: "Zero to Production")
+  hours: "~12h",                          // Tổng giờ đọc và hoàn thành lab thực tế
   
   // Định hướng đối tượng & Cam kết đầu ra
-  desc: "Lộ trình đào tạo toàn diện Spring Boot 3 & Java 21, kiến trúc Microservices và bảo mật doanh nghiệp.",
+  desc: "Nắm vững nguyên lý cốt lõi Spring Framework, IoC Container, Bean Lifecycle và xây dựng RESTful API chuẩn RFC 7807.",
   outcomes: [
-    "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 với Spring Boot 3",
-    "Làm chủ vòng đời Bean, AOP Proxy và khắc phục dứt điểm cạm bẫy Self-Invocation",
-    "Tối ưu truy vấn JPA/Hibernate, triệt tiêu lỗi N+1 bằng EntityGraph và Projections",
-    "Bảo vệ hệ thống với Spring Security 6, JWT và phân quyền OAuth2/Keycloak",
-    "Đóng gói Docker Layered Jar và triển khai Kubernetes với Zero-Downtime"
+    "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails",
+    "Làm chủ vòng đời Bean, ApplicationContext và khắc phục dứt điểm cạm bẫy Circular Dependency",
+    "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web, Service và Repository Layer",
+    "Viết Unit Test cho Service Layer sử dụng Mockito và AssertJ đạt độ bao phủ chuẩn"
   ],
   prerequisites: [
-    "Đã nắm vững cú pháp Java Core cơ bản (OOP, Interface, Collections)",
+    "Đã nắm vững cú pháp Java Core cơ bản (OOP, Interface, Collections, Java Record)",
     "Biết sử dụng Git cơ bản và hiểu nguyên lý hoạt động của HTTP/REST"
   ],
   notFor: [
     "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java Core trước)",
-    "Người chỉ tìm kiếm video lý thuyết để ngồi xem thụ động"
+    "Kỹ sư Senior đã thành thạo Spring Core cần học kiến trúc phân tán (nên đăng ký khóa Architect)"
   ],
 
   // Quản trị vòng đời công nghệ (Tech Lifecycle)
@@ -126,8 +176,8 @@ Loại bỏ hoàn toàn các số liệu marketing hardcode (`rating`, `students
     maintainer: "DevMastery Architecture Council"
   },
 
-  // Chỉ số thống kê (TÁCH BIỆT: Chỉ render khi có dữ liệu thật từ database)
-  stats: null, // Hoặc: { rating: 4.9, reviewsCount: 380, enrolledCount: 1250 }
+  // Chỉ số thống kê (TÁCH BIỆT: Chỉ render khi có dữ liệu telemetry thật từ database)
+  stats: null,
 
   themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
   isAvailable: true,
@@ -135,12 +185,13 @@ Loại bỏ hoàn toàn các số liệu marketing hardcode (`rating`, `students
 }
 ```
 
-### 4.2. Module Schema
-Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí nhớ từ module trước) và mảng `topics`:
+### 4.3. Module Schema (`module_[id].json` / `module.js`)
+Module bắt buộc có `outcomes`, `retrievalWarmup` dạng object tĩnh (mảng tĩnh gồm 3 câu hỏi cho Module 1+; hoặc `null` tĩnh cho Module 0), và mảng `topics`:
 
 ```javascript
 {
   id: 1,
+  courseId: "spring-boot-foundation",
   title: "Spring Core & Container Internals",
   subtitle: "IoC Container, Dynamic Proxy, Bean Lifecycle & Auto-configuration",
   icon: "🌱",
@@ -153,12 +204,41 @@ Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí n
     "Tự viết được Spring Boot Starter tái sử dụng trong nội bộ doanh nghiệp"
   ],
 
-  // Kích hoạt trí nhớ (Spaced Retrieval): 3 câu trắc nghiệm nhanh kiểm tra module trước
-  retrievalWarmup: (moduleId === 0) ? null : [
+  // Kích hoạt trí nhớ (Spaced Retrieval): 3 câu trắc nghiệm tĩnh kiểm tra module trước
+  // GHI CHÚ: Đối với Module 0, giá trị này bắt buộc là null tĩnh: retrievalWarmup: null
+  retrievalWarmup: [
     {
       q: "Điểm khác biệt cốt lõi giữa Java Record và Class thông thường là gì?",
-      options: ["Record có thể kế thừa class khác", "Record mặc định bất biến (immutable) và final", "Record không có equals/hashCode", "Record chỉ chạy trên JVM 8"],
-      answer: 1
+      options: [
+        "Record có thể kế thừa class khác bằng từ khóa extends",
+        "Record mặc định bất biến (immutable), final và tự sinh canonical constructor",
+        "Record không thể triển khai (implements) interface",
+        "Record chỉ tương thích với JVM 8 trở xuống"
+      ],
+      answer: 1,
+      explain: "Java Record tự động sinh constructor chuẩn, getter (không có tiền tố get), equals, hashCode và toString, đồng thời là final class không thể kế thừa."
+    },
+    {
+      q: "Annotation nào kích hoạt quá trình quét component tự động trong Spring Boot?",
+      options: [
+        "@EnableAutoConfiguration",
+        "@ComponentScan",
+        "@SpringBootConfiguration",
+        "@Configuration"
+      ],
+      answer: 1,
+      explain: "@ComponentScan chịu trách nhiệm quét các package để tìm kiếm các bean có gắn annotation @Component, @Service, @Repository, @Controller."
+    },
+    {
+      q: "Trong Java 21, tính năng nào giúp thực thi hàng triệu luồng I/O nhẹ mà không tốn nhiều RAM hệ thống?",
+      options: [
+        "CompletableFuture",
+        "Virtual Threads (Project Loom)",
+        "Parallel Streams",
+        "ForkJoinPool"
+      ],
+      answer: 1,
+      explain: "Virtual Threads trong Java 21 do JVM quản lý ở user space, cho phép mở hàng triệu luồng đồng thời mà không bị giới hạn bởi 1:1 OS Thread."
     }
   ],
 
@@ -166,16 +246,16 @@ Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí n
     {
       id: 1,
       title: "Inversion of Control & Dependency Injection",
-      lessons: [ ... ] // 3 - 5 micro-lessons
+      lessons: [ ... ] // 3 - 5 micro-lessons (tính cả bài Synthesis)
     },
     {
       id: 2,
       title: "AOP & Dynamic Proxies",
-      lessons: [ ... ] // 3 - 5 micro-lessons
+      lessons: [ ... ] // 3 - 5 micro-lessons (tính cả bài Synthesis)
     }
   ],
 
-  // Bài thi sát hạch cuối module (12 - 16 câu)
+  // Bài thi sát hạch cuối module (12 - 16 câu scenario)
   quiz: {
     id: "1-quiz",
     title: "Sát Hạch Năng Lực Module 1: Spring Core & Container",
@@ -200,7 +280,7 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 | **Lệnh kiểm thử (cURL / Test Command)** | Không | **BẮT BUỘC** | **BẮT BUỘC** | Không | Không |
 | **Triệu chứng lỗi & Post-Mortem** | Không cần | Không cần | **BẮT BUỘC** | Không cần | Không cần |
 | **Gợi ý giấu kín (Collapsible Hint)** | Không | Không | Không | **BẮT BUỘC** | Không |
-| **Reference Solution & Trade-offs** | Không | Không | Không | **BẮT BUỘC** | Không |
+| **Reference Solution & Trade-offs** | Không | Không | Không | **BẮT BUỘC (Audit có cờ)** | Không |
 | **Khối hộp ghi nhớ (`:::tip`, `:::warn`)** | `:::takeaways` | `:::tip` | `:::warn` / `:::danger` | `:::takeaways` | `:::takeaways` |
 
 ### 5.1. Cấu trúc bài `theory` (Thời lượng: 5 – 7 phút)
@@ -225,32 +305,41 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 * **Quy tắc Scaffolding:** Không bắt học viên viết từ đầu (Zero-scratch). Cung cấp sẵn một repo starter kit với 90% phần khung đã chạy, học viên chỉ cần điền đúng **1 hàm thuật toán lõi** hoặc **sửa đúng 1 file cấu hình lỗi** (Bug Bounty format).
 * **Đặc tả yêu cầu & Ràng buộc:** Rõ ràng I/O, thời gian thực thi tối đa, memory footprint.
 * **Gợi ý từng bước:** Giấu sau thẻ `<details>` để học viên tự tư duy trước.
-* **Lời giải mẫu chuẩn:** Reference Solution đạt tiêu chuẩn Senior kèm phân tích đánh đổi (Trade-offs).
+* **Lời giải mẫu chuẩn (Reference Solution):** Lời giải đạt tiêu chuẩn Senior kèm phân tích đánh đổi (Trade-offs). Mở cho học viên Audit Track xem nhưng gắn cờ cấm nộp sang Certified Track.
 
 ### 5.5. Cấu trúc bài `synthesis` (Thời lượng: 5 – 8 phút) — Chống Phân Mảnh Kiến Thức
 * **Vị trí:** Nằm ở cuối mỗi Topic Cluster (sau 3–5 bài micro-learning).
+* **Quy tắc định mức:** **Bài Synthesis được tính trực tiếp vào trần cứng 22 bài/module** (mang mã ID micro-lesson chuẩn, ví dụ: `1-2-4`), không được xem là bài ngoại lệ nằm ngoài giới hạn.
 * **Bản đồ luồng toàn cảnh (Grand Schema Map):** 1 sơ đồ Mermaid lớn kết nối toàn bộ các thành phần đã học thành 1 chu trình nghiệp vụ khép kín.
 * **Bảng tổng kết quyết định (Decision Matrix):** Khi nào dùng kỹ thuật A vs khi nào dùng kỹ thuật B.
 
 ---
 
-## 6. Quy Chuẩn Phần Cứng & Thoái Lui Mềm (Hardware Tolerance)
+## 6. Quy Chuẩn Phần Cứng & Profile Môi Trường Theo Từng Level (Hardware Tolerance & Execution Profiles)
 
-Để đảm bảo học viên dùng máy tính 8GB – 16GB RAM vẫn thực hành được trọn vẹn mà không bị tràn RAM Docker:
+Để đảm bảo vừa phản ánh đúng bản chất kỹ thuật sản xuất, vừa hỗ trợ học viên máy tính cấu hình khiêm tốn (8GB – 16GB RAM):
 
-1. **Profile `local-lite` (Bắt buộc cho mọi bài thực hành):**
-   * Sử dụng cơ sở dữ liệu In-Memory (H2 Database, Embedded Redis, MockWebServer).
-   * Mức tiêu thụ RAM tối đa cho phép: `< 1.5 GB RAM`. Máy 8GB RAM chạy mượt mà.
-2. **Profile `enterprise-docker` (Tùy chọn nâng cao):**
-   * Dùng Docker Compose / Testcontainers thật (PostgreSQL, Kafka, Redis, Keycloak).
-   * Dành cho học viên máy mạnh (16GB+ RAM) muốn thử nghiệm sát hạch môi trường tải cao.
+### 6.1. Phân Tầng Profile Theo Cấp Độ Khóa Học
+
+1. **Level 1 (Foundation):**
+   * Cho phép sử dụng In-Memory components: **H2 Database, Embedded Redis, MockWebServer**.
+   * Profile mặc định: `local-lite`. Mức tiêu thụ RAM tối đa: `< 1.5 GB RAM`.
+   * Mục tiêu: Học viên tập trung học cú pháp Spring Core, Bean IoC và HTTP/REST API mà không cần cài đặt Docker phức tạp.
+
+2. **Level 2 (Professional) & Level 3 (Architect):**
+   * **CẤM DÙNG H2 DATABASE CHO CÁC BÀI DATA VÀ CONCURRENCY!**
+     * *Lý do kỹ thuật:* H2 không mô phỏng được MVCC engine thực tế, không có PostgreSQL/MySQL row-level locking, gap locking, deadlock detection hay cạm bẫy connection leak HikariCP. Nếu chỉ pass trên H2 thì các bài phân tích N+1 và Locking trở thành lý thuyết suông.
+   * **Bắt buộc có Profile thật (`enterprise-docker`):** Sử dụng PostgreSQL/MySQL và Redis thật thông qua Docker Compose hoặc Testcontainers.
+   * **Đường Thoái Lui Cho Máy Yếu (Low-spec Fallback Pathway):**
+     * Cung cấp file `docker-compose.lite.yml` với giới hạn tài nguyên khắt khe: PostgreSQL (`mem_limit: 512m`, `cpus: 0.5`), Redis (`mem_limit: 128m`).
+     * Cung cấp sẵn cấu hình kết nối tới Free Cloud Database (như Supabase, Neon Postgres, Aiven Redis) qua file `application-cloud-dev.yml` chỉ bằng 1 biến môi trường URL, đảm bảo học viên máy yếu 8GB RAM vẫn chạy kiểm thử trên Database thật mà không bị treo máy.
 
 ---
 
-## 7. Quy Chuẩn Đề Thi Sát Hạch (Capstone Quiz Standard)
+## 7. Quy Chuẩn Đề Thi Sát Hạch & Cơ Chế Đánh Giá (Quiz & Placement Standard)
 
-### 7.1. Định mức & Tiêu chí
-* **Số lượng:** **12 đến 16 câu hỏi** cho mỗi Module (không làm 30–50 câu loãng chất lượng).
+### 7.1. Định mức & Tiêu chí Capstone Quiz Module
+* **Số lượng:** **12 đến 16 câu hỏi tình huống** cho mỗi Module (không làm 30–50 câu loãng chất lượng).
 * **100% câu hỏi tình huống (Scenario-Based):** Phân tích sự cố hạ tầng, lỗi race condition, deadlock, memory leak. Cấm câu hỏi định nghĩa từ điển.
 * **4 Đáp án phân hóa (Plausible Distractors):** Đáp án sai phải phản ánh đúng những sai lầm thường gặp của lập trình viên Junior/Mid.
 * **Bắt buộc phân tích đáp án (Deep Explanation):** Chỉ rõ tại sao đáp án đúng là giải pháp chuẩn, và tại sao từng đáp án sai sẽ gây ra lỗi gì ở production.
@@ -259,67 +348,47 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 * **Ngưỡng đạt (Pass Threshold):** Trả lời đúng **tối thiểu 80%** (ví dụ: đúng 13/16 câu) trên *Certified Track*.
 * **Cơ chế thi lại:** Nếu chưa đạt 80%, đề thi sẽ tự động tráo thứ tự câu hỏi và phương án. Hệ thống chỉ rõ học viên cần đọc lại bài vi mô cụ thể nào trước khi thi lại.
 
-### 7.3. Quy Chuẩn Bài Test Đánh Giá Đầu Vào & Vượt Cấp (Skill Placement & Test-Out Engine)
+### 7.3. Quy Chuẩn Bài Test Đánh Giá Đầu Vào & Vượt Cấp (Skill Placement & Module Test-Out Engine)
 
-Để loại bỏ hoàn toàn tình trạng kỹ sư Mid/Senior phải học lại bài cơ bản (syntax, Bean IoC) và bảo vệ Junior không bị ngợp, hệ thống áp dụng cơ chế **Bài Test Đánh Giá Năng Lực Đầu Vào (Skill Placement Test)** và **Cơ chế Thi Vượt Cấp (Test-Out Engine)**:
-
-#### 1. Cấu trúc Đề Test Đầu Vào Chuẩn (15 Scenario Questions — 20 Phút)
-Đề thi đánh giá năng lực gồm đúng **15 câu hỏi tình huống thực tế**, phân bổ đều qua 3 tầng năng lực:
-* **Tầng 1 (5 câu Foundation - Level 1):**
-  * Tình huống về IoC Container, Bean Scope (`singleton` vs `prototype`), Bean Lifecycle.
-  * Thiết kế RESTful API, HTTP Status Code chuẩn, xử lý ngoại lệ RFC 7807 ProblemDetails.
-* **Tầng 2 (5 câu Professional - Level 2):**
-  * Tình huống Hibernate N+1 Query, LazyInitializationException, Indexing, Transaction Isolation & Locking.
-  * Tình huống cấu hình Spring Security 6 SecurityFilterChain, JWT Claims, CORS/CSRF, Testcontainers integration testing.
-* **Tầng 3 (5 câu Architect - Level 3):**
-  * Tình huống Distributed Transaction, Transactional Outbox Pattern, Apache Kafka Idempotent Consumer, Saga Pattern.
-  * Tình huống Redis Cache Stampede, Circuit Breaker (Resilience4j), Kubernetes Graceful Shutdown & Zero-Downtime Deployment.
-
-#### 2. Ma Trận Phân Luồng Tự Động (Diagnostic Routing Matrix)
-Dựa trên kết quả bài test 15 câu, hệ thống tự động gợi ý và điều hướng học viên:
+#### 1. Bài Test Đánh Giá Đầu Vào (Placement Test — 15 Câu Tình Huống / 20 Phút)
+* **VAI TRÒ DUY NHẤT: GỢI Ý & TƯ VẤN LỘ TRÌNH (Advisory Placement Only)**.
+* **CẤM TUYỆT ĐỐI DÙNG BÀI 15 CÂU ĐỂ MIỄN CHỨNG CHỈ CẤP DƯỚI!** Kết quả bài test chỉ giúp học viên biết mình nên bắt đầu học từ khóa nào để không lãng phí thời gian, hoàn toàn KHÔNG cấp chứng chỉ của bất kỳ Level nào.
 
 | Điểm số đạt được | Tỷ lệ chính xác | Đánh giá năng lực | Luồng điều hướng đề xuất (Recommended Path) |
 |---|:---:|---|---|
-| **0 – 7 / 15** | `< 50%` | **Chưa vững nền tảng (Foundation Gap)** | Bắt đầu từ **Level 1 (Foundation)**. Khuyến cáo không nhảy cóc để tránh gãy kiến thức cốt lõi. |
-| **8 – 11 / 15** | `50% – 79%` | **Đã có kinh nghiệm cơ bản (Mid-ready)** | Miễn học Level 1. Vào thẳng **Level 2 (Professional)** để học sâu JPA internals, Security 6 và Testing thực chiến. |
-| **12 – 15 / 15** | `≥ 80%` | **Kỹ sư dày dạn (Senior / Lead)** | Miễn học Level 1 & Level 2. Vào thẳng **Level 3 (Architect)** để tập trung vào Microservices, Kafka và Hệ thống phân tán. |
+| **0 – 7 / 15** | `< 50%` | **Chưa vững nền tảng (Foundation Gap)** | Khuyến nghị bắt đầu từ **Khóa Foundation (Level 1)** để củng cố nền tảng cốt lõi. |
+| **8 – 11 / 15** | `50% – 79%` | **Đã có kinh nghiệm cơ bản (Mid-ready)** | Khuyến nghị học thẳng **Khóa Professional (Level 2)** để đào sâu Database & Security. |
+| **12 – 15 / 15** | `≥ 80%` | **Kỹ sư dày dạn (Senior / Lead)** | Khuyến nghị học thẳng **Khóa Architect (Level 3)** để làm chủ Hệ thống phân tán. |
 
-#### 3. Quy Tắc Thi Vượt Cấp (Test-Out Engine Policy)
-* **Quyền chủ động của học viên:** Học viên có quyền chọn làm bài Test-Out bất kỳ lúc nào để mở khóa ngay Level hoặc Module tiếp theo mà không cần hoàn thành tuần tự từng bài vi mô.
-* **Cơ chế Fast Track vs Deep Track:** Nếu học viên chọn Test-Out vào Level cao hơn nhưng sau đó gặp khó khăn, hệ thống cho phép lùi lại xem các bài vi mô ở Level thấp hơn mà không bị mất tiến độ đã làm.
-* **Chống gian lận & Bảo vệ tính xác thực (Integrity Guard):**
-  * Thời gian làm bài giới hạn đúng **20 phút / 15 câu** (trung bình 80 giây/câu tình huống, triệt tiêu thời gian tra cứu Google/ChatGPT).
-  * Ngân hàng đề xoay vòng tối thiểu 60 câu tình huống, thuật toán tráo ngẫu nhiên thứ tự câu hỏi và phương án.
-  * Cấm copy/paste câu hỏi ra ngoài giao diện làm bài.
+#### 2. Quy Tắc Thi Vượt Cấp Chuẩn Từng Module (Module Test-Out Engine)
+* Nếu học viên muốn bỏ qua các module để lấy chứng chỉ hoặc mở khóa có điều kiện ở Làn Chứng Chỉ (Certified Track), học viên **BẮT BUỘC PHẢI THI TEST-OUT ĐÚNG TỪNG MODULE** (vượt qua bài Quiz Sát hạch 12–16 câu tình huống của module đó với kết quả `≥ 80%`).
+* Tuyệt đối không chấp nhận cơ chế "làm 1 bài 15 câu miễn toàn bộ cấp độ". Mỗi module có chuẩn đầu ra riêng biệt và bắt buộc phải được bảo chứng bằng bài sát hạch của chính module đó.
 
 ---
 
-## 8. Quy Chuẩn Đồ Án Tốt Nghiệp Cuối Khóa (Capstone Project & Automated Grading)
+## 8. Quy Chuẩn Đồ Án Tốt Nghiệp Cuối Khóa (Capstone Project & Phân Tầng Rubric)
 
-Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến (Capstone Project)**, không dùng trắc nghiệm làm thước đo.
+Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến (Capstone Project)**, không dùng trắc nghiệm làm thước đo tốt nghiệp.
 
-### 8.1. Hệ Thống Chấm Điểm Tự Động (Automated Grading Harness)
-Để đảm bảo tính khách quan và giảm 90% chi phí vận hành:
+### 8.1. Cổng Đỗ Tốt Nghiệp Bắt Buộc (Mandatory Pass Gate — Máy Chấm Tự Động)
+Để đảm bảo tính khách quan tuyệt đối, loại bỏ cảm tính và kiểm soát chi phí hạ tầng (ngân sách CI `< 4 phút` trên standard runner):
 1. Học viên nộp đường link GitHub repository cá nhân.
 2. **GitHub Actions Test Runner của DevMastery** tự động clone và kích hoạt:
-   * `mvn test`: Chạy bộ test ẩn (Hidden Test Suite) xác thực 100% logic nghiệp vụ.
-   * `ArchUnit Scanner`: Kiểm tra tính toàn vẹn kiến trúc phân tầng (không import chéo, không vi phạm Clean Architecture).
-   * `k6 Runner`: Chạy kịch bản tải 500 TPS đo P95 Latency và kiểm tra Memory Leak.
-3. Hệ thống sinh Scorecard tự động sau 3 phút.
+   * **`mvn test` (Hidden Test Suite):** Chạy 100% bộ test ẩn xác thực logic nghiệp vụ và edge cases. Pass 100% là điều kiện tiên quyết.
+   * **`ArchUnit Scanner`:** Kiểm tra tính toàn vẹn kiến trúc **đúng tầm của từng Level** (Level 1 kiểm tra phân tầng API/Service/Repo; Level 2 kiểm tra ranh giới Domain & Transaction; Level 3 kiểm tra Hexagonal/Modular Monolith).
+3. Hệ thống trả về Scorecard tự động sau 3–4 phút. Vượt qua 2 cổng này là **ĐỦ ĐIỀU KIỆN TỐT NGHIỆP**.
 
-### 8.2. Socratic AI Code Reviewer (Review Tài Liệu ADR)
-* AI đóng vai trò Kỹ sư Trưởng (Principal Reviewer), phân tích file `ADR.md` (Architecture Decision Record) của học viên.
-* AI đặt ra **2 câu hỏi phản biện chuyên sâu** về đánh đổi kỹ thuật (Trade-offs). Học viên bảo vệ được giải pháp của mình mới đạt chuẩn tốt nghiệp.
+### 8.2. Hạng Mục Phân Hóa / Điểm Cộng Xuất Sắc (Bonus & Distinction — Không Phải Cổng Chặn)
+* **k6 Load Testing (500 TPS / P95 Latency):** Chạy theo hàng đợi riêng (queue), đo đạc hiệu năng và rò rỉ bộ nhớ. Là **Điểm cộng xếp loại Xuất sắc (Distinction Badge)** trên chứng chỉ, **KHÔNG DÙNG LÀM CỔNG CHẶN TỐT NGHIỆP** (tránh đánh trượt oan do biến động CPU/mạng của runner).
+* **Phản biện Tài Liệu ADR với AI:** AI Kỹ sư Trưởng đóng vai trò Mentor phân tích file `ADR.md` (Architecture Decision Record) và đưa ra 2 câu hỏi phản biện chuyên sâu. Phần phản biện này được ghi chú nhận xét chuyên môn trên Scorecard, **AI KHÔNG ĐƯỢC QUYỀN ĐÁNH ĐỖ/TRƯỢT HỌC VIÊN**. Quyền đỗ/trượt hoàn toàn thuộc về máy chấm khách quan.
 
-### 8.3. Bảng Rubric Đánh Giá (Grading Rubric Matrix)
+### 8.3. Bảng Rubric Đánh Giá Phân Tầng Theo Level (Grading Rubric Matrix)
 
-| Tiêu chí | Cần cải thiện (0 điểm) | Đạt yêu cầu (1 điểm) | Xuất sắc (2 điểm) |
-|---|---|---|---|
-| **Clean Architecture** | Controller gọi trực tiếp Repository, logic nghiệp vụ lẫn lộn. | Phân tầng rõ ràng (API, Service, Domain, Persistence). Áp dụng DTO & MapStruct. | Tuân thủ Hexagonal / Modular Monolith, Domain Model thuần khiết, zero cycle dependencies. |
-| **Error Handling & Validation** | Bỏ qua try/catch hoặc trả về HTTP 500 chung chung. | Có GlobalExceptionHandler, trả về JSON chuẩn RFC 7807 ProblemDetails. | Custom Business Exceptions rõ ràng, có trace ID phân tán và logging chi tiết. |
-| **Database & Concurrency** | Lỗi N+1 tràn lan, không đánh Index, không xử lý tranh chấp dữ liệu. | Dùng JOIN FETCH/EntityGraph, đánh Index đúng cột, dùng Transaction chuẩn. | Xử lý Pessimistic/Optimistic Locking chống bán âm hàng Flash Sale, audit log tự động. |
-| **Testing & CI/CD** | Không viết test hoặc test mock hết không có giá trị. | Unit test phủ các luồng chính, có chạy Testcontainers kiểm thử DB thực tế. | Phủ 80%+ test, có Contract Test (Pact) hoặc Chaos Engineering mô phỏng đứt mạng. |
-| **Production Readiness** | Không có Docker, không có Actuator health check. | Có Dockerfile multi-stage, cấu hình Spring Boot Actuator `/health` và metrics. | Docker Layered Jar tối ưu cache, cấu hình Prometheus/Grafana dashboard, graceful shutdown. |
+| Cấp độ khóa học | Tiêu chí Cổng Đỗ Bắt Buộc (Pass Gate — Hidden Test + ArchUnit) | Tiêu chí Phân Hóa Xuất Sắc (Distinction Bonus — k6 + ADR) |
+|---|---|---|
+| **Level 1 (Foundation)** | • API Contract chuẩn REST, validation DTO chặt chẽ.<br>• Xử lý lỗi trả về đúng chuẩn RFC 7807 ProblemDetails.<br>• ArchUnit: Controller không gọi trực tiếp Repository, không lộ Entity ra ngoài API. | • Unit test Service phủ > 80% luồng nghiệp vụ.<br>• Phân tích rõ lý do lựa chọn Bean Scope trong tài liệu thiết kế. |
+| **Level 2 (Professional)** | • Triệt tiêu 100% lỗi Hibernate N+1 (dùng JOIN FETCH/EntityGraph).<br>• Xử lý Optimistic/Pessimistic Locking chống bán âm sản phẩm.<br>• Security 6 JWT FilterChain đúng chuẩn, pass Testcontainers integration test. | • k6 Test: Chịu tải 500 TPS với P95 < 200ms trên Database thật.<br>• Bảo vệ xuất sắc quyết định cấu hình HikariCP Pool và Transaction Isolation trong ADR. |
+| **Level 3 (Architect)** | • Triển khai chuẩn Transactional Outbox Pattern kết hợp Apache Kafka.<br>• Idempotent Consumer chống trùng lặp sự kiện tài chính.<br>• ArchUnit: Không circular dependencies giữa các Module/Context, tuân thủ Clean Architecture. | • k6 Test: Chịu tải 1000 TPS, zero packet drop khi kích hoạt Chaos Restart container.<br>• Bảo vệ xuất sắc chiến lược Saga Orchestration vs Choreography và kế hoạch Graceful Shutdown K8s. |
 
 ---
 
@@ -334,18 +403,21 @@ Thay vì trông chờ vào việc con người rà soát thủ công:
 
 ---
 
-## 10. Định Nghĩa Hoàn Thành (Definition of Done — DoD)
+## 10. Định Nghĩa Hoàn Thành Nội Dung (Content Definition of Done — Content DoD)
 
 Một bài học hoặc khóa học chỉ được coi là hoàn tất khi tích đủ các điều kiện sau:
 
-- [ ] **Định mức khép kín:** Khóa MVP từ 60–80 bài, mỗi module từ 12–20 bài, không vượt trần 22 bài/module.
-- [ ] **Data Model 4 cấp:** ID bài học theo đúng `module-topic-sub` (`1.2.3`), có mảng `topics: []`.
-- [ ] **Chạy được thực tế (Run-tested):** 100% mã nguồn trong bài `practice` phải chạy thành công theo đúng lệnh hướng dẫn, có profile `local-lite` chạy dưới 1.5GB RAM.
-- [ ] **Có bài Milestone Synthesis:** Mỗi Topic Cluster có 1 bài tổng hợp luồng kiến trúc bằng sơ đồ lớn.
-- [ ] **Chuẩn Quiz kịch bản:** Quiz module từ 12–16 câu hỏi tình huống, 4 đáp án phân hóa, có `explain` sâu nguyên nhân lỗi production.
-- [ ] **Phân tầng cấp độ & Test đầu vào:** Lộ trình được chuẩn hóa theo 3-Stage Milestone Track (Foundation, Professional, Architect) kèm bài Placement Test 15 câu phân luồng.
-- [ ] **Hỗ trợ Dual-Track:** Hệ thống hỗ trợ cả chế độ Audit tự do và Certified có khóa cổng 80%.
-- [ ] **Đồ án Capstone có Automated Test Harness:** Module cuối có repo mẫu, kịch bản CI chấm điểm tự động và AI phản biện ADR.
-- [ ] **Loại bỏ số liệu ảo:** Metadata khóa học không chứa rating/học viên giả định nếu chưa kết nối nguồn dữ liệu thật.
-- [ ] **Mobile Responsive:** Kiểm thử CDP hiển thị hoàn hảo trên viewport di động (390×844), không lỗi tràn ngang.
-- [ ] **Đồng bộ Production:** Commit đầy đủ lên nhánh `main` và deploy thành công sang nhánh `gh-pages`.
+- [ ] **Định mức khép kín:** Khóa MVP từ 60–80 bài, mỗi module từ 12–20 bài, trần cứng 22 bài/module (**đã bao gồm các bài Milestone Synthesis**).
+- [ ] **Tách biệt Object Khóa & Lộ trình:** Lộ trình (`Track`) gom nhóm các Khóa (`Course`). `level` của Khóa thuộc enum chuẩn: `Foundation | Professional | Architect`. Cấm `level: "Zero to Production"`.
+- [ ] **Data Model chuẩn & Tĩnh:** 100% schema và dữ liệu mẫu là object tĩnh, không chứa biểu thức code hay cú pháp ternary; `retrievalWarmup` là mảng tĩnh hoặc `null` ở Module 0.
+- [ ] **Profile thực thi theo Level:** Foundation cho phép `local-lite` H2; Level 2+ bắt buộc database thật (PostgreSQL/Redis) kèm đường thoái lui tài nguyên thấp cho máy yếu.
+- [ ] **Đồng bộ mã nguồn:** 100% mã nguồn trong bài `practice` chạy được, có cURL/lệnh test cụ thể.
+- [ ] **Có bài Milestone Synthesis:** Mỗi Topic Cluster có 1 bài tổng hợp luồng kiến trúc (tính vào trần 22 bài).
+- [ ] **Chuẩn Quiz kịch bản:** Quiz module từ 12–16 câu tình huống, 4 đáp án phân hóa, có `explain` sâu lỗi production.
+- [ ] **Placement chỉ gợi ý, Test-Out theo Module:** Placement 15 câu là gợi ý điều hướng; muốn nhảy cóc/lấy bằng phải test-out đạt ≥ 80% đúng từng module.
+- [ ] **Phân quyền Dual-Track minh bạch:** Mở Reference Solution có cờ đánh dấu cho Audit track; khóa 100% Hidden Test Suite đối với cả hai làn.
+- [ ] **Capstone chuẩn máy chấm:** Cổng đỗ là Hidden Test + ArchUnit đúng tầm level chạy dưới 4 phút; k6 và AI ADR là điểm cộng phân hóa.
+- [ ] **Danh xưng chứng chỉ chuẩn:** Sử dụng tên khóa học xác thực (`DevMastery Certified: [Course Name]`), không dùng danh xưng nghề.
+- [ ] **Loại bỏ số liệu ảo:** Metadata không chứa rating/học viên giả định nếu chưa có telemetry thật.
+- [ ] **Mobile Responsive:** Hiển thị mượt mà trên viewport di động (390×844), không lỗi layout.
+- [ ] **Đồng bộ Phiên Bản Nội Dung:** Toàn bộ code mẫu, tài liệu và dữ liệu khóa học được commit vào nhánh `main` với version spec đồng nhất. *(Lưu ý: Việc deploy `gh-pages` là tác vụ platform/release hạ tầng, không thuộc DoD nội dung bài học).*
