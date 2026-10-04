@@ -442,6 +442,9 @@
       <a class="nav-home ${state.view === "dashboard" ? "active" : ""}" data-view="dashboard">
         🏠 Tổng quan
       </a>
+      <a class="nav-home ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
+        📊 Tiến độ của tôi
+      </a>
       <a class="nav-home ${state.view === "curriculum" ? "active" : ""}" data-view="curriculum">
         📚 Chương trình chi tiết
       </a>`;
@@ -818,6 +821,224 @@
       el.addEventListener("click", () => gotoLesson(el.dataset.lesson)));
   }
 
+  // ---------- User Dashboard & Detailed Progress Page ----------
+  function renderUserDashboard() {
+    const view = $("#view-user-dashboard");
+    if (!view) return;
+
+    const total = overallProgress();
+    const scores = Object.values(state.quizScores);
+    const avgScore = scores.length
+      ? Math.round(scores.reduce((a, s) => a + (s.score / s.total) * 100, 0) / scores.length) + "%"
+      : "—";
+
+    const startedModules = MODULES.filter((m) => moduleProgress(m).pct > 0).length;
+    const completedModules = MODULES.filter((m) => moduleProgress(m).pct === 100).length;
+    const all = allItems();
+    const doneLessonsCount = all.filter((x) => x.lesson.type !== "quiz" && state.completed[x.lesson.id]).length;
+    const totalLessonsCount = all.filter((x) => x.lesson.type !== "quiz").length;
+    const doneMinutes = all
+      .filter((x) => state.completed[x.lesson.id])
+      .reduce((acc, x) => acc + (x.lesson.minutes || 0), 0);
+    const doneHours = Math.round((doneMinutes / 60) * 10) / 10;
+
+    const user = state.currentUser;
+    const displayName = user ? (user.full_name || user.fullName || user.username) : "Học viên";
+    const initial = displayName.charAt(0).toUpperCase();
+    const email = user ? (user.email || "") : "";
+    const roleText = user && user.role === "ROLE_ADMIN" ? "Quản trị viên (Admin)" : "Học viên chính thức";
+
+    let html = `
+      <div class="ud-container">
+        <!-- Profile Header -->
+        <div class="ud-profile-header ${user ? "is-logged-in" : "is-guest"}">
+          <div class="ud-profile-left">
+            <div class="ud-avatar">${initial}</div>
+            <div class="ud-profile-meta">
+              <div class="ud-name-row">
+                <h2>${escapeHtml(displayName)}</h2>
+                <span class="ud-badge ${user && user.role === "ROLE_ADMIN" ? "badge-admin" : "badge-user"}">${roleText}</span>
+                ${user ? '<span class="ud-badge badge-cloud">☁️ Đã kết nối Supabase Cloud</span>' : '<span class="ud-badge badge-local">💾 Lưu tạm trên trình duyệt</span>'}
+              </div>
+              <p class="ud-email">${escapeHtml(email || "Đăng nhập để đồng bộ tiến độ vĩnh viễn trên đám mây")}</p>
+            </div>
+          </div>
+          <div class="ud-profile-actions">
+            ${user ? `
+              <button class="btn btn-secondary btn-sm" id="udBtnSync">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                Đồng bộ ngay
+              </button>
+              <button class="btn btn-ghost btn-sm" id="udBtnLogout">Đăng xuất</button>
+            ` : `
+              <button class="btn btn-primary btn-sm" id="udBtnLogin">🔑 Đăng nhập / Đăng ký</button>
+            `}
+          </div>
+        </div>
+
+        <!-- 4 Key Stat Cards -->
+        <div class="ud-stats-grid">
+          <div class="ud-stat-card">
+            <div class="ud-stat-top">
+              <span class="ud-stat-title">Giáo trình đang học</span>
+              <span class="ud-stat-icon">🎓</span>
+            </div>
+            <div class="ud-stat-num">${startedModules} / ${MODULES.length}</div>
+            <div class="ud-stat-sub">${completedModules} giáo trình đã xong 100%</div>
+          </div>
+
+          <div class="ud-stat-card">
+            <div class="ud-stat-top">
+              <span class="ud-stat-title">Tổng bài học hoàn thành</span>
+              <span class="ud-stat-icon">📖</span>
+            </div>
+            <div class="ud-stat-num">${doneLessonsCount} / ${totalLessonsCount}</div>
+            <div class="ud-stat-progress">
+              <div class="ud-progress-bar"><div class="ud-progress-fill" style="width: ${total.pct}%"></div></div>
+              <span>${total.pct}%</span>
+            </div>
+          </div>
+
+          <div class="ud-stat-card">
+            <div class="ud-stat-top">
+              <span class="ud-stat-title">Điểm Quiz trung bình</span>
+              <span class="ud-stat-icon">🏆</span>
+            </div>
+            <div class="ud-stat-num">${avgScore}</div>
+            <div class="ud-stat-sub">Đã thi ${scores.length}/${MODULES.length} module quiz</div>
+          </div>
+
+          <div class="ud-stat-card">
+            <div class="ud-stat-top">
+              <span class="ud-stat-title">Thời lượng tích lũy</span>
+              <span class="ud-stat-icon">⏱️</span>
+            </div>
+            <div class="ud-stat-num">~${doneHours}h</div>
+            <div class="ud-stat-sub">Tương đương ${doneMinutes} phút học</div>
+          </div>
+        </div>
+
+        <!-- Detailed Module Progress Breakdown -->
+        <div class="ud-section-head">
+          <h3>📚 Tiến độ chi tiết từng giáo trình (8 Module)</h3>
+          <p>Xem bạn đã hoàn thành đến bài nào trong từng giáo trình và bấm tiếp tục học ngay.</p>
+        </div>
+
+        <div class="ud-modules-list">
+          ${MODULES.map((m) => {
+            const p = moduleProgress(m);
+            const quizScore = state.quizScores[m.id];
+            const nextIncomplete = m.lessons.find((l) => !state.completed[l.id]);
+            const isCompleted = p.pct === 100;
+            const isStarted = p.pct > 0;
+            
+            let statusBadge = "";
+            if (isCompleted) {
+              statusBadge = '<span class="ud-mod-status done">✓ Hoàn thành 100%</span>';
+            } else if (isStarted) {
+              statusBadge = `<span class="ud-mod-status in-progress">⚡ Đang học (${p.pct}%)</span>`;
+            } else {
+              statusBadge = '<span class="ud-mod-status not-started">⏳ Chưa bắt đầu</span>';
+            }
+
+            let quizText = "";
+            if (quizScore) {
+              const qPct = Math.round((quizScore.score / quizScore.total) * 100);
+              const qEmoji = qPct >= 80 ? "🏆" : qPct >= 50 ? "💪" : "📖";
+              quizText = `<span class="ud-mod-quiz passed">${qEmoji} Quiz: ${quizScore.score}/${quizScore.total} (${qPct}%)</span>`;
+            } else {
+              const quizItem = m.lessons.find(l => l.type === "quiz");
+              quizText = `<span class="ud-mod-quiz todo">📝 Quiz: ${quizItem && quizItem.questions ? quizItem.questions.length : 0} câu</span>`;
+            }
+
+            return `
+            <div class="ud-module-card mc-${m.id} ${isCompleted ? "is-done" : isStarted ? "is-started" : ""}">
+              <div class="ud-mc-header">
+                <div class="ud-mc-left">
+                  <span class="ud-mc-icon">${m.icon}</span>
+                  <div>
+                    <div class="ud-mc-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
+                    <div class="ud-mc-sub">${escapeHtml(m.subtitle)}</div>
+                  </div>
+                </div>
+                <div class="ud-mc-right">
+                  ${statusBadge}
+                  ${quizText}
+                </div>
+              </div>
+
+              <!-- Progress bar -->
+              <div class="ud-mc-progress-box">
+                <div class="ud-mc-bar">
+                  <div class="ud-mc-fill" style="width: ${p.pct}%"></div>
+                </div>
+                <div class="ud-mc-counts">
+                  <span>${p.done}/${p.total} mục đã xong</span>
+                  <span>${p.pct}%</span>
+                </div>
+              </div>
+
+              <!-- Current position & Next step -->
+              <div class="ud-mc-footer">
+                <div class="ud-mc-next">
+                  ${isCompleted 
+                    ? '<span class="ud-next-done">🎉 Bạn đã hoàn thành toàn bộ bài học và bài thi của giáo trình này!</span>'
+                    : nextIncomplete 
+                    ? `<span class="ud-next-label">Bài tiếp theo cần học:</span> <strong>${nextIncomplete.type === "quiz" ? "🏆 Bài thi Quiz tổng hợp" : "📖 " + escapeHtml(nextIncomplete.title)}</strong>`
+                    : ""
+                  }
+                </div>
+                <div class="ud-mc-action">
+                  ${isCompleted 
+                    ? `<button class="btn btn-ghost btn-sm" data-lesson-id="${m.lessons[0].id}">🔄 Ôn tập lại</button>`
+                    : nextIncomplete 
+                    ? `<button class="btn btn-primary btn-sm" data-lesson-id="${nextIncomplete.id}">Học tiếp →</button>`
+                    : `<button class="btn btn-primary btn-sm" data-lesson-id="${m.lessons[0].id}">Bắt đầu →</button>`
+                  }
+                </div>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+    `;
+
+    view.innerHTML = html;
+
+    // Event listeners
+    const btnSync = $("#udBtnSync", view);
+    if (btnSync) {
+      btnSync.addEventListener("click", async () => {
+        toast("⏳ Đang đồng bộ với Supabase...");
+        await syncLocalAndCloud();
+        renderUserDashboard();
+        toast("☁️ Đã đồng bộ mới nhất từ Supabase!");
+      });
+    }
+
+    const btnLogout = $("#udBtnLogout", view);
+    if (btnLogout) {
+      btnLogout.addEventListener("click", () => {
+        state.currentUser = null;
+        state.token = null;
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        updateAuthUI();
+        renderUserDashboard();
+        toast("👋 Đã đăng xuất.");
+      });
+    }
+
+    const btnLogin = $("#udBtnLogin", view);
+    if (btnLogin) {
+      btnLogin.addEventListener("click", () => openAuthModal("login"));
+    }
+
+    $$("[data-lesson-id]", view).forEach((btn) => {
+      btn.addEventListener("click", () => gotoLesson(btn.dataset.lessonId));
+    });
+  }
+
   // ---------- Search ----------
   function buildSearchIndex() {
     state.searchIdx = [];
@@ -879,7 +1100,7 @@
   // ---------- Router ----------
   function showView(name) {
     state.view = name;
-    ["dashboard", "lesson", "quiz", "curriculum"].forEach((v) => {
+    ["dashboard", "lesson", "quiz", "curriculum", "user-dashboard"].forEach((v) => {
       const el = $("#view-" + v);
       if (el) el.hidden = v !== name;
     });
@@ -890,6 +1111,7 @@
   function gotoView(name) {
     if (name === "dashboard") { showView("dashboard"); renderAll(); }
     else if (name === "curriculum") { showView("curriculum"); renderCurriculum(); renderSidebar(null); }
+    else if (name === "user-dashboard") { showView("user-dashboard"); renderUserDashboard(); renderSidebar(null); }
   }
 
   function gotoLesson(id) {
@@ -913,6 +1135,7 @@
     renderSidebar(state.currentLesson);
     renderDashboard();
     if (state.view === "curriculum") renderCurriculum();
+    if (state.view === "user-dashboard") renderUserDashboard();
   }
 
   // ---------- Sidebar mobile ----------
@@ -983,6 +1206,14 @@
     const userDropdown = $("#userDropdown");
     const btnLogout = $("#btnLogout");
     const btnSyncCloud = $("#btnSyncCloud");
+    const btnGoUserDashboard = $("#btnGoUserDashboard");
+
+    if (btnGoUserDashboard) {
+      btnGoUserDashboard.addEventListener("click", () => {
+        if (userDropdown) userDropdown.style.display = "none";
+        gotoView("user-dashboard");
+      });
+    }
 
     if (tabLogin) tabLogin.addEventListener("click", () => openAuthModal("login"));
     if (tabRegister) tabRegister.addEventListener("click", () => openAuthModal("register"));

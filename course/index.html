@@ -60,6 +60,10 @@
               </div>
             </div>
             <div class="user-dropdown-divider"></div>
+            <button class="user-dropdown-item" id="btnGoUserDashboard">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 12h10M7 8h10M7 16h6"/></svg>
+              <span>📊 Tiến độ học tập của tôi</span>
+            </button>
             <button class="user-dropdown-item" id="btnSyncCloud">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
               <span>Đồng bộ tiến độ ngay</span>
@@ -97,6 +101,7 @@
             <p class="hero-sub">Từ nền tảng Java đến microservices &amp; DevOps — lộ trình 8 module được thiết kế theo chuẩn production, gắn với hệ thống thực tế (LAAS/OLS, Keycloak, Kafka, AWS).</p>
             <div class="hero-actions">
               <button class="btn btn-primary" id="continueBtn">▶ Tiếp tục học</button>
+              <button class="btn btn-ghost" data-view="user-dashboard">📊 Tiến độ của tôi</button>
               <button class="btn btn-ghost" data-view="curriculum">Xem chương trình</button>
             </div>
           </div>
@@ -151,6 +156,9 @@
 
         <!-- Curriculum overview -->
         <section class="view" id="view-curriculum" hidden></section>
+
+        <!-- User Dashboard & Personal Progress -->
+        <section class="view" id="view-user-dashboard" hidden></section>
       </main>
     </div>
   </div>
