@@ -7,6 +7,10 @@
 
   const MODULES = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
   const STORE_KEY = "sbmastery-progress-v1";
+  const TOKEN_KEY = "sbmastery-jwt-token";
+  const USER_KEY = "sbmastery-user-info";
+  const API_BASE_KEY = "sbmastery-api-base";
+  let API_BASE = window.API_BASE_URL || localStorage.getItem(API_BASE_KEY) || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8080/api/v1" : "");
 
   // ---------- State ----------
   const state = {
@@ -15,7 +19,9 @@
     currentQuizModule: null,  // module id
     completed: {},            // { lessonId: true }
     quizScores: {},           // { moduleId: {score, total} }
-    searchIdx: []
+    searchIdx: [],
+    currentUser: null,        // { id, username, email, fullName, role }
+    token: null               // JWT string
   };
 
   // ---------- Utils ----------
@@ -37,11 +43,157 @@
   function load() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      state.completed = data.completed || {};
-      state.quizScores = data.quizScores || {};
+      if (raw) {
+        const data = JSON.parse(raw);
+        state.completed = data.completed || {};
+        state.quizScores = data.quizScores || {};
+      }
+      const rawToken = localStorage.getItem(TOKEN_KEY);
+      const rawUser = localStorage.getItem(USER_KEY);
+      if (rawToken && rawUser) {
+        state.token = rawToken;
+        state.currentUser = JSON.parse(rawUser);
+      }
     } catch (e) { /* fresh */ }
+  }
+
+  // ---------- Cloud API Sync ----------
+  async function apiCall(endpoint, method = "GET", body = null) {
+    if (!API_BASE) {
+      const prompted = prompt("Chưa cấu hình API Backend. Vui lòng nhập địa chỉ máy chủ Spring Boot (ví dụ: http://localhost:8080/api/v1):");
+      if (prompted && prompted.trim()) {
+        API_BASE = prompted.trim().replace(/\/$/, "");
+        localStorage.setItem(API_BASE_KEY, API_BASE);
+      } else {
+        throw new Error("Chưa kết nối API Backend. Vui lòng chạy backend (localhost:8080) hoặc cấu hình địa chỉ máy chủ.");
+      }
+    }
+    const headers = { "Content-Type": "application/json" };
+    if (state.token) {
+      headers["Authorization"] = "Bearer " + state.token;
+    }
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+    try {
+      const res = await fetch(API_BASE + endpoint, opts);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data && (data.detail || data.message) ? (data.detail || data.message) : ("HTTP " + res.status));
+      }
+      return data;
+    } catch (err) {
+      console.warn("API Error [" + endpoint + "]:", err.message);
+      throw err;
+    }
+  }
+
+  async function syncLocalAndCloud() {
+    if (!state.token) return;
+    try {
+      const synced = await apiCall("/progress/sync", "POST", {
+        completed: state.completed,
+        quizScores: state.quizScores
+      });
+      if (synced) {
+        if (synced.completedLessons) {
+          synced.completedLessons.forEach(id => { state.completed[id] = true; });
+        }
+        if (synced.quizScores) {
+          for (const mId in synced.quizScores) {
+            state.quizScores[mId] = synced.quizScores[mId];
+          }
+        }
+        save();
+        renderAll();
+      }
+    } catch (e) {
+      // Offline fallback
+    }
+  }
+
+  function syncCompleteLessonCloud(lessonId) {
+    if (!state.token) return;
+    apiCall("/progress/complete-lesson", "POST", { lessonId }).catch(() => {});
+  }
+
+  function syncUncompleteLessonCloud(lessonId) {
+    if (!state.token) return;
+    apiCall("/progress/lessons/" + encodeURIComponent(lessonId), "DELETE").catch(() => {});
+  }
+
+  function syncQuizCloud(moduleId, score, totalQuestions) {
+    if (!state.token) return;
+    apiCall("/progress/quiz-result", "POST", { moduleId, score, totalQuestions }).catch(() => {});
+  }
+
+  // ---------- Auth & User UI ----------
+  function updateAuthUI() {
+    const authBtn = $("#authBtn");
+    const authBtnText = $("#authBtnText");
+    const userDropdown = $("#userDropdown");
+    const dropdownAvatar = $("#dropdownAvatar");
+    const dropdownName = $("#dropdownName");
+    const dropdownEmail = $("#dropdownEmail");
+
+    if (state.currentUser && state.token) {
+      if (authBtn) authBtn.classList.add("logged-in");
+      const displayName = state.currentUser.fullName || state.currentUser.username || "Học viên";
+      const initial = (state.currentUser.fullName || state.currentUser.username || "U").charAt(0).toUpperCase();
+      if (authBtnText) authBtnText.textContent = displayName;
+      if (dropdownAvatar) dropdownAvatar.textContent = initial;
+      if (dropdownName) dropdownName.textContent = displayName;
+      if (dropdownEmail) dropdownEmail.textContent = state.currentUser.email || "";
+    } else {
+      if (authBtn) authBtn.classList.remove("logged-in");
+      if (authBtnText) authBtnText.textContent = "Đăng nhập";
+      if (userDropdown) userDropdown.style.display = "none";
+    }
+  }
+
+  function showAuthAlert(msg, isError = true) {
+    const alert = $("#authAlert");
+    if (!alert) return;
+    alert.textContent = msg;
+    alert.className = isError ? "auth-alert error" : "auth-alert success";
+    alert.style.display = "block";
+  }
+
+  function hideAuthAlert() {
+    const alert = $("#authAlert");
+    if (alert) alert.style.display = "none";
+  }
+
+  function openAuthModal(tab = "login") {
+    const backdrop = $("#authModalBackdrop");
+    const tabLogin = $("#tabLogin");
+    const tabRegister = $("#tabRegister");
+    const formLogin = $("#loginForm");
+    const formRegister = $("#registerForm");
+    const modalTitle = $("#authModalTitle");
+
+    hideAuthAlert();
+    if (tab === "login") {
+      if (tabLogin) tabLogin.classList.add("active");
+      if (tabRegister) tabRegister.classList.remove("active");
+      if (formLogin) formLogin.style.display = "flex";
+      if (formRegister) formRegister.style.display = "none";
+      if (modalTitle) modalTitle.textContent = "Đăng Nhập Khóa Học";
+      setTimeout(() => $("#loginUsername") && $("#loginUsername").focus(), 50);
+    } else {
+      if (tabRegister) tabRegister.classList.add("active");
+      if (tabLogin) tabLogin.classList.remove("active");
+      if (formLogin) formLogin.style.display = "none";
+      if (formRegister) formRegister.style.display = "flex";
+      if (modalTitle) modalTitle.textContent = "Tạo Tài Khoản Khóa Học";
+      setTimeout(() => $("#regFullName") && $("#regFullName").focus(), 50);
+    }
+    if (backdrop) backdrop.style.display = "flex";
+  }
+
+  function closeAuthModal() {
+    const backdrop = $("#authModalBackdrop");
+    if (backdrop) backdrop.style.display = "none";
+    hideAuthAlert();
   }
 
   function findLesson(id) {
@@ -402,9 +554,11 @@
     $("#completeBtn").addEventListener("click", () => {
       if (state.completed[lessonId]) {
         delete state.completed[lessonId];
+        syncUncompleteLessonCloud(lessonId);
       } else {
         state.completed[lessonId] = true;
         toast("🎉 Đánh dấu hoàn thành!");
+        syncCompleteLessonCloud(lessonId);
       }
       save();
       renderAll();
@@ -466,7 +620,10 @@
     if (quizState.finished) {
       const score = answers.filter((a, i) => a === quiz.questions[i].answer).length;
       state.quizScores[quizState.module.id] = { score, total };
+      state.completed[quiz.id] = true;
       save();
+      syncQuizCloud(quizState.module.id, score, total);
+      syncCompleteLessonCloud(quiz.id);
       const pct = Math.round((score / total) * 100);
       const emoji = pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📖";
       const msg = pct >= 80
@@ -779,6 +936,148 @@
       renderAll();
       toast("🗑️ Đã xóa tiến độ — bắt đầu lại từ đầu!");
     });
+
+    // ---------- Auth Modal & User Event Listeners ----------
+    const tabLogin = $("#tabLogin");
+    const tabRegister = $("#tabRegister");
+    const modalClose = $("#modalClose");
+    const authModalBackdrop = $("#authModalBackdrop");
+    const loginForm = $("#loginForm");
+    const registerForm = $("#registerForm");
+    const authBtn = $("#authBtn");
+    const userDropdown = $("#userDropdown");
+    const btnLogout = $("#btnLogout");
+    const btnSyncCloud = $("#btnSyncCloud");
+
+    if (tabLogin) tabLogin.addEventListener("click", () => openAuthModal("login"));
+    if (tabRegister) tabRegister.addEventListener("click", () => openAuthModal("register"));
+    if (modalClose) modalClose.addEventListener("click", closeAuthModal);
+    if (authModalBackdrop) {
+      authModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === authModalBackdrop) closeAuthModal();
+      });
+    }
+
+    if (authBtn) {
+      authBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (state.currentUser && state.token) {
+          userDropdown.style.display = userDropdown.style.display === "none" ? "block" : "none";
+        } else {
+          openAuthModal("login");
+        }
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (userDropdown && !e.target.closest("#userMenuWrapper")) {
+        userDropdown.style.display = "none";
+      }
+    });
+
+    if (btnLogout) {
+      btnLogout.addEventListener("click", () => {
+        state.currentUser = null;
+        state.token = null;
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        userDropdown.style.display = "none";
+        updateAuthUI();
+        toast("👋 Đã đăng xuất thành công.");
+      });
+    }
+
+    if (btnSyncCloud) {
+      btnSyncCloud.addEventListener("click", async () => {
+        userDropdown.style.display = "none";
+        toast("⏳ Đang đồng bộ tiến độ với máy chủ...");
+        try {
+          await syncLocalAndCloud();
+          toast("☁️ Đồng bộ tiến độ thành công!");
+        } catch (e) {
+          toast("⚠️ Không thể kết nối máy chủ để đồng bộ.");
+        }
+      });
+    }
+
+    if (loginForm) {
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = $("#loginUsername").value.trim();
+        const password = $("#loginPassword").value;
+        const submitBtn = $("#btnLoginSubmit");
+        const btnText = submitBtn.querySelector(".btn-text") || submitBtn;
+        const originalText = btnText.textContent;
+        try {
+          btnText.textContent = "Đang xử lý...";
+          submitBtn.disabled = true;
+          hideAuthAlert();
+          const res = await apiCall("/auth/login", "POST", { username, password });
+          state.token = res.token;
+          state.currentUser = {
+            id: res.id,
+            username: res.username,
+            email: res.email,
+            fullName: res.fullName,
+            role: res.role
+          };
+          localStorage.setItem(TOKEN_KEY, state.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
+          updateAuthUI();
+          closeAuthModal();
+          toast("🎉 Chào mừng trở lại, " + (state.currentUser.fullName || state.currentUser.username) + "!");
+          syncLocalAndCloud();
+        } catch (err) {
+          showAuthAlert(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+        } finally {
+          btnText.textContent = originalText;
+          submitBtn.disabled = false;
+        }
+      });
+    }
+
+    if (registerForm) {
+      registerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fullName = $("#regFullName").value.trim();
+        const username = $("#regUsername").value.trim();
+        const email = $("#regEmail").value.trim();
+        const password = $("#regPassword").value;
+        const submitBtn = $("#btnRegisterSubmit");
+        const btnText = submitBtn.querySelector(".btn-text") || submitBtn;
+        const originalText = btnText.textContent;
+        try {
+          btnText.textContent = "Đang tạo tài khoản...";
+          submitBtn.disabled = true;
+          hideAuthAlert();
+          const res = await apiCall("/auth/register", "POST", { fullName, username, email, password });
+          state.token = res.token;
+          state.currentUser = {
+            id: res.id,
+            username: res.username,
+            email: res.email,
+            fullName: res.fullName,
+            role: res.role
+          };
+          localStorage.setItem(TOKEN_KEY, state.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
+          updateAuthUI();
+          closeAuthModal();
+          toast("✨ Đăng ký thành công! Chào mừng " + (state.currentUser.fullName || state.currentUser.username));
+          syncLocalAndCloud();
+        } catch (err) {
+          showAuthAlert(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+        } finally {
+          btnText.textContent = originalText;
+          submitBtn.disabled = false;
+        }
+      });
+    }
+
+    updateAuthUI();
+    if (state.token) {
+      syncLocalAndCloud();
+    }
 
     renderAll();
   }
