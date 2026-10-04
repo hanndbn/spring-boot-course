@@ -1,8 +1,8 @@
-# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.4)
-## DevMastery Course & Curriculum Engineering Standard — Rigorous Edition
+# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.5)
+## DevMastery Course & Curriculum Engineering Standard — Production & Operations Edition
 
 > **Tài liệu đặc tả kỹ thuật bắt buộc dành cho Giảng viên, Kỹ sư Nội dung và Hệ thống AI Agent khi biên soạn hoặc thẩm định bất kỳ khóa học nào trên DevMastery Academy.**  
-> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 5-Expert Council (Product, Systems Architecture, Cognitive Science, Data Engineering, DevOps) và giải quyết triệt để 14 mâu thuẫn vận hành thực tế.*
+> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 10-Agent Council (Architecture, Pedagogy, Product, DevOps, Data, Content, AI Engineering, Legal, Recruiting, Learner) và hoàn thiện toàn bộ các điều khoản vận hành thực tế.*
 
 ---
 
@@ -302,11 +302,14 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 3. **Under the Hood Explanation:** Cơ chế bên dưới JVM/Network/Kernel (300 – 600 từ).
 4. **`:::takeaways`:** 2–3 gạch đầu dòng cốt lõi.
 
-### 5.2. Cấu trúc bài `practice` (Thời lượng: 8 – 12 phút)
+### 5.2. Cấu trúc bài `practice` (Thời lượng: 8 – 12 phút) & Chuẩn Cô Lập Dịch Vụ
 1. **Bài toán kinh doanh cụ thể:** (Theo domain chung của track, ví dụ: Tính tổng tiền đơn hàng).
 2. **Triển khai Mã nguồn chuẩn:** Code hoàn chỉnh từ Model -> Repository -> Service -> Controller.
 3. **Lệnh thực thi & Kiểm chứng (Verification):** Kịch bản lệnh cURL hoặc Test Class cụ thể, in rõ Output mẫu mong đợi. **Mọi lệnh này phải chạy thành công trên CI PR Gate**.
-4. **`:::tip`:** Mẹo Clean Code hoặc quy ước cấu trúc dự án.
+4. **Quy chuẩn Cô Lập Dịch Vụ Bên Ngoài (Third-Party Service Isolation & Mocking Standard):**
+   * Mọi bài thực hành có tương tác với dịch vụ bên thứ ba (Cổng thanh toán VNPay/MoMo/Stripe, gửi mail SMTP, OAuth2 Identity Provider) **bắt buộc phải đi kèm Mock Server cục bộ (WireMock / MockWebServer)**.
+   * **Tuyệt đối cấm phụ thuộc vào Sandbox trực tiếp qua Internet** trong mã nguồn bài thực hành. Mọi kịch bản kiểm thử trên CI PR Merge Gate phải chạy hoàn toàn offline / hermetic, đảm bảo không bị gãy khi sandbox bên ngoài bảo trì.
+5. **`:::tip`:** Mẹo Clean Code hoặc quy ước cấu trúc dự án.
 
 ### 5.3. Cấu trúc bài `pitfall` (Thời lượng: 5 – 8 phút)
 1. **Triệu chứng (The Symptom):** Lỗi log gì văng ra ở production? Alert Prometheus cảnh báo cái gì?
@@ -355,12 +358,15 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 
 ## 7. Quy Chuẩn Đề Thi Sát Hạch & Cơ Chế Đánh Giá (Quiz & Placement Standard)
 
-### 7.1. Định Mức Ngân Hàng Đề & Cơ Chế Rút Đề (Bank & Pull Mechanism)
+### 7.1. Định Mức Ngân Hàng Đề & Quy Trình Biên Soạn Hỗ Trợ Bởi AI
 * **Quy mô ngân hàng đề:** **Tối thiểu 36 câu hỏi tình huống** cho mỗi Module (không dùng ngân hàng nhỏ 12–16 câu cố định để chống việc học vẹt nhớ đề khi thi lại).
 * **Số câu rút ngẫu nhiên:** Hệ thống **rút ngẫu nhiên đúng 12 câu hỏi** cho mỗi lượt thi sát hạch.
 * **100% câu hỏi tình huống (Scenario-Based):** Phân tích sự cố hạ tầng, lỗi race condition, deadlock, memory leak. Cấm câu hỏi định nghĩa từ điển.
 * **4 Đáp án phân hóa (Plausible Distractors):** Đáp án sai phải phản ánh đúng những sai lầm thường gặp của lập trình viên Junior/Mid.
 * **Bắt buộc phân tích đáp án (Deep Explanation):** Chỉ rõ tại sao đáp án đúng là giải pháp chuẩn, và tại sao từng đáp án sai sẽ gây ra lỗi gì ở production.
+* **Quy Trình Biên Soạn Hỗ Trợ Bởi AI (AI-Assisted Question Generation Pipeline):**
+  * Để đảm bảo khả thi về khối lượng công việc (tạo ngân hàng 36+ câu/module), Giảng viên được phép sử dụng AI Agent đặc tả prompt theo chuẩn IEEE Assessment Framework để sinh thô câu hỏi tình huống.
+  * **Quy tắc Kiểm duyệt Con người Bắt buộc (Human-in-the-Loop Mandate):** 100% câu hỏi do AI hỗ trợ sinh phải được Kỹ sư Nội dung cấp Senior thẩm định thủ công, chạy thử mã lỗi trên IDE và ký duyệt (Sign-off) trước khi nạp vào ngân hàng đề chính thức.
 * **Telemetry & Quản Trị Chất Lượng Câu Hỏi:**
   * Hệ thống tự động ghi log tỷ lệ trả lời đúng của từng câu hỏi trong ngân hàng đề.
   * **Quy tắc đào thải & viết lại:**
@@ -396,17 +402,22 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 
 Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến (Capstone Project)**, không dùng trắc nghiệm làm thước đo tốt nghiệp.
 
-### 8.1. Cổng Đỗ Tốt Nghiệp Bắt Buộc (Mandatory Pass Gate — Máy Chấm Tự Động)
+### 8.1. Cổng Đỗ Tốt Nghiệp Bắt Buộc & Quét Lộ Lọt Bí Mật (Mandatory Pass Gate & Security Scan)
 Để đảm bảo tính khách quan tuyệt đối, loại bỏ cảm tính và kiểm soát chi phí hạ tầng (ngân sách CI `< 4 phút` trên standard runner):
 1. Học viên nộp đường link GitHub repository cá nhân.
-2. **GitHub Actions Test Runner của DevMastery** tự động clone và kích hoạt:
-   * **`mvn test` (Hidden Test Suite):** Chạy 100% bộ test ẩn xác thực logic nghiệp vụ và edge cases. Pass 100% là điều kiện tiên quyết.
-   * **`ArchUnit Scanner`:** Kiểm tra tính toàn vẹn kiến trúc **đúng tầm của từng Level**.
-3. Hệ thống trả về Scorecard tự động sau 3–4 phút. Vượt qua 2 cổng này là **ĐỦ ĐIỀU KIỆN TỐT NGHIỆP**.
+2. **GitHub Actions Test Runner của DevMastery** tự động clone và kích hoạt tuần tự:
+   * **Bước 0: Quét Bí Mật Tự Động (Secret Scanning Gate):** Kích hoạt `Gitleaks` / `TruffleHog` quét toàn bộ lịch sử commit. Nếu phát hiện Private Key, Database Credential thật hoặc API Token doanh nghiệp -> **Hủy bỏ phiên chấm bài ngay lập tức, xóa sạch workspace và gửi cảnh báo bảo mật khẩn cấp đến học viên**, ngăn chặn triệt để nguy cơ rò rỉ bí mật thương mại.
+   * **Bước 1: `mvn test` (Hidden Test Suite):** Chạy 100% bộ test ẩn xác thực logic nghiệp vụ và edge cases. Pass 100% là điều kiện tiên quyết.
+   * **Bước 2: `ArchUnit Scanner`:** Kiểm tra tính toàn vẹn kiến trúc **đúng tầm của từng Level**.
+3. Hệ thống trả về Scorecard tự động sau 3–4 phút. Vượt qua các bước này là **ĐỦ ĐIỀU KIỆN TỐT NGHIỆP**.
 
-### 8.2. Hạng Mục Phân Hóa / Điểm Cộng Xuất Sắc (Bonus & Distinction — Không Phải Cổng Chặn)
+### 8.2. Hạng Mục Phân Hóa / Điểm Cộng Xuất Sắc & Kiểm Soát Nộp Bài (Bonus & Submission Policy)
 * **k6 Load Testing (500 TPS / P95 Latency):** Chạy theo hàng đợi riêng (queue), đo đạc hiệu năng và rò rỉ bộ nhớ. Là **Điểm cộng xếp loại Xuất sắc (Distinction Badge)** trên chứng nhận, **KHÔNG DÙNG LÀM CỔNG CHẶN TỐT NGHIỆP** (tránh đánh trượt oan do biến động CPU/mạng của runner miễn phí).
 * **Phản biện Tài Liệu ADR với AI:** AI Kỹ sư Trưởng đóng vai trò Mentor phân tích file `ADR.md` (Architecture Decision Record) và đưa ra 2 câu hỏi phản biện chuyên sâu. Phần phản biện này được ghi chú nhận xét chuyên môn trên Scorecard, **AI KHÔNG ĐƯỢC QUYỀN ĐÁNH ĐỖ/TRƯỢT HỌC VIÊN**. Quyền đỗ/trượt hoàn toàn thuộc về máy chấm khách quan.
+* **Chính Sách Nộp Bài & Chống Brute-Force (Submission Quota & Cooldown):**
+  * **Pre-check cục bộ bắt buộc:** Học viên phải chạy thành công lệnh `./mvnw verify -Ppre-check` trên máy cá nhân trước khi nộp link GitHub lên hệ thống.
+  * **Hạn mức nộp:** Tối đa **3 lượt nộp bài CI miễn phí mỗi ngày** cho mỗi học viên.
+  * **Thời gian chờ (Cooldown):** Áp dụng thời gian giãn cách tối thiểu **60 phút** giữa hai lần nộp liên tiếp nhằm triệt tiêu hành vi commit brute-force để dò tìm test ẩn.
 
 ### 8.3. Bảng Rubric Đánh Giá Phân Tầng Theo Level (3 Distinct Level Rubrics)
 
@@ -443,6 +454,12 @@ Tuyệt đối **không áp dụng chung một rubric cấp cao cho tất cả c
 2. **Chính sách tự động xóa sau 7 ngày (7-Day Artifact Retention):** Toàn bộ mã nguồn clone về runner và các test artifact sinh ra **bắt buộc phải được xóa sạch hoàn toàn khỏi hệ thống lưu trữ sau 7 ngày kể từ khi trả lời kết quả**.
 3. **Cam kết bảo vệ bản quyền dữ liệu (No AI Training Commitment):** DevMastery **cam kết tuyệt đối không sử dụng mã nguồn bài nộp của học viên để huấn luyện (train/fine-tune) bất kỳ mô hình AI nào**.
 
+### 8.6. Quy Chuẩn Kiểm Soát Đạo Văn & Trùng Lặp Mã Nguồn (Plagiarism & Code Similarity Detection)
+1. **Hệ thống So Khớp AST (Abstract Syntax Tree Similarity):** Bài nộp Capstone được quét tự động qua engine phân tích cây cú pháp AST (tương tự MOSS / JPlag) nhằm so sánh cấu trúc logic với toàn bộ kho bài nộp trước đó và các repo public trên GitHub.
+2. **Xử lý vi phạm:**
+   * Mức độ tương đồng logic **> 80%** (sau khi đã loại trừ mã khung starter kit) sẽ khiến bài làm bị gắn cờ `SUSPICIOUS_SIMILARITY`.
+   * Hệ thống tự động tạm hoãn cấp chứng nhận và chuyển hồ sơ sang hàng đợi **Thẩm định Kỹ thuật Thủ công (Manual Review Queue)** của Hội đồng Chuyên môn.
+
 ---
 
 ## 9. Quản Trị Vòng Đời Tự Động & Cổng Chặn Merge (Automated CI & Merge Gates)
@@ -469,12 +486,14 @@ Một bài học hoặc khóa học chỉ được coi là hoàn tất về mặ
 - [ ] **Data Model chuẩn & Tĩnh:** 100% schema và dữ liệu mẫu là object tĩnh, không chứa biểu thức code hay cú pháp ternary; `retrievalWarmup` là mảng tĩnh hoặc `null` ở Module 0.
 - [ ] **Domain Context nhất quán:** Sử dụng một domain giả định cố định cho cả track (ví dụ: E-Commerce); cấm `foo/bar`, nhưng không ép nghiệp vụ ngân hàng phức tạp ở Level 1.
 - [ ] **Profile thực thi theo Level:** Foundation cho phép `local-lite` H2; Level 2+ bắt buộc database thật (PostgreSQL/Redis) mới tính Certified, kèm đường thoái lui tài nguyên thấp cho máy yếu.
+- [ ] **Third-Party Mocking:** 100% bài thực hành có gọi dịch vụ ngoài (thanh toán, OAuth2, mail) phải đi kèm WireMock/MockWebServer cục bộ, không phụ thuộc sandbox internet.
 - [ ] **Đồng bộ mã nguồn & Merge Gate:** 100% mã nguồn và lệnh trong bài `practice` phải pass kiểm thử trên CI Runner trước khi merge.
 - [ ] **Có bài Milestone Synthesis:** Mỗi Topic Cluster có 1 bài tổng hợp luồng kiến trúc (tính vào trần 22 bài).
-- [ ] **Ngân hàng đề Quiz chuẩn:** Tối thiểu 36 câu hỏi kịch bản/module, rút 12 câu ngẫu nhiên/lượt thi; có telemetry log đào thải câu >90% hoặc <30%.
+- [ ] **Ngân hàng đề Quiz chuẩn:** Tối thiểu 36 câu hỏi kịch bản/module (có Human-in-the-loop duyệt nếu dùng AI hỗ trợ sinh đề), rút 12 câu ngẫu nhiên/lượt thi; có telemetry log đào thải câu >90% hoặc <30%.
 - [ ] **Placement chỉ gợi ý, Test-Out theo Module:** Placement 15 câu là gợi ý điều hướng; muốn nhảy cóc/lấy bằng phải test-out đạt ≥ 80% đúng từng module. Bỏ claim chống gian viển vông và cấm paste UI.
 - [ ] **Phân quyền Dual-Track minh bạch:** Mở Reference Solution có cờ đánh dấu cho Audit track; khóa 100% Hidden Test Suite đối với cả hai làn.
-- [ ] **Capstone chuẩn máy chấm:** Cổng đỗ là Hidden Test + ArchUnit đúng tầm level chạy dưới 4 phút; k6 và AI ADR là điểm cộng phân hóa, không dùng đánh đỗ/trượt.
+- [ ] **Capstone chuẩn máy chấm & Quét Secret:** Cổng đỗ là Hidden Test + ArchUnit đúng tầm level chạy dưới 4 phút; có bước quét Gitleaks chặn rò rỉ secret; k6 và AI ADR là điểm cộng phân hóa.
+- [ ] **Kiểm soát Nộp bài & Đạo văn:** Yêu cầu pre-check cục bộ, giới hạn 3 lần nộp/ngày, cooldown 60 phút; quét tương đồng AST dưới ngưỡng 80%.
 - [ ] **Danh xưng chứng nhận chuẩn:** Định dạng `DevMastery Verified — <Tên Khóa Học>`, cấm dùng chữ "bằng" và cấm gán chức danh nghề nghiệp.
 - [ ] **Bảo mật mã nguồn học viên:** Cam kết xóa artifact sau 7 ngày, không dùng bài nộp để train AI.
 - [ ] **Loại bỏ số liệu ảo:** Metadata không chứa rating/học viên giả định nếu chưa có telemetry thật.
