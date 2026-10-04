@@ -1,8 +1,8 @@
-# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.1)
+# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.2)
 ## DevMastery Course & Curriculum Engineering Standard — Consensus Edition
 
 > **Tài liệu đặc tả kỹ thuật bắt buộc dành cho Giảng viên, Kỹ sư Nội dung và Hệ thống AI Agent khi biên soạn hoặc thẩm định bất kỳ khóa học nào trên DevMastery Academy.**  
-> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 3-Agent (Product - Systems Architecture - Cognitive Science).*
+> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 3-Agent (Product - Systems Architecture - Cognitive Science) và cơ chế Phân tầng Cấp độ & Thi Vượt Cấp (Multi-Level & Skill Placement Engine).*
 
 ---
 
@@ -31,7 +31,31 @@
 | **Đồ án Capstone** | 1 đồ án Mini-Service | 1 đồ án End-to-End | 1 hệ thống hoàn chỉnh |
 
 > [!IMPORTANT]
-> **Quy tắc trần cứng (Ceiling Rule):** Tuyệt đối không sinh khóa học vượt quá 150 bài vi mô hoặc module quá 22 bài. Nếu một chủ đề quá rộng, bắt buộc phải tách thành một Khóa học độc lập (ví dụ: tách *Spring Security Chuyên Sâu* ra khỏi *Spring Boot Core*).
+> **Quy tắc trần cứng (Ceiling Rule):** Tuyệt đối không sinh khóa học vượt quá 150 bài vi mô hoặc module quá 22 bài. Nếu một chủ đề quá rộng, bắt buộc phải tách thành các khóa học độc lập theo từng cấp độ (Level).
+
+### 2.1. Quy Chuẩn Phân Tầng Cấp Độ (Multi-Level Course Segmentation — 3-Stage Career Track)
+
+Tuyệt đối **cấm mô hình "Khóa học Monolith 80 giờ đi từ Zero đến Chuyên gia"**. Thực tế đào tạo toàn cầu chứng minh mô hình này có tỷ lệ bỏ học (drop-out) > 90% vì gây ra hiện tượng *"Kẻ đói thì nghẹn, người no thì ngán"* (Junior ngợp kiến thức gãy giữa chừng, Senior chán nản vì phải xem lại bài cài đặt căn bản).
+
+Mọi ngăn xếp công nghệ lớn (như Java/Spring Boot, React/Next.js, Cloud DevOps) bắt buộc phải được quy hoạch thành **Lộ trình 3 Chặng (3-Stage Milestone Track)** với các khóa học độc lập có chứng chỉ riêng từng chặng:
+
+```mermaid
+flowchart LR
+    L1["<b>LEVEL 1: FOUNDATION</b><br>Spring Boot Core & Clean REST API<br><i>(Zero → Junior)</i><br>⏱ ~12h · 30-35 bài micro<br>🎓 Bằng: Junior Developer"] 
+    --> L2["<b>LEVEL 2: PROFESSIONAL</b><br>Enterprise Security, JPA & Testing<br><i>(Junior → Mid-Level)</i><br>⏱ ~15h · 35-40 bài micro<br>🎓 Bằng: Enterprise Engineer"]
+    --> L3["<b>LEVEL 3: ARCHITECT</b><br>Microservices, Kafka & High-Scale<br><i>(Mid → Senior/Lead)</i><br>⏱ ~18h · 40-45 bài micro<br>🎓 Bằng: Solutions Architect"]
+```
+
+#### Phân tách thực tế đối với khóa Spring Boot:
+* **Khóa 1 (Level 1 — Foundation): `spring-boot-foundation`**
+  - Gồm Module 0 (Java 21/Maven) + Module 1 (Spring Core/IoC/DI) + Module 2 (REST API, RFC 7807).
+  - Mục tiêu: Từ Zero viết được REST API chuẩn mực doanh nghiệp, hiểu rõ Bean lifecycle.
+* **Khóa 2 (Level 2 — Professional): `spring-boot-professional`**
+  - Gồm Module 3 (JPA/Hibernate N+1, Locking) + Module 4 (JUnit 5, Testcontainers) + Module 5 (Spring Security 6, JWT, Keycloak).
+  - Mục tiêu: Tối ưu hóa Database, bảo mật ngân hàng, test tự động đạt chuẩn CI/CD.
+* **Khóa 3 (Level 3 — Architect): `spring-boot-architect`**
+  - Gồm Module 6 (Kafka, Transactional Outbox, Saga, Redis) + Module 7 (Kubernetes, Observability, Capstone Project).
+  - Mục tiêu: Thiết kế hệ thống phân tán chịu tải cao, giao dịch phân tán không mất dữ liệu, tự động hóa deploy cloud.
 
 ---
 
@@ -235,6 +259,39 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 * **Ngưỡng đạt (Pass Threshold):** Trả lời đúng **tối thiểu 80%** (ví dụ: đúng 13/16 câu) trên *Certified Track*.
 * **Cơ chế thi lại:** Nếu chưa đạt 80%, đề thi sẽ tự động tráo thứ tự câu hỏi và phương án. Hệ thống chỉ rõ học viên cần đọc lại bài vi mô cụ thể nào trước khi thi lại.
 
+### 7.3. Quy Chuẩn Bài Test Đánh Giá Đầu Vào & Vượt Cấp (Skill Placement & Test-Out Engine)
+
+Để loại bỏ hoàn toàn tình trạng kỹ sư Mid/Senior phải học lại bài cơ bản (syntax, Bean IoC) và bảo vệ Junior không bị ngợp, hệ thống áp dụng cơ chế **Bài Test Đánh Giá Năng Lực Đầu Vào (Skill Placement Test)** và **Cơ chế Thi Vượt Cấp (Test-Out Engine)**:
+
+#### 1. Cấu trúc Đề Test Đầu Vào Chuẩn (15 Scenario Questions — 20 Phút)
+Đề thi đánh giá năng lực gồm đúng **15 câu hỏi tình huống thực tế**, phân bổ đều qua 3 tầng năng lực:
+* **Tầng 1 (5 câu Foundation - Level 1):**
+  * Tình huống về IoC Container, Bean Scope (`singleton` vs `prototype`), Bean Lifecycle.
+  * Thiết kế RESTful API, HTTP Status Code chuẩn, xử lý ngoại lệ RFC 7807 ProblemDetails.
+* **Tầng 2 (5 câu Professional - Level 2):**
+  * Tình huống Hibernate N+1 Query, LazyInitializationException, Indexing, Transaction Isolation & Locking.
+  * Tình huống cấu hình Spring Security 6 SecurityFilterChain, JWT Claims, CORS/CSRF, Testcontainers integration testing.
+* **Tầng 3 (5 câu Architect - Level 3):**
+  * Tình huống Distributed Transaction, Transactional Outbox Pattern, Apache Kafka Idempotent Consumer, Saga Pattern.
+  * Tình huống Redis Cache Stampede, Circuit Breaker (Resilience4j), Kubernetes Graceful Shutdown & Zero-Downtime Deployment.
+
+#### 2. Ma Trận Phân Luồng Tự Động (Diagnostic Routing Matrix)
+Dựa trên kết quả bài test 15 câu, hệ thống tự động gợi ý và điều hướng học viên:
+
+| Điểm số đạt được | Tỷ lệ chính xác | Đánh giá năng lực | Luồng điều hướng đề xuất (Recommended Path) |
+|---|:---:|---|---|
+| **0 – 7 / 15** | `< 50%` | **Chưa vững nền tảng (Foundation Gap)** | Bắt đầu từ **Level 1 (Foundation)**. Khuyến cáo không nhảy cóc để tránh gãy kiến thức cốt lõi. |
+| **8 – 11 / 15** | `50% – 79%` | **Đã có kinh nghiệm cơ bản (Mid-ready)** | Miễn học Level 1. Vào thẳng **Level 2 (Professional)** để học sâu JPA internals, Security 6 và Testing thực chiến. |
+| **12 – 15 / 15** | `≥ 80%` | **Kỹ sư dày dạn (Senior / Lead)** | Miễn học Level 1 & Level 2. Vào thẳng **Level 3 (Architect)** để tập trung vào Microservices, Kafka và Hệ thống phân tán. |
+
+#### 3. Quy Tắc Thi Vượt Cấp (Test-Out Engine Policy)
+* **Quyền chủ động của học viên:** Học viên có quyền chọn làm bài Test-Out bất kỳ lúc nào để mở khóa ngay Level hoặc Module tiếp theo mà không cần hoàn thành tuần tự từng bài vi mô.
+* **Cơ chế Fast Track vs Deep Track:** Nếu học viên chọn Test-Out vào Level cao hơn nhưng sau đó gặp khó khăn, hệ thống cho phép lùi lại xem các bài vi mô ở Level thấp hơn mà không bị mất tiến độ đã làm.
+* **Chống gian lận & Bảo vệ tính xác thực (Integrity Guard):**
+  * Thời gian làm bài giới hạn đúng **20 phút / 15 câu** (trung bình 80 giây/câu tình huống, triệt tiêu thời gian tra cứu Google/ChatGPT).
+  * Ngân hàng đề xoay vòng tối thiểu 60 câu tình huống, thuật toán tráo ngẫu nhiên thứ tự câu hỏi và phương án.
+  * Cấm copy/paste câu hỏi ra ngoài giao diện làm bài.
+
 ---
 
 ## 8. Quy Chuẩn Đồ Án Tốt Nghiệp Cuối Khóa (Capstone Project & Automated Grading)
@@ -286,6 +343,7 @@ Một bài học hoặc khóa học chỉ được coi là hoàn tất khi tích
 - [ ] **Chạy được thực tế (Run-tested):** 100% mã nguồn trong bài `practice` phải chạy thành công theo đúng lệnh hướng dẫn, có profile `local-lite` chạy dưới 1.5GB RAM.
 - [ ] **Có bài Milestone Synthesis:** Mỗi Topic Cluster có 1 bài tổng hợp luồng kiến trúc bằng sơ đồ lớn.
 - [ ] **Chuẩn Quiz kịch bản:** Quiz module từ 12–16 câu hỏi tình huống, 4 đáp án phân hóa, có `explain` sâu nguyên nhân lỗi production.
+- [ ] **Phân tầng cấp độ & Test đầu vào:** Lộ trình được chuẩn hóa theo 3-Stage Milestone Track (Foundation, Professional, Architect) kèm bài Placement Test 15 câu phân luồng.
 - [ ] **Hỗ trợ Dual-Track:** Hệ thống hỗ trợ cả chế độ Audit tự do và Certified có khóa cổng 80%.
 - [ ] **Đồ án Capstone có Automated Test Harness:** Module cuối có repo mẫu, kịch bản CI chấm điểm tự động và AI phản biện ADR.
 - [ ] **Loại bỏ số liệu ảo:** Metadata khóa học không chứa rating/học viên giả định nếu chưa kết nối nguồn dữ liệu thật.
