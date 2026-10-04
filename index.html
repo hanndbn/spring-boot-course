@@ -428,6 +428,54 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=20261004.15"></script>
+  <!-- AI Assistant Configuration Modal -->
+  <div class="modal-backdrop" id="aiConfigModal" style="display: none;" role="dialog" aria-modal="true" aria-label="Cấu hình Trợ lý AI GLM">
+    <div class="modal-card ai-config-card">
+      <button type="button" class="modal-close" id="aiConfigCloseBtn" aria-label="Đóng">✕</button>
+      <div class="ai-config-header">
+        <div class="ai-config-icon-badge">🤖</div>
+        <div>
+          <h3 style="margin: 0; font-size: 18px; color: var(--text-1);">Cấu hình Trợ lý AI Giảng Viên (GLM)</h3>
+          <p class="ai-config-subtitle" style="margin: 4px 0 0; font-size: 13px; color: var(--text-3);">Hỏi đáp kỹ thuật theo ngữ cảnh sâu từng bài học</p>
+        </div>
+      </div>
+      <div class="ai-config-body" style="padding: 16px 0;">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="glmApiKeyInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Token / API Key GLM (Zhipu AI):</strong></label>
+          <div class="input-with-toggle" style="display: flex; gap: 8px;">
+            <input type="password" id="glmApiKeyInput" class="form-control" style="flex: 1; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" placeholder="Dán API Key GLM của bạn tại đây (vd: 123...abc)" autocomplete="off">
+            <button type="button" class="btn btn-ghost" id="btnToggleGlmKey" title="Ẩn/Hiện token" style="padding: 0 12px;">👁️</button>
+          </div>
+          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3); line-height: 1.5;">
+            🔒 Token được lưu trữ bảo mật cục bộ tại trình duyệt (<code>LocalStorage</code>), không gửi qua bất kỳ bên thứ ba nào.<br>
+            👉 Chưa có token? Đăng ký và lấy API Key miễn phí tại <a href="https://open.bigmodel.cn" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">open.bigmodel.cn</a>.
+          </small>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="glmModelSelect" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Mô hình AI (Model):</strong></label>
+          <select id="glmModelSelect" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);">
+            <option value="glm-4-flash" selected>glm-4-flash (Khuyên dùng: Siêu nhanh, Miễn phí, 128k context)</option>
+            <option value="glm-4-air">glm-4-air (Cân bằng tốc độ &amp; suy luận)</option>
+            <option value="glm-4-plus">glm-4-plus (Mô hình năng lực cao nhất)</option>
+            <option value="glm-4">glm-4 (Mô hình tiêu chuẩn)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="glmEndpointInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>API Endpoint:</strong></label>
+          <input type="text" id="glmEndpointInput" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" value="https://open.bigmodel.cn/api/paas/v4/chat/completions">
+          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3);">Mặc định chuẩn OpenAI của Zhipu v4. Có thể đổi nếu dùng Reverse Proxy riêng.</small>
+        </div>
+      </div>
+
+      <div class="ai-config-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid var(--border-soft); padding-top: 16px;">
+        <button type="button" class="btn btn-secondary" id="btnClearGlmKey">Xóa Token</button>
+        <button type="button" class="btn btn-primary" id="btnSaveGlmConfig">Lưu Cấu Hình</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=20261004.16"></script>
 </body>
 </html>

@@ -171,6 +171,50 @@ Toàn bộ 346 bài ban đầu được sàng lọc, tái cấu trúc theo mô h
       - *Persistence Context*: Bàn làm việc của thư ký Hibernate & Két sắt Database.
       - *N+1 Query*: Shipper chạy 11 chuyến xe mua từng củ khoai tây vs 1 chuyến xe tải chở trọn gói (JOIN FETCH).
 - **Kiểm định chất lượng**:
-  - `node verify.js`: **100% ĐẠT CHUẨN CES-2026 v2.5 (0 errors, 0 warnings)**.
   - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%.
+  - Toàn bộ 132/132 bài học có sơ đồ Mermaid và hỗ trợ Lightbox Zoom.
+
+---
+
+### Bước 8: Tích Hợp Trợ Lý Giảng Viên AI Chuyên Sâu (GLM / Zhipu AI Powered) Cho Từng Bài Học — ✅ ĐÃ HOÀN THÀNH
+- **Yêu cầu & Mục tiêu**:
+  - Học viên sở hữu token GLM (Zhipu AI) và mong muốn tại mỗi bài học có một trợ lý AI thông minh có thể hỏi đáp ngay tại chỗ.
+  - AI phải tự động nhận diện toàn bộ **ngữ cảnh bài học hiện tại** (Khóa học, Module, Tên bài, và toàn bộ nội dung bài giảng/code) để đưa ra câu trả lời bám sát thực tế nhất.
+  - Hoạt động mượt mà trực tiếp trên trình duyệt tĩnh (GitHub Pages), không phát sinh chi phí server trung gian, bảo mật 100% token người dùng.
+- **Triển khai kỹ thuật**:
+  1. **Khảo sát CORS & Chuẩn API GLM v4**:
+     - Kiểm thử trực tiếp `https://open.bigmodel.cn/api/paas/v4/chat/completions` qua OPTIONS/POST preflight request: Zhipu AI trả về đầy đủ CORS Header `Access-Control-Allow-Origin: *` và chấp nhận `Authorization: Bearer <token>`.
+     - Nhờ đó, trình duyệt phía client có thể gọi trực tiếp tới GLM API mà không cần Reverse Proxy hay Backend trung gian!
+  2. **Chiến lược Bơm Ngữ Cảnh Sâu (Deep Context Injection)**:
+     - Tận dụng cửa sổ ngữ cảnh khổng lồ **128,000 tokens** của mô hình `glm-4-flash`.
+     - Mỗi khi gửi câu hỏi, hệ thống tự động trích xuất toàn bộ:
+       - Tên khóa học (`course.title`) & Phân hệ (`module.id`, `module.title`).
+       - Tên bài giảng (`lesson.id`, `lesson.title`) & Thời lượng (`lesson.minutes`).
+       - **100% Nội dung chi tiết bài học** (`lesson.content`) bao gồm các phân tích chuyên sâu, sơ đồ luồng, code block mẫu và cạm bẫy thực tế.
+       - System Prompt định hình vai trò: *Trợ lý Giảng viên AI cao cấp chuyên sâu Spring Boot, Microservices & E-Commerce quy mô lớn*, yêu cầu phản hồi súc tích bằng tiếng Việt chuẩn kỹ thuật, kèm code minh họa có giải thích và chú ý cạm bẫy hiệu năng.
+  3. **Giao Diện Trợ Lý AI Nội Tuyến (`#lessonAiBox`)**:
+     - Nằm ngay dưới nội dung bài học, phía trên nút đánh dấu hoàn thành:
+       - Header chuyên nghiệp với avatar AI kèm đèn xung nhịp (pulse dot) xanh báo hiệu sẵn sàng, huy hiệu model (`GLM-4-FLASH`), nút "Cấu hình AI" và nút "Xóa hội thoại".
+       - Quick Jump Button trên thanh Lesson Metadata (`#btnJumpToAi`): 1 click cuộn mượt mà xuống ô hỏi AI.
+       - Banner kích hoạt nhanh (`.ai-setup-banner`): Cho phép người dùng dán token và lưu kích hoạt ngay tại bài học mà không bắt buộc phải mở modal.
+       - 4 Chip gợi ý câu hỏi thông minh:
+         - *🎯 Giải thích dễ hiểu trọng tâm*
+         - *⚠️ Những lỗi sai & cạm bẫy hay gặp*
+         - *🛒 Code E-Commerce thực chiến*
+         - *⚡ Tối ưu hiệu năng & Production*
+       - Luồng trò chuyện đa lượt (Multi-turn chat thread): Lưu giữ lịch sử hội thoại riêng biệt cho từng bài học trong bộ nhớ session.
+       - Trình phân giải Markdown tích hợp sẵn: Hiển thị câu trả lời của AI với định dạng code syntax highlighting, nút sao chép mã nguồn (Copy to clipboard) một chạm, và tự động gán lightbox zoom nếu có sơ đồ.
+       - Ô nhập liệu tự co giãn (Auto-expand textarea) với phím tắt: `Enter` để gửi câu hỏi, `Shift+Enter` để xuống dòng.
+  4. **Modal Quản Trị Cấu Hình Token & Model (`#aiConfigModal`)**:
+     - Cho phép học viên nhập và lưu API Key GLM với tính năng ẩn/hiện mật khẩu (👁️).
+     - Cho phép lựa chọn giữa các phiên bản model: `glm-4-flash` (Khuyên dùng: Miễn phí, 128k context, tốc độ tức thì), `glm-4-air`, `glm-4-plus`, `glm-4`.
+     - Tùy chỉnh API Endpoint (hỗ trợ cho cả người dùng có reverse proxy nội bộ).
+     - Nút Xóa Token an toàn, xóa sạch dữ liệu khỏi `localStorage`.
+     - Phím tắt `ESC` hoặc click ra ngoài backdrop để đóng modal.
+  5. **Bảo Mật Cấp Cao (Zero-Leakage Security)**:
+     - Token GLM của học viên được lưu hoàn toàn cục bộ trong `LocalStorage` của trình duyệt (`sbc_glm_api_key`), không bao giờ bị lưu trên server, log hay gửi qua bất kỳ bên thứ ba nào.
+- **Kiểm định chất lượng**:
+  - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%, 0 lỗi.
+  - Đồng bộ đầy đủ mã nguồn sang nhánh `gh-pages` và triển khai trực tuyến.
+
 
