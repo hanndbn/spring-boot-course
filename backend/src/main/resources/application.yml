@@ -58,7 +58,7 @@ springdoc:
     path: /swagger-ui.html
 
 ---
-# Production Profile with PostgreSQL
+# Production Profile with PostgreSQL (Default container)
 spring:
   config:
     activate:
@@ -68,6 +68,26 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/coursedb}
     username: ${SPRING_DATASOURCE_USERNAME:course_admin}
     password: ${SPRING_DATASOURCE_PASSWORD:course_secret_123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  h2:
+    console:
+      enabled: false
+
+---
+# Supabase Cloud PostgreSQL Profile
+spring:
+  config:
+    activate:
+      on-profile: supabase
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db.rdtvdhliqnbflqstatsq.supabase.co:5432/postgres?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:

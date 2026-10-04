@@ -3,3 +3,8 @@ node_modules/
 .DS_Store
 .idea/
 *.iml
+target/
+.env
+.env.local
+.env.*.local
+!.env.example
