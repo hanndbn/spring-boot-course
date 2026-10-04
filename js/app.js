@@ -46,6 +46,34 @@
           certificate: "DevMastery Verified — Spring Boot Architect"
         }
       ]
+    },
+    {
+      id: "java-track",
+      title: "Lộ Trình Chuyên Gia Ngôn Ngữ Java (Java Master Track)",
+      slug: "java-master-career-track",
+      category: "backend",
+      domainContext: "E-Commerce Core & Financial Low-Latency Matching Engine",
+      desc: "Lộ trình 3 chặng từ vững chắc Core OOP, Modern Java 21 đến chuyên gia tối ưu JVM, GC Tuning và Ultra Low-Latency.",
+      stages: [
+        {
+          level: "foundation",
+          courseId: "java-foundation",
+          title: "Java 21 Foundation — Core Language, Memory & Clean OOP",
+          certificate: "DevMastery Verified — Java 21 Foundation"
+        },
+        {
+          level: "professional",
+          courseId: "java-professional",
+          title: "Modern Java 21 Professional — Generics, Streams & Concurrency",
+          certificate: "DevMastery Verified — Modern Java 21 Professional"
+        },
+        {
+          level: "expert",
+          courseId: "java-expert",
+          title: "Java 21 Expert — JVM Internals, GC Tuning & Ultra Low-Latency",
+          certificate: "DevMastery Verified — Java 21 Expert"
+        }
+      ]
     }
   ];
 
@@ -407,6 +435,117 @@
       modules: []
     },
     {
+      id: "java-foundation",
+      trackId: "java-track",
+      title: "Java 21 Foundation — Core Language, Memory & Clean OOP",
+      shortTitle: "Java 21 Foundation",
+      icon: "☕",
+      badge: "Foundation Level",
+      category: "backend",
+      level: "foundation",
+      hours: "~12h",
+      modulesCount: 4,
+      lessonsCount: 16,
+      quizCount: 16,
+      certificateTitle: "DevMastery Verified — Java 21 Foundation",
+      instructor: "DevMastery Java Architecture Council",
+      bestseller: true,
+      themeGradient: "linear-gradient(135deg, #78350f 0%, #b45309 50%, #f59e0b 100%)",
+      desc: "Làm chủ nền tảng ngôn ngữ Java 21 LTS: Bản chất bộ nhớ Stack vs Heap, Pass-by-value, thiết kế hướng đối tượng sạch chuẩn SOLID, Java Collections Framework và Unit Testing JUnit 5.",
+      outcomes: [
+        "Nắm chắc bản chất bộ nhớ Stack, Heap, Metaspace và vòng đời Object",
+        "Thiết kế class hướng đối tượng chuẩn mực theo 5 nguyên lý SOLID",
+        "Làm chủ cấu trúc dữ liệu Java Collections: HashMap, ArrayList, Red-Black Tree",
+        "Hoàn thành đồ án Console E-Commerce Order Manager có test JUnit 5 đạt 85% coverage"
+      ],
+      prerequisites: ["Tư duy logic lập trình căn bản"],
+      stackVersion: {
+        java: "21 LTS",
+        buildTool: "Maven 3.9+",
+        test: "JUnit 5.10+",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Java Architecture Council"
+      },
+      tags: ["Java 21", "OOP", "SOLID", "Collections", "HashMap", "JUnit 5", "Clean Code"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "java-professional",
+      trackId: "java-track",
+      title: "Modern Java 21 Professional — Generics, Streams & Concurrency",
+      shortTitle: "Modern Java Professional",
+      icon: "🚀",
+      badge: "Professional Level",
+      category: "backend",
+      level: "professional",
+      hours: "~16h",
+      modulesCount: 4,
+      lessonsCount: 16,
+      quizCount: 16,
+      certificateTitle: "DevMastery Verified — Modern Java 21 Professional",
+      instructor: "DevMastery Java Architecture Council",
+      bestseller: true,
+      themeGradient: "linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%)",
+      desc: "Nâng cấp tư duy lập trình hiện đại: Record, Sealed Classes, Pattern Matching, Generics chuyên sâu (PECS), Stream API, CompletableFuture và Virtual Threads (Project Loom JEP 444).",
+      outcomes: [
+        "Làm chủ Modern Java 21: Records, Sealed Interfaces, Pattern Matching for switch",
+        "Hiểu sâu Generics Type Erasure, Wildcards và quy tắc thiết kế API PECS",
+        "Xây dựng Custom Collectors và xử lý dữ liệu song song an toàn",
+        "Lập trình đa luồng hiệu năng cao với Virtual Threads và CompletableFuture"
+      ],
+      prerequisites: ["Đã hoàn thành Java 21 Foundation hoặc có 1+ năm kinh nghiệm Java Core"],
+      stackVersion: {
+        java: "21 LTS",
+        concurrency: "Virtual Threads (JEP 444)",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Java Architecture Council"
+      },
+      tags: ["Modern Java 21", "Virtual Threads", "Streams", "Generics", "CompletableFuture", "Records"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "java-expert",
+      trackId: "java-track",
+      title: "Java 21 Expert — JVM Internals, GC Tuning & Ultra Low-Latency",
+      shortTitle: "Java 21 Expert",
+      icon: "⚡",
+      badge: "Expert Level",
+      category: "backend",
+      level: "expert",
+      hours: "~18h",
+      modulesCount: 4,
+      lessonsCount: 16,
+      quizCount: 16,
+      certificateTitle: "DevMastery Verified — Java 21 Expert",
+      instructor: "DevMastery Java Architecture Council",
+      bestseller: false,
+      themeGradient: "linear-gradient(135deg, #7c2d12 0%, #b91c1c 50%, #ef4444 100%)",
+      desc: "Chạm tới tầng vật lý của Java: HotSpot JIT C1/C2, Escape Analysis, Garbage Collection Tuning (G1GC & Generational ZGC), Java Memory Model, Lock-Free RingBuffer và đồ án Financial Matching Engine.",
+      outcomes: [
+        "Phân tích JIT Compilation (C1/C2), Method Inlining, Escape Analysis và Assembly code",
+        "Làm chủ GC Tuning với G1GC và Generational ZGC đạt độ trễ sub-millisecond",
+        "Hiểu sâu Java Memory Model: Happens-Before, Memory Barriers, VarHandle, FFM API",
+        "Xây dựng Order Book Matching Engine zero-allocation với độ trễ P99.99 < 5µs"
+      ],
+      prerequisites: ["Đã hoàn thành Modern Java Professional và nắm vững Concurrency"],
+      stackVersion: {
+        java: "21 LTS",
+        jvm: "HotSpot OpenJDK 21",
+        gc: "Generational ZGC & G1GC",
+        profiler: "Async-Profiler & JFR",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Java Architecture Council"
+      },
+      tags: ["JVM Internals", "JIT Compiler", "ZGC", "Low Latency", "Lock-Free", "Disruptor", "JMH"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
       id: "java-core-mastery",
       title: "Java Core & Clean Code Professional",
       shortTitle: "Java Core & Design Patterns",
@@ -507,9 +646,11 @@
           target.modulesCount = src.modules.length;
           target.lessonsCount = src.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.filter(l => l.type !== "quiz").length : 0), 0);
           target.quizCount = src.modules.reduce((acc, m) => {
-            const q = (m.lessons || []).find(l => l.type === "quiz");
+            const q = (m.lessons || []).find(l => l.type === "quiz") || m.quiz;
             return acc + (q && q.questions ? q.questions.length : 0);
           }, 0);
+        } else if (!target && src) {
+          COURSES.push(src);
         }
       });
     }
@@ -2433,25 +2574,25 @@
           </div>
         </div>
 
-        <!-- 3-Stage Milestone Track Banner (CES-2026 v2.5) -->
-        ${showTrack && springTrack ? `
-          <div class="track-roadmap-container">
+        <!-- 3-Stage Milestone Track Banners (CES-2026 v2.5) -->
+        ${showTrack ? TRACKS.filter(t => state.catalogCategory === "all" || t.category === state.catalogCategory).map((track) => `
+          <div class="track-roadmap-container" style="margin-bottom: 2rem;">
             <div class="track-header">
               <div>
                 <div class="track-badge-pill">⚡ LỘ TRÌNH CHUẨN KỸ SƯ (CES-2026 v2.5)</div>
-                <h2 class="track-title">${escapeHtml(springTrack.title)}</h2>
-                <p class="track-desc">${escapeHtml(springTrack.desc)}</p>
-                <div class="track-domain-tag">🏢 Bối cảnh thực chiến: ${escapeHtml(springTrack.domainContext)}</div>
+                <h2 class="track-title">${escapeHtml(track.title)}</h2>
+                <p class="track-desc">${escapeHtml(track.desc)}</p>
+                <div class="track-domain-tag">🏢 Bối cảnh thực chiến: ${escapeHtml(track.domainContext)}</div>
               </div>
               <div>
-                <button class="btn-placement-test" id="btnLaunchPlacement">
+                <button class="btn-placement-test" id="${track.id === 'spring-boot-track' ? 'btnLaunchPlacement' : 'btnLaunchPlacement-' + track.id}">
                   🎯 Sát Hạch Định Vị Năng Lực (15 câu)
                 </button>
               </div>
             </div>
 
             <div class="track-stages-grid">
-              ${springTrack.stages.map((st, idx) => {
+              ${track.stages.map((st, idx) => {
                 const c = COURSES.find(item => item.id === st.courseId);
                 const enrolled = isCourseEnrolled(st.courseId);
                 const prog = overallProgress(st.courseId);
@@ -2461,7 +2602,7 @@
                       <div class="stage-step-num">CHẶNG 0${idx + 1} · ${(st.level || '').toUpperCase()}</div>
                       <div class="stage-title">${escapeHtml(c ? c.shortTitle : st.title)}</div>
                       <div class="stage-modules-list">
-                        ${c && c.modules ? c.modules.map(m => `• M${m.id}: ${escapeHtml(m.title)}`).join('<br>') : ''}
+                        ${c && c.modules && c.modules.length ? c.modules.map(m => `• M${m.id}: ${escapeHtml(m.title)}`).join('<br>') : (c && c.modulesCount ? `• ${c.modulesCount} Chuyên đề chuyên sâu · ${c.hours}` : '• 4 Chuyên đề chuyên sâu · 12h')}
                       </div>
                     </div>
                     <div class="stage-footer">
@@ -2473,7 +2614,7 @@
               }).join('')}
             </div>
           </div>
-        ` : ''}
+        `).join('') : ''}
 
         <!-- Udemy Course Cards Grid -->
         <div class="cat-cards-grid">
