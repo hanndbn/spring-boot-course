@@ -392,6 +392,42 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=20261004.14"></script>
+  <!-- Image & Mermaid Diagram Zoom Lightbox Modal -->
+  <div class="modal-backdrop image-lightbox-modal" id="imageLightboxModal" style="display: none;" role="dialog" aria-modal="true" aria-label="Xem ảnh phóng to">
+    <div class="lightbox-dialog">
+      <div class="lightbox-header">
+        <div class="lightbox-title-wrap">
+          <span class="lightbox-badge">🔍 Phóng to</span>
+          <span class="lightbox-title" id="lightboxTitle">Xem ảnh / Sơ đồ chi tiết</span>
+        </div>
+        <div class="lightbox-toolbar">
+          <button type="button" class="lightbox-btn" id="lightboxZoomOut" title="Thu nhỏ (Phím -)" aria-label="Thu nhỏ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <span class="lightbox-zoom-val" id="lightboxZoomVal">100%</span>
+          <button type="button" class="lightbox-btn" id="lightboxZoomIn" title="Phóng to (Phím +)" aria-label="Phóng to">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button type="button" class="lightbox-btn" id="lightboxZoomReset" title="Đặt lại kích thước chuẩn 100% (Phím 0)" aria-label="Đặt lại">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span class="lightbox-btn-text">1:1</span>
+          </button>
+          <button type="button" class="lightbox-btn lightbox-btn-close" id="lightboxCloseBtn" title="Đóng (Phím ESC)" aria-label="Đóng">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="lightbox-body" id="lightboxBody">
+        <div class="lightbox-stage" id="lightboxStage">
+          <div class="lightbox-canvas" id="lightboxCanvas"></div>
+        </div>
+      </div>
+      <div class="lightbox-footer-tip">
+        <span>💡 <em>Cuộn chuột</em> để phóng to/thu nhỏ • <em>Giữ chuột và kéo</em> để di chuyển • <em>Double click</em> để phóng to 200% • Phím <kbd>ESC</kbd> để đóng</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=20261004.15"></script>
 </body>
 </html>

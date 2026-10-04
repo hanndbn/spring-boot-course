@@ -1238,6 +1238,79 @@
 
   window.DevMasteryOpenCert = openCertificateModal;
 
+  // ---------- Image & Diagram Lightbox Controller ----------
+  const lbState = {
+    zoom: 1.0,
+    panX: 0,
+    panY: 0,
+    isDragging: false,
+    startX: 0,
+    startY: 0
+  };
+
+  function updateLightboxTransform() {
+    const canvas = $("#lightboxCanvas");
+    const zoomVal = $("#lightboxZoomVal");
+    if (canvas) {
+      canvas.style.transform = `translate(${lbState.panX}px, ${lbState.panY}px) scale(${lbState.zoom})`;
+    }
+    if (zoomVal) {
+      zoomVal.textContent = Math.round(lbState.zoom * 100) + "%";
+    }
+  }
+
+  function setLightboxZoom(newZoom) {
+    lbState.zoom = Math.max(0.4, Math.min(5.0, Math.round(newZoom * 100) / 100));
+    updateLightboxTransform();
+  }
+
+  function resetLightboxZoom() {
+    lbState.zoom = 1.0;
+    lbState.panX = 0;
+    lbState.panY = 0;
+    updateLightboxTransform();
+  }
+
+  function openImageLightbox(type, content, title) {
+    const modal = $("#imageLightboxModal");
+    const canvas = $("#lightboxCanvas");
+    const titleEl = $("#lightboxTitle");
+    if (!modal || !canvas) return;
+
+    resetLightboxZoom();
+    canvas.innerHTML = "";
+
+    if (type === "img") {
+      const img = document.createElement("img");
+      img.src = content;
+      img.alt = title || "Ảnh bài học";
+      canvas.appendChild(img);
+    } else if (type === "svg") {
+      const clone = content.cloneNode(true);
+      clone.removeAttribute("width");
+      clone.removeAttribute("height");
+      clone.style.maxWidth = "none";
+      clone.style.height = "auto";
+      canvas.appendChild(clone);
+    }
+
+    if (titleEl) {
+      titleEl.textContent = title || (type === "svg" ? "Sơ đồ kiến trúc Mermaid" : "Hình ảnh minh họa");
+    }
+
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeImageLightbox() {
+    const modal = $("#imageLightboxModal");
+    if (!modal) return;
+    modal.style.display = "none";
+    document.body.style.overflow = "";
+    const canvas = $("#lightboxCanvas");
+    if (canvas) canvas.innerHTML = "";
+  }
+
   // ---------- Navigation & Progress Helpers ----------
   function findLesson(id) {
     // 1. Search active course
@@ -1339,7 +1412,7 @@
         const parts = line.slice(3).trim().split(" ");
         const type = parts[0] || "info";
         const title = parts.slice(1).join(" ");
-        const icons = { tip: "💡", warn: "⚠️", danger: "🚫", info: "ℹ️", laas: "🏢", takeaways: "🎯" };
+        const icons = { tip: "💡", warn: "⚠️", danger: "🚫", info: "ℹ️", laas: "🏢", takeaways: "🎯", beginner: "🌱", analogy: "💡" };
         let buf = [];
         i++;
         while (i < lines.length && !lines[i].startsWith(":::")) {
@@ -1474,8 +1547,8 @@
     s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     s = s.replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`);
-    s = s.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g,
-      '<img src="$2" alt="$1" class="lesson-img" loading="lazy">');
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,
+      '<img src="$2" alt="$1" class="lesson-img" loading="lazy" title="Nhấp để phóng to ảnh">');
     s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
@@ -2652,26 +2725,40 @@
       if (state.completed[lessonId]) {
         delete state.completed[lessonId];
         syncUncompleteLessonCloud(lessonId);
+        toast("↩️ Đã hủy đánh dấu hoàn thành bài này");
+        save();
+        renderAll();
       } else {
         state.completed[lessonId] = true;
         const currentCourse = getActiveCourse();
         const prog = overallProgress(currentCourse.id);
+        syncCompleteLessonCloud(lessonId);
+        save();
+
         if (prog.pct === 100) {
           toast(`🏆 <strong>Chúc mừng! Bạn đã hoàn thành 100% khóa học ${escapeHtml(currentCourse.shortTitle)}!</strong>`, 7000);
+          renderAll();
           setTimeout(() => openCertificateModal(currentCourse.id), 800);
         } else {
-          toast("🎉 Đánh dấu hoàn thành!");
+          if (next) {
+            toast(`🎉 <strong>Đã hoàn thành!</strong> Đang chuyển sang bài tiếp theo: <em>${escapeHtml(next.lesson.title)}</em>...`, 2500);
+            renderAll();
+            setTimeout(() => {
+              gotoLesson(next.lesson.id);
+            }, 600);
+          } else {
+            toast("🎉 Đã hoàn thành bài học cuối cùng của khóa học!");
+            renderAll();
+          }
         }
-        syncCompleteLessonCloud(lessonId);
       }
-      save();
-      renderAll();
     });
     $$("[data-nav]", view).forEach((b) =>
       b.addEventListener("click", () => gotoLesson(b.dataset.nav)));
     $$(".breadcrumb [data-view]", view).forEach((b) =>
       b.addEventListener("click", () => gotoView(b.dataset.view)));
     bindCopyButtons(view);
+    bindZoomableMedia(view);
     if (window.mermaid) {
       setTimeout(() => {
         try {
@@ -2679,11 +2766,42 @@
           if (diagrams.length > 0) {
             window.mermaid.run({ nodes: diagrams });
           }
+          bindZoomableMedia(view);
         } catch (e) {
           console.warn("Mermaid execution error:", e);
         }
       }, 50);
     }
+  }
+
+  function bindZoomableMedia(root) {
+    if (!root) return;
+    $$(".lesson-body img", root).forEach((img) => {
+      img.style.cursor = "zoom-in";
+      img.onclick = (e) => {
+        e.stopPropagation();
+        openImageLightbox("img", img.src, img.alt || "Ảnh minh họa bài học");
+      };
+    });
+    $$(".lesson-body .mermaid", root).forEach((m) => {
+      m.style.cursor = "zoom-in";
+      m.onclick = (e) => {
+        e.stopPropagation();
+        const svg = m.querySelector("svg");
+        if (svg) {
+          let prev = m.previousElementSibling;
+          let headingText = "";
+          while (prev) {
+            if (/^H[1-4]$/i.test(prev.tagName)) {
+              headingText = prev.textContent.trim();
+              break;
+            }
+            prev = prev.previousElementSibling;
+          }
+          openImageLightbox("svg", svg, headingText ? `Sơ đồ: ${headingText}` : "Sơ đồ kiến trúc Mermaid");
+        }
+      };
+    });
   }
 
   function bindCopyButtons(root) {
@@ -3869,6 +3987,100 @@
       if (currentCertData && currentCertData.code) {
         navigator.clipboard.writeText(currentCertData.code);
         toast(`📋 Đã sao chép mã xác thực: <strong>${currentCertData.code}</strong>`);
+      }
+    });
+
+    // Lightbox Modal Events
+    $("#lightboxCloseBtn")?.addEventListener("click", closeImageLightbox);
+    $("#imageLightboxModal")?.addEventListener("click", (e) => {
+      if (e.target.id === "imageLightboxModal") closeImageLightbox();
+    });
+    $("#lightboxZoomIn")?.addEventListener("click", () => setLightboxZoom(lbState.zoom + 0.25));
+    $("#lightboxZoomOut")?.addEventListener("click", () => setLightboxZoom(lbState.zoom - 0.25));
+    $("#lightboxZoomReset")?.addEventListener("click", resetLightboxZoom);
+
+    const lbStage = $("#lightboxStage");
+    if (lbStage) {
+      lbStage.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.2 : -0.2;
+        setLightboxZoom(lbState.zoom + delta);
+      }, { passive: false });
+
+      lbStage.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        lbState.isDragging = true;
+        lbState.startX = e.clientX - lbState.panX;
+        lbState.startY = e.clientY - lbState.panY;
+        lbStage.classList.add("grabbing");
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!lbState.isDragging) return;
+        lbState.panX = e.clientX - lbState.startX;
+        lbState.panY = e.clientY - lbState.startY;
+        updateLightboxTransform();
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (lbState.isDragging) {
+          lbState.isDragging = false;
+          lbStage.classList.remove("grabbing");
+        }
+      });
+
+      // Double-click to toggle zoom
+      $("#lightboxCanvas")?.addEventListener("dblclick", () => {
+        if (lbState.zoom > 1.2) {
+          resetLightboxZoom();
+        } else {
+          setLightboxZoom(2.0);
+        }
+      });
+    }
+
+    // Keyboard shortcuts for Lightbox
+    window.addEventListener("keydown", (e) => {
+      const modal = $("#imageLightboxModal");
+      if (modal && modal.style.display !== "none") {
+        if (e.key === "Escape") {
+          closeImageLightbox();
+        } else if (e.key === "+" || e.key === "=") {
+          setLightboxZoom(lbState.zoom + 0.25);
+        } else if (e.key === "-" || e.key === "_") {
+          setLightboxZoom(lbState.zoom - 0.25);
+        } else if (e.key === "0") {
+          resetLightboxZoom();
+        }
+      }
+    });
+
+    // Global delegation for opening images & diagrams in lightbox
+    document.addEventListener("click", (e) => {
+      const img = e.target.closest(".lesson-body img, .article-body img");
+      if (img && !img.closest("#imageLightboxModal")) {
+        e.preventDefault();
+        e.stopPropagation();
+        openImageLightbox("img", img.src, img.alt || "Ảnh minh họa bài học");
+        return;
+      }
+      const mermaidBox = e.target.closest(".mermaid");
+      if (mermaidBox && mermaidBox.closest(".lesson-body, #view-lesson")) {
+        const svg = mermaidBox.querySelector("svg");
+        if (svg) {
+          e.preventDefault();
+          e.stopPropagation();
+          let prev = mermaidBox.previousElementSibling;
+          let headingText = "";
+          while (prev) {
+            if (/^H[1-4]$/i.test(prev.tagName)) {
+              headingText = prev.textContent.trim();
+              break;
+            }
+            prev = prev.previousElementSibling;
+          }
+          openImageLightbox("svg", svg, headingText ? `Sơ đồ: ${headingText}` : "Sơ đồ kiến trúc Mermaid");
+        }
       }
     });
 
