@@ -2792,16 +2792,24 @@
   const GLM_KEY_STORAGE = "sbc_glm_api_key";
   const GLM_MODEL_STORAGE = "sbc_glm_model";
   const GLM_ENDPOINT_STORAGE = "sbc_glm_endpoint";
-  const DEFAULT_GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-  const DEFAULT_GLM_MODEL = "glm-4-flash";
+  const ZAI_CODING_ENDPOINT = "https://api.z.ai/api/coding/paas/v4/chat/completions";
+  const BIGMODEL_CHINA_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+  const DEFAULT_GLM_ENDPOINT = ZAI_CODING_ENDPOINT;
+  const DEFAULT_GLM_MODEL = "glm-4.5";
   const lessonAiConversations = {};
 
   function getGlmConfig() {
-    return {
-      apiKey: localStorage.getItem(GLM_KEY_STORAGE) || "",
-      model: localStorage.getItem(GLM_MODEL_STORAGE) || DEFAULT_GLM_MODEL,
-      endpoint: localStorage.getItem(GLM_ENDPOINT_STORAGE) || DEFAULT_GLM_ENDPOINT
-    };
+    let endpoint = localStorage.getItem(GLM_ENDPOINT_STORAGE) || DEFAULT_GLM_ENDPOINT;
+    let model = localStorage.getItem(GLM_MODEL_STORAGE) || DEFAULT_GLM_MODEL;
+    const apiKey = localStorage.getItem(GLM_KEY_STORAGE) || "";
+
+    // If using Z.AI coding endpoint but model is set to an unsupported legacy/China model (e.g. glm-4-flash), normalize to glm-4.5
+    if (endpoint.includes("z.ai/api/coding") && model !== "glm-4.5" && model !== "glm-5") {
+      model = "glm-4.5";
+      localStorage.setItem(GLM_MODEL_STORAGE, model);
+    }
+
+    return { apiKey, model, endpoint };
   }
 
   function saveGlmConfig(apiKey, model, endpoint) {
@@ -2871,13 +2879,13 @@
           <div class="ai-setup-icon">🔑</div>
           <div class="ai-setup-content" style="flex: 1;">
             <h4>Kích hoạt Trợ lý AI với Token GLM của bạn</h4>
-            <p>Nhập API Key GLM (Zhipu AI) để bắt đầu hỏi đáp chuyên sâu theo ngữ cảnh bài học này. Token được lưu bảo mật cục bộ tại trình duyệt của bạn (LocalStorage).</p>
+            <p>Nhập API Key GLM để hỏi đáp chuyên sâu theo ngữ cảnh bài học này. Hỗ trợ cả <strong>Z.AI Coding Plan (z.ai)</strong> lẫn <strong>BigModel China (open.bigmodel.cn)</strong>. Token được lưu bảo mật cục bộ tại trình duyệt (LocalStorage).</p>
             <div class="ai-quick-key-row">
-              <input type="password" id="aiQuickKeyInput" placeholder="Dán API Key GLM tại đây..." autocomplete="off">
+              <input type="password" id="aiQuickKeyInput" placeholder="Dán API Key GLM tại đây (vd: 956ae...)" autocomplete="off">
               <button type="button" class="btn btn-primary" id="btnSaveQuickKey" style="padding: 8px 16px; font-size: 13px;">Lưu &amp; Kích hoạt</button>
             </div>
             <div class="ai-setup-help">
-              Chưa có token? Đăng ký nhận token miễn phí tại <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a> (glm-4-flash miễn phí 128k context, tốc độ cao).
+              💡 Hỗ trợ: <a href="https://z.ai" target="_blank" rel="noopener">z.ai (GLM Coding Plan)</a> hoặc <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a> (glm-4-flash miễn phí).
             </div>
           </div>
         </div>
@@ -3005,34 +3013,86 @@ ${lesson ? lesson.content : ""}
       ...lessonAiConversations[lessonId]
     ];
 
-    try {
-      const res = await fetch(cfg.endpoint, {
+    async function requestChatCompletion(targetEndpoint, targetModel, targetKey, messagesList) {
+      const res = await fetch(targetEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${cfg.apiKey.trim()}`
+          "Authorization": `Bearer ${targetKey.trim()}`
         },
         body: JSON.stringify({
-          model: cfg.model || DEFAULT_GLM_MODEL,
-          messages: apiMessages,
+          model: targetModel,
+          messages: messagesList,
           temperature: 0.6,
-          max_tokens: 3000
+          max_tokens: 4096
         })
       });
 
       if (!res.ok) {
         let errMsg = `Lỗi HTTP ${res.status}: ${res.statusText}`;
+        let errJson = null;
         try {
-          const errJson = await res.json();
+          errJson = await res.json();
           if (errJson && errJson.error) {
             errMsg = errJson.error.message || errJson.error.code || JSON.stringify(errJson.error);
           }
         } catch (e) {}
-        throw new Error(errMsg);
+        const error = new Error(errMsg);
+        error.status = res.status;
+        error.data = errJson;
+        throw error;
       }
 
-      const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content || "(Không nhận được phản hồi từ AI)";
+      return await res.json();
+    }
+
+    try {
+      let data;
+      try {
+        data = await requestChatCompletion(cfg.endpoint, cfg.model || DEFAULT_GLM_MODEL, cfg.apiKey, apiMessages);
+      } catch (primaryErr) {
+        console.warn("Primary GLM request failed:", primaryErr);
+
+        // Smart auto-fallback logic:
+        let fallbackEndpoint = null;
+        let fallbackModel = null;
+        let fallbackLabel = "";
+
+        const isBigModel = cfg.endpoint.includes("bigmodel.cn");
+        const isZai = cfg.endpoint.includes("z.ai");
+
+        if (isBigModel || primaryErr.status === 400 || primaryErr.status === 403 || primaryErr.status === 404) {
+          // Fallback to Z.AI Coding Plan endpoint
+          fallbackEndpoint = ZAI_CODING_ENDPOINT;
+          fallbackModel = (cfg.model === "glm-5") ? "glm-5" : "glm-4.5";
+          fallbackLabel = "Z.AI Coding Plan";
+        } else if (isZai && cfg.model !== "glm-4.5" && cfg.model !== "glm-5") {
+          fallbackEndpoint = ZAI_CODING_ENDPOINT;
+          fallbackModel = "glm-4.5";
+          fallbackLabel = "Z.AI Coding Plan (glm-4.5)";
+        }
+
+        if (fallbackEndpoint && (fallbackEndpoint !== cfg.endpoint || fallbackModel !== cfg.model)) {
+          try {
+            console.info(`Auto-fallback to ${fallbackEndpoint} (${fallbackModel})...`);
+            data = await requestChatCompletion(fallbackEndpoint, fallbackModel, cfg.apiKey, apiMessages);
+            saveGlmConfig(cfg.apiKey, fallbackModel, fallbackEndpoint);
+            toast(`💡 Đã tự động kết nối qua ${fallbackLabel} và lưu cấu hình!`, 3500);
+          } catch (fallbackErr) {
+            console.error("Auto-fallback also failed:", fallbackErr);
+            throw primaryErr;
+          }
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      const choice = data?.choices?.[0]?.message;
+      const reply = (choice?.content && choice.content.trim())
+        ? choice.content
+        : (choice?.reasoning_content && choice.reasoning_content.trim()
+            ? choice.reasoning_content
+            : "(Không nhận được phản hồi từ AI)");
       lessonAiConversations[lessonId].push({ role: "assistant", content: reply });
 
       const loadingEl = $("#aiLoadingIndicator");
@@ -4710,6 +4770,31 @@ ${lesson ? lesson.content : ""}
     $("#aiConfigCloseBtn")?.addEventListener("click", closeAiConfigModal);
     $("#aiConfigModal")?.addEventListener("click", (e) => {
       if (e.target.id === "aiConfigModal") closeAiConfigModal();
+    });
+
+    // Preset buttons
+    $("#btnPresetZaiCoding")?.addEventListener("click", () => {
+      const endpointInput = $("#glmEndpointInput");
+      const modelSelect = $("#glmModelSelect");
+      if (endpointInput) endpointInput.value = ZAI_CODING_ENDPOINT;
+      if (modelSelect) modelSelect.value = "glm-4.5";
+      toast("⚡ Đã chọn preset Z.AI Coding Plan (glm-4.5)!");
+    });
+
+    $("#btnPresetZaiReasoning")?.addEventListener("click", () => {
+      const endpointInput = $("#glmEndpointInput");
+      const modelSelect = $("#glmModelSelect");
+      if (endpointInput) endpointInput.value = ZAI_CODING_ENDPOINT;
+      if (modelSelect) modelSelect.value = "glm-5";
+      toast("🧠 Đã chọn preset Z.AI GLM-5 Reasoning!");
+    });
+
+    $("#btnPresetBigmodel")?.addEventListener("click", () => {
+      const endpointInput = $("#glmEndpointInput");
+      const modelSelect = $("#glmModelSelect");
+      if (endpointInput) endpointInput.value = BIGMODEL_CHINA_ENDPOINT;
+      if (modelSelect) modelSelect.value = "glm-4-flash";
+      toast("🇨🇳 Đã chọn preset BigModel China (glm-4-flash)!");
     });
     $("#btnToggleGlmKey")?.addEventListener("click", () => {
       const inp = $("#glmApiKeyInput");
