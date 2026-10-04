@@ -628,6 +628,36 @@ body {
 .callout.info .callout-title { color: var(--blue); }
 .callout.laas { background: rgba(167, 139, 250, 0.08); border-color: rgba(167, 139, 250, 0.28); }
 .callout.laas .callout-title { color: var(--violet); }
+.callout.beginner, .callout.analogy {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.09), rgba(234, 88, 12, 0.05));
+  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.06);
+}
+.callout.beginner .callout-title, .callout.analogy .callout-title {
+  color: #f59e0b;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* Beginner Bridge Card for Level 1 Foundation */
+.beginner-bridge-card {
+  margin: 20px 0 24px;
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.06), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-left: 5px solid #3b82f6;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.beginner-bridge-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 
 /* Key takeaway box */
 .key-takeaways {
@@ -1157,6 +1187,270 @@ body {
 .mermaid svg {
   max-width: 100%;
   height: auto;
+}
+
+/* =====================================================
+   Image & Mermaid Diagram Lightbox Modal Styles
+   ===================================================== */
+.image-lightbox-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(10, 15, 29, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: lbFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes lbFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lightbox-dialog {
+  width: 95vw;
+  max-width: 1400px;
+  height: 90vh;
+  background: var(--bg-1, #131722);
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.14));
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-2, #181f30);
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.08));
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.lightbox-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lightbox-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(164, 53, 240, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(164, 53, 240, 0.35);
+  padding: 3px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+
+.lightbox-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1, #f1f5f9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lightbox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--surface-1, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  color: var(--text-1, #f1f5f9);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.lightbox-btn:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.12));
+  border-color: var(--primary, #a435f0);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.lightbox-btn:active {
+  transform: translateY(0);
+}
+
+.lightbox-btn-close {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.lightbox-btn-close:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+
+.lightbox-zoom-val {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--text-2, #cbd5e1);
+  background: var(--bg-1, #0f172a);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.1));
+  min-width: 50px;
+  text-align: center;
+}
+
+.lightbox-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-canvas, #090d16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.lightbox-stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.lightbox-stage.grabbing {
+  cursor: grabbing !important;
+}
+
+.lightbox-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  transition: transform 0.05s linear;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.lightbox-canvas img {
+  max-width: 90vw;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.lightbox-canvas svg {
+  max-width: none;
+  height: auto;
+  min-width: 550px;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lightbox-footer-tip {
+  padding: 8px 16px;
+  background: var(--bg-2, #181f30);
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.08));
+  font-size: 11.5px;
+  color: var(--text-3, #94a3b8);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.lightbox-footer-tip kbd {
+  background: var(--bg-1, #0f172a);
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.2));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  color: var(--text-1, #f8fafc);
+}
+
+/* Zoomable Diagram in Lesson body */
+.lesson-body .mermaid {
+  position: relative;
+  cursor: zoom-in;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  padding: 18px 14px;
+  background: rgba(15, 23, 42, 0.45);
+  margin: 20px 0;
+}
+
+.lesson-body .mermaid:hover {
+  border-color: var(--primary, #a435f0);
+  box-shadow: 0 4px 20px rgba(164, 53, 240, 0.15);
+}
+
+.lesson-body .mermaid::after {
+  content: "🔍 Nhấp để phóng to sơ đồ";
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2, #cbd5e1);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(164, 53, 240, 0.4);
+  padding: 3px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.lesson-body .mermaid:hover::after {
+  opacity: 1;
+  color: #fff;
+  background: #a435f0;
+  border-color: #a435f0;
+}
+
+.lesson-body img.lesson-img {
+  cursor: zoom-in;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.lesson-body img.lesson-img:hover {
+  transform: scale(1.01);
+  border-color: var(--primary, #a435f0);
+  box-shadow: 0 8px 24px rgba(164, 53, 240, 0.18);
 }
 
 /* =====================================================

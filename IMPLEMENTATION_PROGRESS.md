@@ -14,6 +14,7 @@ Tài liệu này ghi lại chi tiết quá trình tái cấu trúc toàn diện 
 | **4** | **Hợp nhất Ngân Hàng Đề Quiz (36+ câu/module) & Adaptive Retake Engine** | Ghép `expanded_quizzes.js` và quiz inline đạt 36 câu kịch bản/module (tổng 288 câu), cập nhật logic rút ngẫu nhiên 12 câu/lượt thi, ngưỡng đạt ≥ 80%, chỉ dẫn ôn tập thích ứng (Adaptive Retake Guidance) và rà soát đáp án chi tiết. | ✅ Hoàn thành |
 | **5** | **Kiểm thử Toàn Diện & Đồng Bộ Production** | Chạy `node verify.js` đạt 100% PASS (0 errors, 0 warnings), kiểm thử cú pháp JavaScript (`node -c`), đồng bộ git commit và đẩy lên nhánh `main` và `gh-pages`. | ✅ Hoàn thành |
 | **6** | **Nâng Tầm Trực Quan Hóa (100% Mermaid) & Mô Hình Lai Triple-Pillar** | Bổ sung sơ đồ kiến trúc Mermaid SVG cho 100% bài học (132/132 bài), tích hợp cơ chế tầng sâu từ Spring Docs 6.1+/Boot 3.3+ và nghiệp vụ thực chiến E-Commerce. | ✅ Hoàn thành |
+| **7** | **Tối Ưu UX Lightbox Zoom, Tự Động Chuyển Bài & Cầu Nối Sư Phạm Phù Hợp Level** | Triển khai Modal Lightbox phóng to ảnh & sơ đồ Mermaid (pan, zoom, reset), tự động chuyển bài sau khi đánh dấu hoàn thành, bổ sung khối giải thích trực quan (ẩn dụ đời thực) cho Level 1 Foundation. | ✅ Hoàn thành |
 
 ---
 
@@ -132,4 +133,44 @@ Toàn bộ 346 bài ban đầu được sàng lọc, tái cấu trúc theo mô h
   - Module 7 (DevOps & Observability): **16/16 bài có Mermaid (100%)**
   - **TỔNG CỘNG TOÀN KHÓA: 132/132 BÀI CÓ SƠ ĐỒ MERMAID (100% ĐỘ PHỦ)**
 - **Kiểm định Kỹ thuật**: `node verify.js` đạt 100% PASS (0 errors, 0 warnings).
+
+---
+
+### Bước 7: Tối Ưu UX Lightbox Zoom, Tự Động Chuyển Bài & Cầu Nối Sư Phạm Phù Hợp Level — ✅ ĐÃ HOÀN THÀNH
+- **Hạng mục 1: Modal Lightbox Phóng To Ảnh & Sơ Đồ Kiến Trúc Mermaid**
+  - **Vấn đề giải quyết**: Học viên không thể click để phóng to các hình ảnh hoặc sơ đồ Mermaid kích thước lớn, gây khó theo dõi trên màn hình nhỏ hoặc sơ đồ chi tiết.
+  - **Triển khai kỹ thuật**:
+    - Thêm `#imageLightboxModal` chuyên dụng trong `course/index.html`.
+    - Thiết kế bộ điều khiển Pan & Zoom mượt mà trong `course/js/app.js`: Phóng to (+), Thu nhỏ (-), Đặt lại 100% (1:1), Double-click để zoom 200%, Kéo chuột để di chuyển góc nhìn (Drag-to-pan), Cuộn chuột (Mousewheel zoom), Phím tắt bàn phím (ESC đóng, +, -, 0).
+    - Hỗ trợ cả hai định dạng: Ảnh Markdown thông thường (`<img>`) và Sơ đồ Vector Mermaid (`<svg>`) với chất lượng sắc nét tuyệt đối, không bị vỡ hạt.
+    - Hiệu ứng trực quan: Con trỏ `cursor: zoom-in` kèm huy hiệu nổi `🔍 Nhấp để phóng to sơ đồ` khi rê chuột qua các khối `.mermaid`.
+- **Hạng mục 2: Tự Động Chuyển Sang Bài Kế Tiếp Khi Hoàn Thành Bài Học**
+  - **Vấn đề giải quyết**: Trước đây khi bấm nút "#completeBtn", học viên vẫn đứng nguyên ở bài cũ, phải tự cuộn xuống bấm nút "Bài tiếp theo".
+  - **Triển khai kỹ thuật**:
+    - Cập nhật logic `#completeBtn` trong `course/js/app.js`: Khi đánh dấu hoàn thành, nút chuyển trạng thái "✓ Đã hoàn thành bài này", tiến độ lưu vào Supabase Cloud.
+    - Toast thông báo tức thời: `🎉 Đã hoàn thành! Đang chuyển sang bài tiếp theo: [Tên bài]...`.
+    - Sau 600ms, hệ thống tự động kích hoạt `gotoLesson(next.lesson.id)` và cuộn mượt mà lên đầu trang bài mới (hoặc tự động chuyển vào bài thi Quiz nếu hết module).
+    - Nếu là bài học cuối cùng đạt 100% khóa học: Tự động kích hoạt hiệu ứng chúc mừng và mở Modal cấp Chứng chỉ tốt nghiệp `DevMastery Verified`.
+- **Hạng mục 3: Chuẩn Hóa Cấu Trúc Ngôn Ngữ & Cầu Nối Sư Phạm Theo Từng Level**
+  - **Vấn đề giải quyết**: Ngôn ngữ chuyên sâu doanh nghiệp (như `invokedynamic`, `Spliterator`, `BeanFactoryPostProcessor`, `CGLIB Proxy`, `PersistenceContext`) dễ gây bối rối, quá tải cho người mới bắt đầu.
+  - **Triển khai kỹ thuật**:
+    - Bổ sung khối gọi ý sư phạm chuyên biệt `:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN CHO NGƯỜI MỚI (BEGINNER BRIDGE)` tại các bài lý thuyết nền tảng của Level 1 (M0, M1, M2, M3).
+    - Ứng dụng các ẩn dụ đời thực trực quan, dễ nhớ:
+      - *JVM / Bytecode*: Bản vẽ thiết kế nhà & Thông dịch viên quốc tế; Interpreter vs JIT; GC như đội dọn vệ sinh tự động.
+      - *Stream API & Lambda*: Băng chuyền nhà máy tự động với cơ chế Lazy Evaluation & Giấy ủy quyền việc nhà ngắn gọn.
+      - *Java Record & Sealed*: Phong thư niêm phong dấu sáp bất biến & Menu 3 hình thức thanh toán khóa cứng của công ty.
+      - *IoC & DI*: Khách gọi xe công nghệ Grab vs tự chế tạo xe máy từ sắt vụn; Quản gia Spring chăm sóc Bean trọn đời.
+      - *Bean Scope*: Quạt trần lớp học dùng chung (Singleton) vs Ly cà phê giấy dùng 1 lần (Prototype).
+      - *Circular Dependency*: Nghịch lý con gà và quả trứng; Chim bồ câu đưa thư (ApplicationEvent).
+      - *AutoConfiguration*: Căn nhà thô tự kéo dây điện vs Căn hộ thông minh Smart-Home Full nội thất.
+      - *Spring AOP*: Cổng kiểm soát an ninh sân bay kiểm tra vé & soi chiếu trước khi lên máy bay.
+      - *REST API*: Thực đơn nhà hàng gọi món (URL danh từ, HTTP Method động từ, Status code phản hồi từ bồi bàn).
+      - *DTO*: Tấm thẻ tên học viên mang trên ngực che giấu hồ sơ mật bên trong.
+      - *Global Exception Handling*: Tổng đài chăm sóc khách hàng 24/7 đón nhận mọi sự cố và phản hồi lịch sự.
+      - *JPA & Hibernate*: Thông dịch viên quốc tế dịch giữa Đối tượng Java và Bảng CSDL RDBMS.
+      - *Persistence Context*: Bàn làm việc của thư ký Hibernate & Két sắt Database.
+      - *N+1 Query*: Shipper chạy 11 chuyến xe mua từng củ khoai tây vs 1 chuyến xe tải chở trọn gói (JOIN FETCH).
+- **Kiểm định chất lượng**:
+  - `node verify.js`: **100% ĐẠT CHUẨN CES-2026 v2.5 (0 errors, 0 warnings)**.
+  - `node -c course/js/app.js`: Cú pháp JavaScript hợp lệ 100%.
 
