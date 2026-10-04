@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spring Boot Mastery — Khóa học từ Zero đến Production</title>
-  <meta name="description" content="Khóa học Spring Boot hoàn chỉnh bằng tiếng Việt: 8 module, 56 bài học, 98 câu quiz và dự án thực chiến từ Java nền tảng đến microservices & DevOps.">
+  <title>DevMastery Academy — Nền tảng Đào tạo Lập trình Enterprise Thực chiến</title>
+  <meta name="description" content="Nền tảng đào tạo công nghệ lập trình thực chiến: Java Core, Spring Boot 3 & Microservices, React 19 & Next.js 15, Cloud Native DevOps & Kubernetes.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="css/style.css?v=20261004.8">
+  <link rel="stylesheet" href="css/style.css?v=20261004.9">
 </head>
 <body>
   <div class="app" id="app">
@@ -19,17 +19,24 @@
       <button class="menu-toggle" id="menuToggle" aria-label="Mở menu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
-      <a class="brand" href="#" data-view="dashboard">
+      <a class="brand" href="#" id="brandLogoLink" data-view="courses" title="Trang chủ — Tất cả khóa học">
         <span class="brand-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 2 4.5 4.5 4.5 8c0 2 1.2 3.6 3 4.6V16c0 .6.4 1 1 1h7c.6 0 1-.4 1-1v-3.4c1.8-1 3-2.6 3-4.6C19.5 4.5 16 2 12 2Z" fill="url(#g1)"/><ellipse cx="9.5" cy="8" rx="1.2" ry="1.6" fill="#0a0f0d"/><ellipse cx="14.5" cy="8" rx="1.2" ry="1.6" fill="#0a0f0d"/><path d="M9 20h6M10 22h4" stroke="url(#g1)" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="g1" x1="4" y1="2" x2="20" y2="22"><stop stop-color="#8BE36B"/><stop offset="1" stop-color="#2DD4A7"/></linearGradient></defs></svg>
         </span>
-        <span class="brand-text" id="brandText">SpringBoot <em>Mastery</em></span>
+        <span class="brand-text" id="brandText">DevMastery <span class="grad-text">Academy</span></span>
       </a>
 
-      <button class="nav-catalog-btn" id="btnHeaderCatalog" data-view="courses" title="Khám phá tất cả khóa học">
-        <span class="nc-icon">🌟</span>
-        <span class="nc-text">Tất cả khóa học</span>
-      </button>
+      <!-- Header Navigation (Udemy Style) -->
+      <nav class="header-nav" id="headerNav">
+        <button class="nav-catalog-btn active" id="btnHeaderCatalog" data-view="courses" title="Khám phá tất cả khóa học">
+          <span class="nc-icon">🌟</span>
+          <span class="nc-text">Khám phá</span>
+        </button>
+        <button class="nav-catalog-btn" id="btnHeaderMyLearning" data-view="user-dashboard" title="Khóa học của tôi">
+          <span class="nc-icon">📚</span>
+          <span class="nc-text">Học tập của tôi</span>
+        </button>
+      </nav>
 
       <div class="search-box" id="searchBox">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -99,7 +106,7 @@
       <main class="main" id="mainView">
 
         <!-- Dashboard -->
-        <section class="view" id="view-dashboard">
+        <section class="view" id="view-dashboard" hidden>
           <div class="hero">
             <div class="hero-badge">📚 Khóa học tương tác · Tiếng Việt</div>
             <h1>Spring Boot <span class="grad-text">Mastery</span></h1>
@@ -165,8 +172,8 @@
         <!-- User Dashboard & Personal Progress -->
         <section class="view" id="view-user-dashboard" hidden></section>
 
-        <!-- Course Catalog view -->
-        <section class="view" id="view-courses" hidden></section>
+        <!-- Course Catalog view (Default Home View) -->
+        <section class="view" id="view-courses"></section>
       </main>
     </div>
   </div>
@@ -268,6 +275,6 @@
       </form>
     </div>
   </div>
-  <script src="js/app.js?v=20261004.8"></script>
+  <script src="js/app.js?v=20261004.9"></script>
 </body>
 </html>

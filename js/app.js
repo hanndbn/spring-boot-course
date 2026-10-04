@@ -121,7 +121,7 @@
 
   // ---------- State ----------
   const state = {
-    view: "dashboard",        // dashboard | lesson | quiz | curriculum | user-dashboard | courses
+    view: "courses",          // courses (Trang chủ) | dashboard | lesson | quiz | curriculum | user-dashboard
     activeCourseId: localStorage.getItem(ACTIVE_COURSE_KEY) || "spring-boot-mastery",
     currentLesson: null,      // lesson id
     currentQuizModule: null,  // module id
@@ -256,7 +256,7 @@
     if (!silent) {
       toast(`🎉 Chúc mừng! Bạn đã ghi danh thành công khóa học <strong>${escapeHtml(course.title)}</strong>!`);
     }
-    renderAll();
+    enterCourse(cId);
     return true;
   }
 
@@ -290,7 +290,13 @@
   function updateBrandText(c) {
     const brandText = $("#brandText");
     if (!brandText) return;
-    const title = (c.shortTitle || c.title || "").trim();
+    const isPlatformMode = state.view === "courses" || state.view === "user-dashboard";
+    if (isPlatformMode) {
+      brandText.innerHTML = `DevMastery <span class="grad-text">Academy</span>`;
+      return;
+    }
+    const target = c || getActiveCourse();
+    const title = (target.shortTitle || target.title || "").trim();
     if (title.endsWith("Mastery")) {
       const prefix = title.replace(/\s*Mastery$/, "");
       brandText.innerHTML = `${escapeHtml(prefix)} <span class="grad-text">Mastery</span>`;
@@ -303,6 +309,27 @@
         brandText.innerHTML = `<span class="grad-text">${escapeHtml(title)}</span>`;
       }
     }
+  }
+
+  function enterCourse(courseId, forceLesson = false) {
+    const c = COURSES.find(x => x.id === courseId);
+    if (!c) return;
+    state.activeCourseId = c.id;
+    localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
+    updateBrandText(c);
+
+    const prog = overallProgress(c.id);
+    if (forceLesson || prog.done > 0) {
+      const items = allItems(c.id);
+      const nextItem = items.find(x => x.lesson.type !== "quiz" && !state.completed[x.lesson.id]) || items[0];
+      if (nextItem) {
+        gotoLesson(nextItem.lesson.id);
+        toast(`📚 Tiếp tục học khóa <strong>${escapeHtml(c.shortTitle)}</strong>: ${escapeHtml(nextItem.lesson.title)}`);
+        return;
+      }
+    }
+    gotoView("dashboard");
+    toast(`📚 Đã mở khóa học: <strong>${escapeHtml(c.title)}</strong>`);
   }
 
   function switchCourse(courseId, targetLessonId = null) {
@@ -319,7 +346,6 @@
     } else {
       gotoView("dashboard");
     }
-    renderAll();
     toast(`📚 Đã chuyển sang khóa học: <strong>${escapeHtml(c.title)}</strong>`);
   }
 
@@ -750,103 +776,284 @@
     return s;
   }
 
-  // ---------- Sidebar ----------
+  // ---------- Udemy-Style Sidebar Architecture ----------
+  function updateSidebarFooter() {
+    const isPlatformMode = state.view === "courses" || state.view === "user-dashboard";
+    const label = $(".streak-label");
+    const val = $(".streak-value");
+    const sub = $("#streakSub");
+    if (!label || !val || !sub) return;
+
+    if (isPlatformMode) {
+      label.textContent = "🎯 Hệ sinh thái đào tạo";
+      val.textContent = "DevMastery Platform";
+      sub.textContent = `${COURSES.length} Khóa học thực chiến · 4 Lộ trình`;
+    } else {
+      const activeCourse = getActiveCourse();
+      label.textContent = "🎯 Mục tiêu khóa học";
+      val.textContent = activeCourse.level || "Zero → Production";
+      sub.textContent = `${activeCourse.modulesCount} module · ${activeCourse.lessonsCount} bài · ${activeCourse.hours}`;
+    }
+  }
+
   function renderSidebar(activeLessonId) {
     const nav = $("#sidebarNav");
+    if (!nav) return;
+
+    updateSidebarFooter();
+
+    const isPlatformMode = state.view === "courses" || state.view === "user-dashboard";
+    if (isPlatformMode) {
+      renderPlatformSidebar(nav);
+    } else {
+      renderCourseSidebar(nav, activeLessonId);
+    }
+  }
+
+  // --- Mode 1: Platform Navigation Sidebar (Trang chủ / Khám phá & Học tập của tôi) ---
+  function renderPlatformSidebar(nav) {
+    const enrolledCourses = COURSES.filter(c => isCourseEnrolled(c.id));
+    const activeCat = state.catalogCategory || "all";
+
+    let html = `
+      <div class="sidebar-platform">
+        <!-- Main Navigation Section -->
+        <div class="sp-group">
+          <div class="sp-group-title">ĐIỀU HƯỚNG NỀN TẢNG</div>
+          <a class="sp-nav-item ${state.view === "courses" ? "active" : ""}" data-view="courses">
+            <span class="sp-icon">🌟</span>
+            <div class="sp-content">
+              <div class="sp-title">Khám phá khóa học</div>
+              <div class="sp-sub">Tất cả khóa học có sẵn (${COURSES.length})</div>
+            </div>
+          </a>
+          <a class="sp-nav-item ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
+            <span class="sp-icon">📚</span>
+            <div class="sp-content">
+              <div class="sp-title">Học tập của tôi</div>
+              <div class="sp-sub">${enrolledCourses.length > 0 ? `${enrolledCourses.length} khóa đã ghi danh` : "Tiến độ học & chứng chỉ"}</div>
+            </div>
+            ${enrolledCourses.length > 0 ? `<span class="sp-badge">${enrolledCourses.length}</span>` : ""}
+          </a>
+        </div>
+
+        <div class="sp-divider"></div>
+
+        <!-- Course Categories / Topics Section -->
+        <div class="sp-group">
+          <div class="sp-group-title">DANH MỤC KHÓA HỌC</div>
+          <div class="sp-categories">
+            <button class="sp-cat-btn ${activeCat === "all" ? "active" : ""}" data-cat-filter="all">
+              <span class="sp-cat-icon">⚡</span>
+              <span class="sp-cat-label">Tất cả danh mục</span>
+              <span class="sp-cat-pill">${COURSES.length}</span>
+            </button>
+            <button class="sp-cat-btn ${activeCat === "backend" ? "active" : ""}" data-cat-filter="backend">
+              <span class="sp-cat-icon">🍃</span>
+              <span class="sp-cat-label">Backend &amp; Java</span>
+              <span class="sp-cat-pill">2</span>
+            </button>
+            <button class="sp-cat-btn ${activeCat === "frontend" ? "active" : ""}" data-cat-filter="frontend">
+              <span class="sp-cat-icon">⚛️</span>
+              <span class="sp-cat-label">Frontend &amp; Web</span>
+              <span class="sp-cat-pill">1</span>
+            </button>
+            <button class="sp-cat-btn ${activeCat === "devops" ? "active" : ""}" data-cat-filter="devops">
+              <span class="sp-cat-icon">☸️</span>
+              <span class="sp-cat-label">DevOps &amp; Cloud</span>
+              <span class="sp-cat-pill">1</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Enrolled Courses Quick Access Section -->
+        ${enrolledCourses.length > 0 ? `
+          <div class="sp-divider"></div>
+          <div class="sp-group">
+            <div class="sp-group-title">KHÓA HỌC CỦA BẠN (TRUY CẬP NHANH)</div>
+            <div class="sp-enrolled-courses">
+              ${enrolledCourses.map(c => {
+                const prog = overallProgress(c.id);
+                const isCurActive = c.id === state.activeCourseId;
+                return `
+                  <div class="sp-enrolled-item ${isCurActive ? "current-learning" : ""}" data-enter-course="${c.id}" title="Nhấp để vào học ngay khóa này">
+                    <div class="sp-ei-top">
+                      <span class="sp-ei-icon">${c.icon}</span>
+                      <div class="sp-ei-info">
+                        <div class="sp-ei-title">${escapeHtml(c.shortTitle)}</div>
+                        <div class="sp-ei-meta">${prog.done}/${c.lessonsCount} bài · ${prog.pct}%</div>
+                      </div>
+                      <span class="sp-ei-arrow">→</span>
+                    </div>
+                    <div class="sp-ei-bar">
+                      <div class="sp-ei-fill" style="width: ${prog.pct}%"></div>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        ` : `
+          <div class="sp-empty-enroll">
+            <span class="sp-ee-icon">💡</span>
+            <p>Bạn chưa ghi danh khóa học nào. Hãy chọn một khóa học để bắt đầu học ngay!</p>
+          </div>
+        `}
+
+        <div class="sp-box-card">
+          <div class="sp-bc-tag">🏆 LỘ TRÌNH ĐÀO TẠO</div>
+          <div class="sp-bc-title">Fullstack &amp; Cloud Native</div>
+          <p class="sp-bc-desc">Học từ Java Core, Spring Boot, React 19 đến Docker &amp; Kubernetes chuẩn kiến trúc Enterprise.</p>
+        </div>
+      </div>
+    `;
+
+    nav.innerHTML = html;
+
+    // Attach listeners for Platform Sidebar
+    $$(".sp-nav-item", nav).forEach(el => {
+      el.addEventListener("click", () => gotoView(el.dataset.view));
+    });
+
+    $$("[data-cat-filter]", nav).forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.catalogCategory = btn.dataset.catFilter;
+        if (state.view !== "courses") {
+          gotoView("courses");
+        } else {
+          renderCoursesCatalog();
+          renderSidebar(null);
+        }
+      });
+    });
+
+    $$("[data-enter-course]", nav).forEach(item => {
+      item.addEventListener("click", () => {
+        enterCourse(item.dataset.enterCourse);
+      });
+    });
+  }
+
+  // --- Mode 2: Course Learning Sidebar (Udemy Course Content Player) ---
+  function renderCourseSidebar(nav, activeLessonId) {
     const activeCourse = getActiveCourse();
     const modules = getActiveModules();
     const isGuest = !state.currentUser;
     const isEnrolled = isCourseEnrolled(activeCourse.id);
-    const enrolledCoursesCount = COURSES.filter(c => isCourseEnrolled(c.id)).length;
+    const prog = overallProgress(activeCourse.id);
 
     let html = `
-      <!-- Course Switcher Top Header -->
-      <div class="sidebar-course-selector" id="sidebarCourseSelector">
-        <div class="scs-current" id="scsCurrentBtn" title="Bấm để chuyển đổi giữa các khóa học">
-          <span class="scs-icon">${activeCourse.icon}</span>
-          <div class="scs-info">
-            <span class="scs-label">Đang học khóa:</span>
-            <span class="scs-name">${escapeHtml(activeCourse.shortTitle)}</span>
-          </div>
-          <span class="scs-arrow">▾</span>
-        </div>
-        <div class="scs-dropdown" id="scsDropdown" style="display: none;">
-          <div class="scs-dropdown-title">CHỌN KHÓA HỌC:</div>
-          ${COURSES.map(c => `
-            <div class="scs-item ${c.id === activeCourse.id ? "active" : ""}" data-switch-course="${c.id}">
-              <span class="scs-item-icon">${c.icon}</span>
-              <div class="scs-item-body">
-                <div class="scs-item-title">${escapeHtml(c.shortTitle)}</div>
-                <div class="scs-item-sub">${c.modulesCount} Module · ${c.lessonsCount} bài</div>
-              </div>
-              ${c.id === activeCourse.id 
-                ? '<span class="scs-active-badge">Đang mở</span>' 
-                : isCourseEnrolled(c.id) 
-                ? '<span class="scs-enrolled-badge">Đã ghi danh</span>' 
-                : '<span class="scs-free-badge">Miễn phí</span>'
-              }
+      <div class="sidebar-course-learning">
+        <!-- Back to Courses Catalog Button -->
+        <a class="sidebar-back-btn" data-view="courses" title="Quay về trang danh sách tất cả khóa học (Trang chủ)">
+          <span class="sbb-arrow">←</span>
+          <span class="sbb-text">Tất cả khóa học (Trang chủ)</span>
+        </a>
+
+        <!-- Active Course Info Card -->
+        <div class="course-brand-box">
+          <div class="cbb-header">
+            <span class="cbb-icon">${activeCourse.icon}</span>
+            <div class="cbb-body">
+              <span class="cbb-badge">${escapeHtml(activeCourse.badge)}</span>
+              <h3 class="cbb-title">${escapeHtml(activeCourse.shortTitle)}</h3>
             </div>
-          `).join("")}
+          </div>
+          <div class="cbb-prog-block">
+            <div class="cbb-prog-labels">
+              <span>Tiến độ khóa học:</span>
+              <strong>${prog.done}/${activeCourse.lessonsCount} bài (${prog.pct}%)</strong>
+            </div>
+            <div class="cbb-prog-bar">
+              <div class="cbb-prog-fill" style="width: ${prog.pct}%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Course Switcher Trigger Dropdown -->
+        <div class="sidebar-course-selector" id="sidebarCourseSelector">
+          <div class="scs-current" id="scsCurrentBtn" title="Chuyển đổi khóa học">
+            <span class="scs-switch-icon">🔄</span>
+            <span class="scs-name">Đổi khóa học khác...</span>
+            <span class="scs-arrow">▾</span>
+          </div>
+          <div class="scs-dropdown" id="scsDropdown" style="display: none;">
+            <div class="scs-dropdown-title">CHUYỂN SANG KHÓA HỌC:</div>
+            ${COURSES.map(c => `
+              <div class="scs-item ${c.id === activeCourse.id ? "active" : ""}" data-switch-course="${c.id}">
+                <span class="scs-item-icon">${c.icon}</span>
+                <div class="scs-item-body">
+                  <div class="scs-item-title">${escapeHtml(c.shortTitle)}</div>
+                  <div class="scs-item-sub">${c.modulesCount} Module · ${c.lessonsCount} bài</div>
+                </div>
+                ${c.id === activeCourse.id 
+                  ? '<span class="scs-active-badge">Đang học</span>' 
+                  : isCourseEnrolled(c.id) 
+                  ? '<span class="scs-enrolled-badge">Đã ghi danh</span>' 
+                  : '<span class="scs-free-badge">Miễn phí</span>'
+                }
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- Course Internal Navigation Links -->
+        <div class="course-internal-nav">
+          <a class="nav-home ${state.view === "dashboard" ? "active" : ""}" data-view="dashboard">
+            🏠 Tổng quan khóa học
+          </a>
+          <a class="nav-home ${state.view === "curriculum" ? "active" : ""}" data-view="curriculum">
+            📚 Toàn bộ giáo trình
+          </a>
+        </div>
+
+        ${!isGuest && !isEnrolled ? `
+          <div class="sidebar-course-cta">
+            <div class="s-cta-title">${activeCourse.icon} ${escapeHtml(activeCourse.shortTitle)}</div>
+            <p class="s-cta-desc">Chưa ghi danh khóa học này</p>
+            <button class="btn btn-sm btn-primary s-cta-btn" id="btnSidebarEnroll">🚀 Ghi danh khóa này</button>
+          </div>
+        ` : ""}
+
+        <!-- Course Curriculum Section Header -->
+        <div class="sidebar-section-title">
+          <span>NỘI DUNG KHÓA HỌC (${modules.length} MODULE)</span>
+        </div>
+
+        <!-- Module Accordions (THIS COURSE ONLY) -->
+        <div class="course-curriculum-list">
+          ${modules.map((m) => {
+            const mProg = moduleProgress(m);
+            const hasActive = (m.lessons || []).some((l) => l.id === activeLessonId) ||
+                              (state.view === "quiz" && state.currentQuizModule === m.id);
+            const open = hasActive || mProg.pct > 0;
+
+            return `
+            <div class="nav-module mc-${m.id} ${open ? "open" : ""} ${mProg.pct === 100 ? "done" : ""}">
+              <div class="nav-module-head" data-module="${m.id}">
+                <span class="nm-badge" style="background: var(--mc-color, #22c55e)">${m.icon}</span>
+                <span class="nm-title">${m.id}. ${escapeHtml(m.title)}</span>
+                ${isEnrolled ? (mProg.pct === 100 ? '<span class="nm-check">✓</span>' : '') : '<span class="nm-lock-icon">🔒</span>'}
+                <span class="nm-count">${mProg.done}/${mProg.total}</span>
+              </div>
+              <div class="nav-lessons">
+                ${(m.lessons || []).map((l) => `
+                  <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
+                       data-lesson="${l.id}">
+                    <span class="nl-dot"></span>
+                    <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
+                    <span class="nl-mins">${l.minutes}p</span>
+                  </div>`).join("")}
+              </div>
+            </div>`;
+          }).join("")}
         </div>
       </div>
-
-      <!-- Navigation Links -->
-      <a class="nav-home ${state.view === "dashboard" ? "active" : ""}" data-view="dashboard">
-        🏠 Tổng quan khóa học
-      </a>
-      <a class="nav-home ${state.view === "courses" ? "active" : ""}" data-view="courses">
-        🌟 Tất cả khóa học (Catalog)
-      </a>
-      <a class="nav-home ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
-        📊 Tiến độ của tôi ${enrolledCoursesCount > 0 ? `(${enrolledCoursesCount} khóa)` : ""}
-      </a>
-      <a class="nav-home ${state.view === "curriculum" ? "active" : ""}" data-view="curriculum">
-        📚 Giáo trình chi tiết
-      </a>`;
-
-    if (!isGuest && !isEnrolled) {
-      html += `
-        <div class="sidebar-course-cta">
-          <div class="s-cta-title">${activeCourse.icon} ${escapeHtml(activeCourse.shortTitle)}</div>
-          <p class="s-cta-desc">Chưa ghi danh khóa học này</p>
-          <button class="btn btn-sm btn-primary s-cta-btn" id="btnSidebarEnroll">🚀 Ghi danh khóa này</button>
-        </div>`;
-    }
-
-    html += `
-      <div class="sidebar-section-title">
-        <span>GIÁO TRÌNH ${activeCourse.shortTitle.toUpperCase()} (${modules.length} MODULE)</span>
-      </div>`;
-
-    modules.forEach((m) => {
-      const prog = moduleProgress(m);
-      const hasActive = (m.lessons || []).some((l) => l.id === activeLessonId) ||
-                        (state.view === "quiz" && state.currentQuizModule === m.id);
-      const open = hasActive || prog.pct > 0;
-
-      html += `
-      <div class="nav-module mc-${m.id} ${open ? "open" : ""} ${prog.pct === 100 ? "done" : ""}">
-        <div class="nav-module-head" data-module="${m.id}">
-          <span class="nm-badge" style="background: var(--mc-color, #22c55e)">${m.icon}</span>
-          <span class="nm-title">${m.id}. ${escapeHtml(m.title)}</span>
-          ${isEnrolled ? (prog.pct === 100 ? '<span class="nm-check">✓</span>' : '') : '<span class="nm-lock-icon">🔒</span>'}
-          <span class="nm-count">${prog.done}/${prog.total}</span>
-        </div>
-        <div class="nav-lessons">
-          ${(m.lessons || []).map((l) => `
-            <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
-                 data-lesson="${l.id}">
-              <span class="nl-dot"></span>
-              <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
-              <span class="nl-mins">${l.minutes}p</span>
-            </div>`).join("")}
-        </div>
-      </div>`;
-    });
+    `;
 
     nav.innerHTML = html;
 
-    // Course Selector interactions
+    // Attach listeners for Course Sidebar
     const scsCurrentBtn = $("#scsCurrentBtn", nav);
     const scsDropdown = $("#scsDropdown", nav);
     if (scsCurrentBtn && scsDropdown) {
@@ -864,7 +1071,7 @@
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (scsDropdown) scsDropdown.style.display = "none";
-        switchCourse(el.dataset.switchCourse);
+        enterCourse(el.dataset.switchCourse);
       });
     });
 
@@ -872,6 +1079,8 @@
     if (btnSidebarEnroll) {
       btnSidebarEnroll.addEventListener("click", () => enrollCourse(activeCourse.id));
     }
+    $$(".sidebar-back-btn", nav).forEach(el =>
+      el.addEventListener("click", () => gotoView("courses")));
     $$(".nav-home", nav).forEach((el) =>
       el.addEventListener("click", () => gotoView(el.dataset.view)));
     $$(".nav-module-head", nav).forEach((el) =>
@@ -1140,8 +1349,8 @@
             const prog = overallProgress(c.id);
 
             return `
-            <div class="cat-card ${enrolled ? "enrolled" : ""} ${isActive ? "active-learning" : ""}">
-              <div class="cat-card-header">
+            <div class="cat-card ${enrolled ? "enrolled" : ""} ${isActive ? "active-learning" : ""}" data-card-course="${c.id}" style="cursor: pointer;">
+              <div class="cat-card-header" data-goto-course="${c.id}" title="Nhấp để vào học ${escapeHtml(c.shortTitle)}">
                 <div class="cat-card-icon-box">${c.icon}</div>
                 <div class="cat-card-title-box">
                   <div class="cat-card-badge-row">
@@ -1161,7 +1370,7 @@
               </div>
 
               <!-- Syllabus Preview -->
-              <div class="cat-card-syllabus">
+              <div class="cat-card-syllabus" data-goto-course="${c.id}" style="cursor: pointer;" title="Xem giáo trình ${escapeHtml(c.shortTitle)}">
                 <div class="ccs-head">Lộ trình ${c.modulesCount} Module:</div>
                 <div class="ccs-list">
                   ${(c.modules || []).slice(0, 4).map(m => `
@@ -1207,8 +1416,11 @@
                 ` : `
                   <div class="cat-unenrolled-actions">
                     <span class="cat-free-tag">Miễn phí 100%</span>
+                    <button class="btn btn-ghost btn-sm" data-goto-course="${c.id}" style="font-size:12px;padding:6px 10px;">
+                      👁 Xem giáo trình
+                    </button>
                     <button class="btn btn-primary cat-btn-enroll" data-enroll-course="${c.id}">
-                      📝 Ghi danh khóa học
+                      📝 Ghi danh ngay
                     </button>
                   </div>
                 `}
@@ -1258,7 +1470,14 @@
     });
 
     $$("[data-goto-course]", view).forEach(btn => {
-      btn.addEventListener("click", () => switchCourse(btn.dataset.gotoCourse));
+      btn.addEventListener("click", () => enterCourse(btn.dataset.gotoCourse));
+    });
+
+    $$(".cat-card", view).forEach(card => {
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button") || e.target.closest("a")) return;
+        enterCourse(card.dataset.cardCourse);
+      });
     });
   }
 
@@ -2132,15 +2351,28 @@
       const el = $("#view-" + v);
       if (el) el.hidden = v !== name;
     });
+
+    // Update Header active button states
+    const btnCat = $("#btnHeaderCatalog");
+    const btnMy = $("#btnHeaderMyLearning");
+    if (btnCat) btnCat.classList.toggle("active", name === "courses");
+    if (btnMy) btnMy.classList.toggle("active", name === "user-dashboard");
+
+    // Context-aware brand text & sidebar footer
+    updateBrandText();
+    updateSidebarFooter();
+
     window.scrollTo({ top: 0 });
     closeSidebar();
   }
 
   function gotoView(name) {
-    if (name === "dashboard") { showView("dashboard"); renderAll(); }
-    else if (name === "courses") { showView("courses"); renderCoursesCatalog(); renderSidebar(null); }
-    else if (name === "curriculum") { showView("curriculum"); renderCurriculum(); renderSidebar(null); }
-    else if (name === "user-dashboard") { showView("user-dashboard"); renderUserDashboard(); renderSidebar(null); }
+    showView(name);
+    if (name === "dashboard") { renderDashboard(); renderSidebar(null); }
+    else if (name === "courses") { renderCoursesCatalog(); renderSidebar(null); }
+    else if (name === "curriculum") { renderCurriculum(); renderSidebar(null); }
+    else if (name === "user-dashboard") { renderUserDashboard(); renderSidebar(null); }
+    renderDashboardStats();
   }
 
   function gotoLesson(id) {
@@ -2170,10 +2402,10 @@
 
   function renderAll() {
     renderSidebar(state.currentLesson);
-    renderDashboard();
     if (state.view === "courses") renderCoursesCatalog();
-    if (state.view === "curriculum") renderCurriculum();
-    if (state.view === "user-dashboard") renderUserDashboard();
+    else if (state.view === "user-dashboard") renderUserDashboard();
+    else if (state.view === "curriculum") renderCurriculum();
+    else if (state.view === "dashboard") renderDashboard();
     renderDashboardStats();
   }
 
@@ -2199,8 +2431,16 @@
     });
     $("#backdrop").addEventListener("click", closeSidebar);
 
-    // Header Catalog Button
+    // Header Navigation Buttons
     $("#btnHeaderCatalog")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      gotoView("courses");
+    });
+    $("#btnHeaderMyLearning")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      gotoView("user-dashboard");
+    });
+    $("#brandLogoLink")?.addEventListener("click", (e) => {
       e.preventDefault();
       gotoView("courses");
     });
@@ -2415,6 +2655,7 @@
       syncLocalAndCloud();
     }
 
+    showView(state.view);
     renderAll();
   }
 
