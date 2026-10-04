@@ -4195,7 +4195,7 @@ groups:
           severity: critical
         annotations:
           summary: "RabbitMQ Consumer unacked messages leak detected"
-          description: "Queue {{ $labels.queue }} has {{ $value }} unacked messages for more than 2 minutes. Check for thread deadlocks or missing basicAck."
+          description: "Queue {&#123; $labels.queue &#125;} has {&#123; $value &#125;} unacked messages for more than 2 minutes. Check for thread deadlocks or missing basicAck."
 
       - alert: DeadLetterQueueNotEmpty
         expr: rabbitmq_queue_messages{queue="q.payment.webhook-dispatch.dlq"} > 10
@@ -4204,7 +4204,7 @@ groups:
           severity: warning
         annotations:
           summary: "DLQ receiving dead messages"
-          description: "Dead Letter Queue {{ $labels.queue }} contains {{ $value }} poison messages."
+          description: "Dead Letter Queue {&#123; $labels.queue &#125;} contains {&#123; $value &#125;} poison messages."
 ~~~
 
 ---

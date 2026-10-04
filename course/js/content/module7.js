@@ -242,7 +242,7 @@ Sau khi build image, hãy kiểm tra kích thước từng layer để đảm b�
 docker build -t enterprise/payment-service:latest .
 
 # Xem chi tiết kích thước từng layer
-docker history enterprise/payment-service:latest --format "table {{.Size}}	{{.CreatedBy}}"
+docker history enterprise/payment-service:latest --format "table {&#123;.Size&#125;}	{&#123;.CreatedBy&#125;}"
 ~~~
 
 Kết quả chuẩn:
