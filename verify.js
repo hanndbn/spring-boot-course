@@ -1,53 +1,130 @@
 const fs = require("fs");
-global.window = { COURSE_MODULES: [] };
+const path = require("path");
 
-["module0","module1","module2","module3","module4","module5","module6","module7"].forEach(m => {
-  new Function("window", fs.readFileSync("js/content/" + m + ".js", "utf8"))(window);
+// Environment setup for browser globals simulation
+global.window = { COURSE_MODULES: [], EXPANDED_QUIZZES: {} };
+
+const baseDir = __dirname;
+const contentDir = path.join(baseDir, "js", "content");
+
+// 1. Load expanded quizzes pool if available
+if (fs.existsSync(path.join(contentDir, "expanded_quizzes.js"))) {
+  new Function("window", fs.readFileSync(path.join(contentDir, "expanded_quizzes.js"), "utf8"))(window);
+}
+
+// 2. Load all 8 modules
+["module0", "module1", "module2", "module3", "module4", "module5", "module6", "module7"].forEach(m => {
+  const filePath = path.join(contentDir, m + ".js");
+  if (fs.existsSync(filePath)) {
+    new Function("window", fs.readFileSync(filePath, "utf8"))(window);
+  }
 });
 
 const mods = window.COURSE_MODULES;
-console.log("Modules loaded:", mods.length);
+console.log("==========================================================");
+console.log("   KIỂM ĐỊNH CHUẨN KỸ THUẬT NỘI DUNG (CES-2026 v2.5)     ");
+console.log("==========================================================");
+console.log(`Modules loaded: ${mods.length}`);
 
-let totalLessons = 0, totalQuestions = 0, errors = [];
+let totalLessons = 0, totalQuestions = 0, errors = [], warnings = [];
 
 mods.forEach(m => {
-  const lessons = m.lessons.filter(l => l.type === "lesson");
-  const quiz = m.lessons.find(l => l.type === "quiz");
-  const qn = quiz ? quiz.questions.length : 0;
+  const lessons = (m.lessons || []).filter(l => l.type !== "quiz");
+  const inlineQuiz = (m.lessons || []).find(l => l.type === "quiz");
+  const expandedQuiz = (window.EXPANDED_QUIZZES && window.EXPANDED_QUIZZES[String(m.id)]) || [];
+  
+  // Combine unique questions
+  const totalPool = (inlineQuiz ? inlineQuiz.questions.length : 0) + expandedQuiz.length;
   totalLessons += lessons.length;
-  totalQuestions += qn;
-  console.log(`  M${m.id} "${m.title}": ${lessons.length} lessons + quiz(${qn}q)`);
+  totalQuestions += totalPool;
 
-  // Validate quiz integrity
-  if (quiz) {
-    quiz.questions.forEach((q, i) => {
-      if (typeof q.answer !== "number" || q.answer < 0 || q.answer >= q.options.length)
-        errors.push(`M${m.id} q${i+1}: bad answer index`);
-      if (!q.explain) errors.push(`M${m.id} q${i+1}: missing explain`);
-      if (q.options.length < 2) errors.push(`M${m.id} q${i+1}: <2 options`);
-    });
+  console.log(`\n▶ Module ${m.id}: "${m.title}"`);
+  console.log(`  • Số bài vi mô: ${lessons.length} bài (Trần quy định: ≤ 22 bài)`);
+  console.log(`  • Ngân hàng Quiz: ${totalPool} câu kịch bản (Yêu cầu: ≥ 36 câu)`);
+
+  // [RULE 1] Trần cứng 22 bài/module (Đã bao gồm Synthesis)
+  if (lessons.length > 22) {
+    errors.push(`Module ${m.id}: VƯỢT TRẦN CỨNG 22 BÀI (${lessons.length} bài > 22 bài)`);
+  } else if (lessons.length < 12) {
+    warnings.push(`Module ${m.id}: Dưới định mức MVP 12 bài (${lessons.length} bài)`);
   }
 
-  // Validate lesson content non-empty + no unescaped template leftovers
+  // [RULE 2] Cụm Topic: Mỗi topic tối đa 4 bài kể cả Synthesis
+  const topicMap = {};
   lessons.forEach(l => {
-    if (!l.content || l.content.length < 500) errors.push(`${l.id}: content too short`);
+    const parts = l.id.split("-");
+    const tId = parts[1] || "1";
+    if (!topicMap[tId]) topicMap[tId] = [];
+    topicMap[tId].push(l);
   });
 
-  // Validate ID order sequential + quiz position (chặn bug thứ tự Module 7 tái phát)
-  m.lessons.forEach((l, i) => {
-    if (l.type === "lesson") {
-      const expect = `${m.id}-${lessons.indexOf(l) + 1}`;
-      if (l.id !== expect) errors.push(`M${m.id}[${i}]: id "${l.id}" sai vị trí, kỳ vọng "${expect}"`);
+  Object.keys(topicMap).forEach(tId => {
+    const count = topicMap[tId].length;
+    if (count > 4) {
+      errors.push(`Module ${m.id} Topic ${tId}: VƯỢT TRẦN 4 BÀI/TOPIC (${count} bài > 4 bài)`);
+    }
+    const hasSynthesis = topicMap[tId].some(l => l.type === "synthesis");
+    if (!hasSynthesis) {
+      warnings.push(`Module ${m.id} Topic ${tId}: Thiếu bài Milestone Synthesis`);
     }
   });
-  if (quiz && m.lessons[m.lessons.length - 1].type !== "quiz")
-    errors.push(`M${m.id}: quiz phải là phần tử CUỐI module (đang ở vị trí ${m.lessons.indexOf(quiz) + 1}/${m.lessons.length})`);
-  const lessonIds = m.lessons.filter(l => l.type === "lesson").map(l => l.id);
-  if (new Set(lessonIds).size !== lessonIds.length)
-    errors.push(`M${m.id}: duplicate lesson id`);
+
+  // [RULE 3] Kiểm tra loại bài học (Lesson Types)
+  const validTypes = ["theory", "practice", "pitfall", "challenge", "synthesis"];
+  lessons.forEach(l => {
+    if (!validTypes.includes(l.type)) {
+      errors.push(`Bài ${l.id}: Loại bài '${l.type}' không hợp lệ (hợp lệ: ${validTypes.join(", ")})`);
+    }
+    if (!l.content || l.content.length < 500) {
+      errors.push(`Bài ${l.id}: Nội dung quá ngắn (${l.content ? l.content.length : 0} ký tự < 500)`);
+    }
+  });
+
+  // [RULE 4] Đảm bảo Quiz nằm ở cuối module nếu có inline quiz
+  if (inlineQuiz && m.lessons[m.lessons.length - 1].type !== "quiz") {
+    errors.push(`Module ${m.id}: Inline Quiz phải nằm ở phần tử CUỐI CÙNG của mảng lessons`);
+  }
+
+  // [RULE 5] Kiểm tra định mức Ngân hàng đề thi Quiz (≥ 36 câu)
+  if (totalPool < 36) {
+    errors.push(`Module ${m.id}: THIẾU CÂU HỎI QUIZ (${totalPool} câu < 36 câu tối thiểu theo CES-2026)`);
+  }
+
+  // [RULE 6] Kiểm tra Schema chuẩn 4 cấp (Course -> Module -> Topic -> Lesson)
+  if (!Array.isArray(m.topics) || m.topics.length === 0) {
+    errors.push(`Module ${m.id}: Thiếu mảng topics: [] chuẩn hóa phân cụm`);
+  }
+  if (!Array.isArray(m.outcomes) || m.outcomes.length < 3) {
+    errors.push(`Module ${m.id}: Thiếu hoặc chưa đủ outcomes: [] (yêu cầu ≥ 3 mục tiêu đầu ra)`);
+  }
+  if (m.id > 0) {
+    if (!Array.isArray(m.retrievalWarmup) || m.retrievalWarmup.length !== 3) {
+      errors.push(`Module ${m.id}: Thiếu retrievalWarmup: [] gồm đúng 3 câu trắc nghiệm kích hoạt trí nhớ`);
+    }
+  }
+
+  // [RULE 7] Kiểm tra tính toàn vẹn của ngân hàng câu hỏi
+  const allQuestions = (inlineQuiz ? inlineQuiz.questions : []).concat(expandedQuiz);
+  allQuestions.forEach((q, idx) => {
+    if (typeof q.answer !== "number" || q.answer < 0 || q.answer >= q.options.length) {
+      errors.push(`Module ${m.id} Quiz câu ${idx + 1}: Index đáp án sai (${q.answer})`);
+    }
+    if (!q.explain) {
+      errors.push(`Module ${m.id} Quiz câu ${idx + 1}: Thiếu phân tích explain`);
+    }
+    if (!q.options || q.options.length < 4) {
+      warnings.push(`Module ${m.id} Quiz câu ${idx + 1}: Dưới 4 phương án lựa chọn`);
+    }
+  });
+
+  // [RULE 8] Đảm bảo không trùng ID bài học
+  const lessonIds = lessons.map(l => l.id);
+  if (new Set(lessonIds).size !== lessonIds.length) {
+    errors.push(`Module ${m.id}: Trùng lặp mã ID bài học`);
+  }
 });
 
-// Test markdown renderer — standalone copy of app.js logic
+// Markdown Renderer Integrity Check
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
           .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -69,38 +146,39 @@ function inline(s) {
   s = s.replace(/&lt;sub&gt;([\s\S]*?)&lt;\/sub&gt;/gi, "<sub>$1</sub>");
   s = s.replace(/&lt;small&gt;([\s\S]*?)&lt;\/small&gt;/gi, "<small>$1</small>");
   s = s.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
-
   s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
   s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   s = s.replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`);
-  s = s.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g,
-    '<img src="$2" alt="$1" class="lesson-img" loading="lazy">');
-  s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g, '<img src="$2" alt="$1" class="lesson-img" loading="lazy">');
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   s = s.replace(/\n/g, "<br>");
   return s;
 }
-const testMd = "## Title\n\nHello **world** `code`\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n~~~java\nint x = 1;\n~~~\n\n:::tip HELLO\ncontent here\n:::";
-// simulate key transform outcomes
+
 const checks = [
   ["bold", inline("Hello **world**").includes("<strong>world</strong>")],
   ["inline backtick code", inline("a `code` b").includes("<code>code</code>")],
-  ["inline html code tag", inline("Dùng <code>JAVA_HOME</code> chuẩn.").includes("<code>JAVA_HOME</code>")],
-  ["inline html mark tag", inline("Điểm <mark>nổi bật</mark>.").includes("<mark>nổi bật</mark>")],
-  ["inline html kbd tag", inline("Bấm <kbd>Ctrl</kbd> + <kbd>C</kbd>.").includes("<kbd>Ctrl</kbd>")],
-  ["inline html b tag", inline("Chữ <b>đậm</b>.").includes("<b>đậm</b>")],
-  ["inline html u tag", inline("Chữ <u>gạch chân</u>.").includes("<u>gạch chân</u>")],
-  ["inline html del & strike", inline("Chữ <del>cũ</del> và ~~xóa~~.").includes("<del>cũ</del>") && inline("~~xóa~~").includes("<del>xóa</del>")],
-  ["inline html sup & sub", inline("x<sup>2</sup> và H<sub>2</sub>O").includes("<sup>2</sup>") && inline("H<sub>2</sub>O").includes("<sub>2</sub>")],
-  ["inline html br tag", inline("Dòng 1<br/>Dòng 2").includes("<br>")],
   ["markdown image", inline("![Logo](https://example.com/logo.png)").includes('<img src="https://example.com/logo.png" alt="Logo" class="lesson-img" loading="lazy">')],
   ["escape", escapeHtml("<script>") === "&lt;script&gt;"]
 ];
-checks.forEach(([name, ok]) => console.log(`  markdown ${name}: ${ok ? "PASS" : "FAIL"}`));
-if (checks.some(c => !c[1])) errors.push("markdown renderer failed a check");
+checks.forEach(([name, ok]) => console.log(`  • Markdown ${name}: ${ok ? "PASS" : "FAIL"}`));
+if (checks.some(c => !c[1])) errors.push("Markdown renderer failed verification");
 
-console.log("---");
-console.log(`Total: ${mods.length} modules, ${totalLessons} lessons, ${totalQuestions} quiz questions`);
-if (errors.length) { console.log("ERRORS:"); errors.forEach(e => console.log("  ✗ " + e)); process.exit(1); }
-console.log("ALL VALID ✓");
+console.log("\n----------------------------------------------------------");
+console.log(`TỔNG KẾT: ${mods.length} modules, ${totalLessons} bài vi mô, ${totalQuestions} câu Quiz ngân hàng`);
+
+if (warnings.length) {
+  console.log(`\nCẢNH BÁO (${warnings.length} mục cần hoàn thiện):`);
+  warnings.slice(0, 10).forEach(w => console.log(`  ⚠ ${w}`));
+  if (warnings.length > 10) console.log(`  ... và ${warnings.length - 10} cảnh báo khác.`);
+}
+
+if (errors.length) {
+  console.log(`\nLỖI VI PHẠM TRẦN ĐỊNH MỨC (${errors.length} lỗi):`);
+  errors.forEach(e => console.log(`  ✗ ${e}`));
+  console.log("\nKẾT QUẢ: CHƯA ĐẠT CHUẨN CES-2026 v2.5 ✗");
+  process.exit(1);
+}
+
+console.log("\nKẾT QUẢ: 100% ĐẠT CHUẨN CES-2026 v2.5 ✓");

@@ -17,28 +17,366 @@
   let API_BASE = window.API_BASE_URL || localStorage.getItem(API_BASE_KEY) || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8080/api/v1" : "");
 
   // ---------- Multi-Course Catalog Architecture ----------
+  // ---------- Track & Multi-Course Architecture (CES-2026 v2.5) ----------
+  const TRACKS = [
+    {
+      id: "spring-boot-track",
+      title: "Lộ Trình Kỹ Sư Spring Boot & Kiến Trúc Phân Tán",
+      slug: "spring-boot-career-track",
+      category: "backend",
+      domainContext: "E-Commerce Order & Payment Management System",
+      desc: "Lộ trình 3 chặng từ nền tảng Spring Boot đến kiến trúc Microservices và bảo mật doanh nghiệp.",
+      stages: [
+        {
+          level: "foundation",
+          courseId: "spring-boot-foundation",
+          title: "Spring Boot Foundation — Core & Clean REST API",
+          certificate: "DevMastery Verified — Spring Boot Foundation"
+        },
+        {
+          level: "professional",
+          courseId: "spring-boot-professional",
+          title: "Spring Boot Professional — JPA, Security & Testing",
+          certificate: "DevMastery Verified — Spring Boot Professional"
+        },
+        {
+          level: "architect",
+          courseId: "spring-boot-architect",
+          title: "Spring Boot Architect — Kafka, Outbox & High-Scale",
+          certificate: "DevMastery Verified — Spring Boot Architect"
+        }
+      ]
+    }
+  ];
+
+  // ---------- Skill Placement Test Bank (15 Scenario Questions, 3 Tiers) ----------
+  const PLACEMENT_QUESTIONS = [
+    // --- Tier 1: Foundation (Q1 - Q5) ---
+    {
+      tier: "foundation",
+      tierLabel: "Chặng 1: Foundation",
+      q: "1. Trong Spring Boot 3, tại sao Constructor Injection lại được khuyến nghị thay vì Field Injection (@Autowired trên biến private)?",
+      options: [
+        "Constructor Injection cho phép các dependency là final (bất biến) và dễ dàng viết Unit Test mà không cần nạp Spring ApplicationContext.",
+        "Constructor Injection giúp ứng dụng khởi động nhanh hơn 50% so với Field Injection.",
+        "Field Injection đã bị loại bỏ hoàn toàn trong cú pháp Java 21 LTS.",
+        "Constructor Injection tự động kích hoạt chế độ Lazy Loading cho mọi bean."
+      ],
+      answer: 0,
+      explanation: "Constructor Injection bảo đảm các dependency là bắt buộc và bất biến (final), hỗ trợ kiểm thử đơn vị thuần túy không cần Spring Container, đồng thời phát hiện sớm lỗi vòng tròn phụ thuộc (Circular Dependency) ngay thời điểm khởi tạo."
+    },
+    {
+      tier: "foundation",
+      tierLabel: "Chặng 1: Foundation",
+      q: "2. Khi thiết kế RESTful API theo chuẩn RFC 7807 (ProblemDetails), cấu trúc payload trả về cho lỗi 400 Bad Request gồm các trường tối thiểu nào?",
+      options: [
+        "type, title, status, detail, instance (hoặc các trường mô tả lỗi chuẩn hóa).",
+        "message, code, data, timestamp.",
+        "success: false, error_code, error_message.",
+        "statusCode, errors: [], stackTrace."
+      ],
+      answer: 0,
+      explanation: "RFC 7807 ProblemDetails quy định chuẩn hóa cấu trúc HTTP API error với các trường: type (URI định danh loại lỗi), title (mô tả ngắn), status (HTTP code), detail (chi tiết lỗi thân thiện) và instance (URI endpoint gặp lỗi)."
+    },
+    {
+      tier: "foundation",
+      tierLabel: "Chặng 1: Foundation",
+      q: "3. Bean có scope Singleton mặc định trong Spring Container có đặc tính gì về Concurrency (đa luồng)?",
+      options: [
+        "Chỉ có một instance duy nhất được chia sẻ giữa mọi HTTP request thread, do đó TUYỆT ĐỐI không lưu mutable state trong biến instance.",
+        "Spring tự động đồng bộ hóa (synchronize) tất cả các phương thức của Bean singleton.",
+        "Mỗi HTTP request đến sẽ tự động nhân bản ra một instance Singleton mới trong memory.",
+        "Singleton bean chỉ chạy trên một thread duy nhất nên không bao giờ xảy ra Race Condition."
+      ],
+      answer: 0,
+      explanation: "Spring Singleton bean được chia sẻ cho hàng nghìn request worker threads chạy đồng thời. Nếu lưu biến trạng thái có thể thay đổi (mutable state) ở cấp độ class instance sẽ dẫn đến lỗi Race Condition và Data Corruption nghiêm trọng."
+    },
+    {
+      tier: "foundation",
+      tierLabel: "Chặng 1: Foundation",
+      q: "4. Trong Clean Architecture phân tầng của Spring Boot, quy tắc phụ thuộc (Dependency Rule) nào là CHUẨN XÁC?",
+      options: [
+        "Controller phụ thuộc vào Service interface; Service phụ thuộc vào Repository interface; Repository tương tác với Database.",
+        "Controller được phép gọi trực tiếp Spring Data JpaRepository để giảm độ trễ truy vấn.",
+        "Repository gọi Service để thực thi nghiệp vụ trước khi ghi dữ liệu xuống database.",
+        "Entity JPA phụ thuộc trực tiếp vào REST Controller để parse request payload."
+      ],
+      answer: 0,
+      explanation: "Quy tắc phân tầng chuẩn: Presentation/Web Layer (Controller) -> Business/Application Layer (Service) -> Persistence/Data Layer (Repository). Không bao giờ cho phép Controller bypass Service gọi trực tiếp Repository."
+    },
+    {
+      tier: "foundation",
+      tierLabel: "Chặng 1: Foundation",
+      q: "5. Annotation @SpringBootApplication tương đương với sự kết hợp của 3 annotation cốt lõi nào?",
+      options: [
+        "@Configuration, @EnableAutoConfiguration, @ComponentScan",
+        "@Service, @Repository, @Controller",
+        "@Component, @Autowired, @EnableWebMvc",
+        "@EntityScan, @EnableJpaRepositories, @SpringBootConfiguration"
+      ],
+      answer: 0,
+      explanation: "@SpringBootApplication là meta-annotation kết hợp của @SpringBootConfiguration (hoặc @Configuration), @EnableAutoConfiguration (kích hoạt các cấu hình tự động của Boot) và @ComponentScan (quét tìm bean trong package)."
+    },
+
+    // --- Tier 2: Professional (Q6 - Q10) ---
+    {
+      tier: "professional",
+      tierLabel: "Chặng 2: Professional",
+      q: "6. Vấn đề N+1 Query trong Spring Data JPA & Hibernate xảy ra do nguyên nhân nào và giải pháp triệt để là gì?",
+      options: [
+        "Do truy vấn 1 danh sách cha và Hibernate phát sinh thêm N câu query để nạp quan hệ lười (Lazy collection); giải pháp triệt để là dùng JOIN FETCH, @EntityGraph hoặc DTO Projection.",
+        "Do database thiếu index; giải pháp là đánh composite index trên tất cả các cột khóa ngoại.",
+        "Do Hibernate bật caching L2; giải pháp là tắt Hibernate L2 Cache.",
+        "Do khai báo fetch type là EAGER; giải pháp là đổi toàn bộ sang LAZY."
+      ],
+      answer: 0,
+      explanation: "N+1 query xảy ra khi truy vấn cha sinh 1 query, rồi lặp qua danh sách và gọi getter của quan hệ lazy sinh thêm N query phụ. Giải pháp chuẩn là JOIN FETCH trong JPQL, khai báo @EntityGraph hoặc fetch trực tiếp vào DTO Projection."
+    },
+    {
+      tier: "professional",
+      tierLabel: "Chặng 2: Professional",
+      q: "7. Trong nghiệp vụ Flash Sale đặt hàng có tranh chấp cao (high concurrency), giải pháp nào ngăn chặn tình trạng bán âm kho (overselling) một cách an toàn nhất tại tầng Database?",
+      options: [
+        "Sử dụng Pessimistic Write Lock (SELECT ... FOR UPDATE qua @Lock(LockModeType.PESSIMISTIC_WRITE)) hoặc atomic update có điều kiện WHERE quantity >= :count.",
+        "Sử dụng từ khóa Java synchronized trên phương thức của Service.",
+        "Chỉ cần đặt annotation @Transactional trên phương thức đặt hàng là đủ an toàn.",
+        "Tăng isolation level của database lên READ_UNCOMMITTED để xử lý nhanh hơn."
+      ],
+      answer: 0,
+      explanation: "Java synchronized chỉ có tác dụng trên 1 JVM duy nhất (vô dụng khi scale nhiều pod). Giải pháp an toàn ở tầng Database là Pessimistic Lock (SELECT FOR UPDATE) hoặc Atomic Conditional Update (UPDATE product SET stock = stock - :qty WHERE id = :id AND stock >= :qty)."
+    },
+    {
+      tier: "professional",
+      tierLabel: "Chặng 2: Professional",
+      q: "8. Trong Spring Security 6 với kiến trúc REST API Stateless dùng JWT, cấu hình nào là BẮT BUỘC để ngăn Spring tự động tạo HttpSession?",
+      options: [
+        "sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))",
+        "httpBasic(Customizer.withDefaults())",
+        "cors(Customizer.withDefaults()).csrf(AbstractHttpConfigurer::disable)",
+        "authorizeHttpRequests(auth -> auth.anyRequest().permitAll())"
+      ],
+      answer: 0,
+      explanation: "Cấu hình SessionCreationPolicy.STATELESS yêu cầu Spring Security không bao giờ tạo hoặc sử dụng HttpSession để lưu SecurityContext, bảo đảm tính chất hoàn toàn Stateless của JWT token trên phân tán."
+    },
+    {
+      tier: "professional",
+      tierLabel: "Chặng 2: Professional",
+      q: "9. Tại sao theo quy chuẩn kỹ thuật CES-2026, các bài test tích hợp (Integration Test) cho tầng Data & Concurrency bắt buộc phải dùng Testcontainers với PostgreSQL thật thay vì H2 in-memory?",
+      options: [
+        "Vì H2 không phản ánh đúng dialect SQL, Transaction Isolation, cơ chế Locking và Row-level lock thực tế của PostgreSQL, dẫn đến test pass trên H2 nhưng lỗi dead-lock/data race khi lên Production.",
+        "Vì H2 chạy chậm hơn Docker PostgreSQL trên môi trường máy yếu.",
+        "Vì Testcontainers không tốn RAM và không cần cài đặt Docker Engine.",
+        "Vì Spring Boot 3 đã ngừng hỗ trợ hoàn toàn cơ sở dữ liệu in-memory H2."
+      ],
+      answer: 0,
+      explanation: "H2 in-memory có cơ chế locking và type conversion rất khác biệt so với PostgreSQL/MySQL. Nhiều lỗi Concurrency, JSONB, Trigger hoặc Deadlock chỉ xuất hiện trên database thật, do đó CES-2026 cấm H2 ở bài thi cấp Professional & Architect."
+    },
+    {
+      tier: "professional",
+      tierLabel: "Chặng 2: Professional",
+      q: "10. Khi một phương thức mang @Transactional gọi một phương thức khác trong cùng class có @Transactional(propagation = Propagation.REQUIRES_NEW), tại sao REQUIRES_NEW KHÔNG có hiệu lực?",
+      options: [
+        "Do cơ chế Spring AOP Proxy; self-invocation (tự gọi nội bộ) không đi qua Spring Proxy nên advice transaction mới không được kích hoạt.",
+        "Do JDBC Driver không hỗ trợ nhiều hơn 1 transaction đồng thời trên 1 thread.",
+        "Do propagation REQUIRES_NEW chỉ áp dụng cho tầng Controller.",
+        "Do Hibernate Session đã bị đóng sau lệnh gọi đầu tiên."
+      ],
+      answer: 0,
+      explanation: "Spring Transactional hoạt động dựa trên Dynamic Proxy hoặc CGLIB Proxy bọc ngoài bean. Khi gọi this.methodB() bên trong methodA(), lệnh gọi đi thẳng vào instance gốc mà không qua Proxy, dẫn đến mọi cấu hình Transactional của methodB bị bỏ qua."
+    },
+
+    // --- Tier 3: Architect (Q11 - Q15) ---
+    {
+      tier: "architect",
+      tierLabel: "Chặng 3: Architect",
+      q: "11. Để giải quyết bài toán Dual-Write (ghi database cục bộ và gửi event Kafka đồng thời) tránh mất dữ liệu hoặc dữ liệu không nhất quán, kiến trúc sư nên áp dụng pattern nào?",
+      options: [
+        "Transactional Outbox Pattern (lưu event vào bảng outbox cùng local transaction của nghiệp vụ, rồi dùng CDC Debezium hoặc Poller xuất bản sang Kafka).",
+        "Two-Phase Commit (2PC) phân tán giữa JDBC và Kafka producer trong cùng một JTA transaction.",
+        "Gửi Kafka trước bằng asynchronous fire-and-forget, sau đó mới commit database nghiệp vụ.",
+        "Bọc cả lệnh ghi database và kafkaTemplate.send() trong một khối try-catch."
+      ],
+      answer: 0,
+      explanation: "Transactional Outbox Pattern đảm bảo tính nguyên tố cục bộ (Atomicity): Record nghiệp vụ và Event Outbox được commit trong cùng 1 local DB transaction. Sau đó một tiến trình riêng (CDC Debezium hoặc Outbox Relay) sẽ đẩy message lên Kafka đảm bảo At-least-once delivery."
+    },
+    {
+      tier: "architect",
+      tierLabel: "Chặng 3: Architect",
+      q: "12. Khi triển khai Saga Pattern phân tán cho chuỗi giao dịch Order ➔ Payment ➔ Inventory, cơ chế xử lý khi bước Payment thất bại là gì?",
+      options: [
+        "Thực thi Compensating Transaction (Giao dịch bù trừ) theo chiều ngược lại để hoàn trả trạng thái về nhất quán cuối cùng (Eventual Consistency).",
+        "Yêu cầu database của tất cả các microservices rollback lại snapshot ban đầu tự động.",
+        "Khởi động lại toàn bộ pod Kubernetes của các microservice liên quan.",
+        "Chờ 60 giây rồi thử thanh toán lại vô hạn lần (infinite retry)."
+      ],
+      answer: 0,
+      explanation: "Trong hệ thống phân tán không dùng 2PC, Saga giải quyết rollback bằng cách kích hoạt chuỗi Compensating Transaction (giao dịch bù trừ - ví dụ: hủy đơn hàng, mở khóa tồn kho) để đưa toàn hệ thống về trạng thái nhất quán cuối cùng."
+    },
+    {
+      tier: "architect",
+      tierLabel: "Chặng 3: Architect",
+      q: "13. Hiện tượng Cache Stampede (Dog-piling) xảy ra khi nào trong hệ thống Redis phân tán và giải pháp xử lý là gì?",
+      options: [
+        "Khi một hot key có hàng nghìn request/giây bị hết hạn (TTL expire), tất cả request ùa xuống Database cùng lúc gây sập DB; giải pháp là dùng Distributed Lock (Redlock) hoặc Probabilistic Early Expiration (XFetch) kết hợp Background Cache Warmer.",
+        "Khi bộ nhớ Redis bị đầy và kích hoạt eviction policy; giải pháp là mua thêm RAM cho Redis.",
+        "Khi dữ liệu trong cache bị sai định dạng JSON; giải pháp là dùng Jackson nhị phân.",
+        "Khi kết nối mạng giữa Spring Boot và Redis bị ngắt; giải pháp là tắt cache."
+      ],
+      answer: 0,
+      explanation: "Cache Stampede xuất hiện khi cache key cực hot hết hạn, khiến hàng nghìn thread đồng thời miss cache và đồng thời query database. Giải pháp là khóa phân tán (Distributed Lock) để chỉ 1 thread tải dữ liệu và nạp lại cache, hoặc làm mới cache trước khi hết hạn."
+    },
+    {
+      tier: "architect",
+      tierLabel: "Chặng 3: Architect",
+      q: "14. Trong việc đóng gói container Docker cho ứng dụng Spring Boot 3 trên Kubernetes, kỹ thuật Layered JAR (spring-boot:layers) mang lại lợi ích kỹ thuật quan trọng nào?",
+      options: [
+        "Tách ứng dụng thành các lớp (dependencies, spring-boot-loader, application code); khi build lại phiên bản mới, Docker chỉ cần build lại lớp application (vài MB) thay vì toàn bộ fat JAR (hàng trăm MB), tối ưu tốc độ CI/CD và băng thông kéo image trên K8s.",
+        "Tự động biên dịch mã nguồn Java thành file thực thi nhị phân GraalVM Native Image.",
+        "Giúp ứng dụng không cần cài đặt JRE/JDK vẫn chạy được trên Linux container.",
+        "Giảm mức chiếm dụng Heap memory của JVM xuống dưới 64MB khi vận hành."
+      ],
+      answer: 0,
+      explanation: "Layered JAR tận dụng cơ chế Docker layer cache. Do thư viện bên thứ 3 (dependencies) ít thay đổi, Docker tái sử dụng các layer cũ và chỉ tải layer mã ứng dụng mới có dung lượng rất nhỏ, giúp deploy pod nhanh hơn gấp nhiều lần."
+    },
+    {
+      tier: "architect",
+      tierLabel: "Chặng 3: Architect",
+      q: "15. Trong kiến trúc Microservices với Apache Kafka, tại sao Consumer BẮT BUỘC phải được thiết kế Idempotent (chống xử lý trùng)?",
+      options: [
+        "Vì Kafka chỉ đảm bảo ngữ nghĩa At-least-once delivery theo mặc định; mạng chập chờn hoặc rebalance có thể khiến message bị gửi lại, nếu consumer không idempotent sẽ dẫn đến xử lý duplicate (như trừ tiền hoặc cộng điểm 2 lần).",
+        "Vì nếu không có Idempotent Consumer, Kafka Broker sẽ từ chối nhận message từ Producer.",
+        "Vì Kafka partition chỉ cho phép một consumer duy nhất đọc dữ liệu trong suốt vòng đời.",
+        "Vì Idempotent Consumer giúp tăng throughput của Kafka lên gấp 10 lần."
+      ],
+      answer: 0,
+      explanation: "Tại tầng Consumer, việc xử lý trùng lặp do mạng hoặc retry là bình thường trong môi trường phân tán. Consumer phải kiểm tra message_id (hoặc idempotent key) trong database để tránh thực hiện lại thao tác giao dịch tài chính nhiều lần."
+    }
+  ];
+
   const COURSES = [
     {
-      id: "spring-boot-mastery",
-      title: "Spring Boot Mastery — Từ Zero đến Production",
-      shortTitle: "Spring Boot Mastery",
-      icon: "🍃",
-      badge: "Backend & Microservices",
+      id: "spring-boot-foundation",
+      trackId: "spring-boot-track",
+      title: "Spring Boot 3 Core & RESTful API Architecture",
+      shortTitle: "Spring Boot Foundation",
+      icon: "🌱",
+      badge: "Foundation Level",
       category: "backend",
-      level: "Zero to Production",
-      hours: "~80h",
-      modulesCount: 8,
-      lessonsCount: 354,
-      quizCount: 256,
-      rating: 4.9,
-      reviewsCount: "3,840",
-      studentsCount: "12,500",
-      instructor: "DevMastery Academy & Senior Engineers",
+      level: "foundation",
+      hours: "~12h",
+      moduleIds: [0, 1, 2],
+      certificateTitle: "DevMastery Verified — Spring Boot Foundation",
+      instructor: "DevMastery Architecture Council",
       bestseller: true,
-      originalPrice: "1.990.000 ₫",
       themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
-      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 354 bài giảng micro-learning, 256 câu quiz thực chiến, Microservices, Spring Security, Kafka, Docker & Kubernetes.",
-      tags: ["Java 21", "Spring Boot 3", "JPA/Hibernate", "Spring Security", "Microservices", "Docker", "K8s"],
+      desc: "Nắm vững nguyên lý cốt lõi Spring Framework, IoC Container, Bean Lifecycle và xây dựng RESTful API chuẩn RFC 7807 ProblemDetails.",
+      outcomes: [
+        "Tự thiết kế và triển khai RESTful API chuẩn RFC 7807 ProblemDetails",
+        "Làm chủ vòng đời Bean, ApplicationContext và khắc phục cạm bẫy Circular Dependency",
+        "Áp dụng Clean Architecture phân tầng rõ ràng giữa Web, Service và Repository Layer",
+        "Viết Unit Test cho Service Layer sử dụng Mockito và AssertJ đạt độ bao phủ chuẩn"
+      ],
+      prerequisites: [
+        "Đã nắm vững cú pháp Java Core cơ bản (OOP, Interface, Collections, Java Record)",
+        "Biết sử dụng Git cơ bản và hiểu nguyên lý hoạt động của HTTP/REST"
+      ],
+      notFor: [
+        "Người chưa từng học bất kỳ ngôn ngữ lập trình nào (cần học Java Core trước)",
+        "Kỹ sư Senior đã thành thạo Spring Core cần học kiến trúc phân tán (nên học khóa Architect)"
+      ],
+      stackVersion: {
+        java: "21 LTS",
+        springBoot: "3.3+",
+        hibernate: "6.5+",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Architecture Council"
+      },
+      tags: ["Java 21", "Spring Boot 3", "IoC/DI", "REST API", "RFC 7807", "Clean Architecture"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "spring-boot-professional",
+      trackId: "spring-boot-track",
+      title: "Spring Boot Enterprise JPA, Security & Testing",
+      shortTitle: "Spring Boot Professional",
+      icon: "🔒",
+      badge: "Professional Level",
+      category: "backend",
+      level: "professional",
+      hours: "~15h",
+      moduleIds: [3, 4, 5],
+      certificateTitle: "DevMastery Verified — Spring Boot Professional",
+      instructor: "DevMastery Architecture Council",
+      bestseller: true,
+      themeGradient: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #60a5fa 100%)",
+      desc: "Tối ưu hóa Database chuyên sâu, triệt tiêu lỗi N+1, xử lý Concurrency/Locking chống bán âm, bảo mật ngân hàng với Spring Security 6 và Testcontainers CI/CD.",
+      outcomes: [
+        "Triệt tiêu 100% lỗi Hibernate N+1 bằng JOIN FETCH, EntityGraph và Projections",
+        "Làm chủ Transaction Isolation, Pessimistic Locking chống bán âm hàng Flash Sale",
+        "Thiết lập Spring Security 6 SecurityFilterChain, Stateless JWT và tích hợp Keycloak",
+        "Viết Integration Test với Testcontainers chạy trên PostgreSQL thật đạt chuẩn CI/CD"
+      ],
+      prerequisites: [
+        "Đã hoàn thành khóa Spring Boot Foundation hoặc đạt ≥50% trong bài Skill Placement Test",
+        "Có kiến thức cơ bản về SQL và RDBMS (PostgreSQL/MySQL)"
+      ],
+      notFor: [
+        "Lập trình viên mới bắt đầu chưa hiểu Bean IoC và HTTP status code cơ bản",
+        "Người chỉ muốn học ví dụ in-memory H2 mà không muốn làm quen với Docker thật"
+      ],
+      stackVersion: {
+        java: "21 LTS",
+        springBoot: "3.3+",
+        hibernate: "6.5+",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Architecture Council"
+      },
+      tags: ["JPA/Hibernate", "N+1 Fix", "Pessimistic Lock", "Spring Security 6", "JWT", "Testcontainers"],
+      stats: null,
+      isAvailable: true,
+      modules: []
+    },
+    {
+      id: "spring-boot-architect",
+      trackId: "spring-boot-track",
+      title: "Spring Boot Cloud Native, Kafka & Distributed Architecture",
+      shortTitle: "Spring Boot Architect",
+      icon: "⚡",
+      badge: "Architect Level",
+      category: "backend",
+      level: "architect",
+      hours: "~18h",
+      moduleIds: [6, 7],
+      certificateTitle: "DevMastery Verified — Spring Boot Architect",
+      instructor: "DevMastery Architecture Council",
+      bestseller: false,
+      themeGradient: "linear-gradient(135deg, #4c1d95 0%, #7c3aed 50%, #a78bfa 100%)",
+      desc: "Thiết kế hệ thống phân tán chịu tải cao: Event-driven Kafka, Transactional Outbox, Saga Pattern, Redis Caching, Docker Layered Jar và Kubernetes Capstone.",
+      outcomes: [
+        "Triển khai Transactional Outbox Pattern với Apache Kafka và Idempotent Consumer",
+        "Xử lý giao dịch phân tán bằng Saga Pattern (Orchestration/Choreography)",
+        "Tối ưu Redis Caching, chống Cache Stampede và cấu hình Circuit Breaker Resilience4j",
+        "Đóng gói Docker Layered Jar, cấu hình K8s Zero-Downtime và hoàn thành Capstone Project"
+      ],
+      prerequisites: [
+        "Đã hoàn thành khóa Spring Boot Professional hoặc đạt ≥80% trong bài Skill Placement Test",
+        "Đã quen thuộc với Docker, JPA transaction và microservice concepts cơ bản"
+      ],
+      notFor: [
+        "Lập trình viên chưa vững JPA, Security hoặc Unit Testing",
+        "Người chỉ tìm kiếm giải pháp monolithic đơn giản"
+      ],
+      stackVersion: {
+        java: "21 LTS",
+        springBoot: "3.3+",
+        hibernate: "6.5+",
+        lastReviewedDate: "2026-10-04",
+        maintainer: "DevMastery Architecture Council"
+      },
+      tags: ["Kafka", "Transactional Outbox", "Saga Pattern", "Redis", "Resilience4j", "Kubernetes"],
+      stats: null,
       isAvailable: true,
       modules: []
     },
@@ -49,20 +387,17 @@
       icon: "☕",
       badge: "Java Foundation & OOP",
       category: "backend",
-      level: "Core to Advanced",
+      level: "foundation",
       hours: "~35h",
       modulesCount: 4,
       lessonsCount: 15,
       quizCount: 8,
-      rating: 4.8,
-      reviewsCount: "1,920",
-      studentsCount: "8,400",
       instructor: "DevMastery Academy & Java Architects",
       bestseller: false,
-      originalPrice: "1.490.000 ₫",
       themeGradient: "linear-gradient(135deg, #7c2d12 0%, #c2410c 50%, #ea580c 100%)",
       desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Clean Code.",
       tags: ["Java 21", "OOP", "SOLID", "Collections", "Virtual Threads", "Design Patterns"],
+      stats: null,
       isAvailable: true,
       modules: []
     },
@@ -73,20 +408,17 @@
       icon: "⚛️",
       badge: "Frontend & Fullstack",
       category: "frontend",
-      level: "Intermediate & Advanced",
+      level: "professional",
       hours: "~45h",
       modulesCount: 4,
       lessonsCount: 9,
       quizCount: 4,
-      rating: 4.9,
-      reviewsCount: "2,150",
-      studentsCount: "9,600",
       instructor: "DevMastery Academy & Senior Frontend Leads",
       bestseller: true,
-      originalPrice: "1.790.000 ₫",
       themeGradient: "linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)",
       desc: "Làm chủ React 19, Server Components, Server Actions, Next.js 15 App Router, TypeScript, Zustand và Clean Architecture cho ứng dụng Enterprise.",
       tags: ["React 19", "Next.js 15", "TypeScript", "Zustand", "Tailwind CSS", "Server Actions"],
+      stats: null,
       isAvailable: true,
       modules: []
     },
@@ -97,20 +429,17 @@
       icon: "☸️",
       badge: "DevOps & Cloud Native",
       category: "devops",
-      level: "Advanced & Production",
+      level: "architect",
       hours: "~50h",
       modulesCount: 4,
       lessonsCount: 8,
       quizCount: 4,
-      rating: 4.8,
-      reviewsCount: "1,480",
-      studentsCount: "6,200",
       instructor: "DevMastery Cloud & SRE Specialists",
       bestseller: false,
-      originalPrice: "1.890.000 ₫",
       themeGradient: "linear-gradient(135deg, #1e1b4b 0%, #4338ca 50%, #6366f1 100%)",
       desc: "Thực hành triển khai production: Docker containerization, Kubernetes cluster, Helm, CI/CD GitHub Actions, Prometheus, Grafana & ELK Stack.",
       tags: ["Docker", "Kubernetes", "CI/CD", "Helm", "Prometheus", "Grafana", "AWS"],
+      stats: null,
       isAvailable: true,
       modules: []
     }
@@ -118,17 +447,28 @@
 
   // Initialize course data from window globals
   function initializeCoursesData() {
-    // 1. Spring Boot
-    const sb = COURSES.find(c => c.id === "spring-boot-mastery");
-    if (sb) {
-      sb.modules = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
-      sb.modulesCount = sb.modules.length;
-      sb.lessonsCount = sb.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.length : 0), 0);
-      sb.quizCount = sb.modules.reduce((acc, m) => {
-        const q = (m.lessons || []).find(l => l.type === "quiz");
-        return acc + (q && q.questions ? q.questions.length : 0);
-      }, 0);
-    }
+    const allMods = (window.COURSE_MODULES || []).slice().sort((a, b) => a.id - b.id);
+
+    // 1. Distribute modules across the 3 Spring Boot Track courses
+    const springTrackMap = [
+      { id: "spring-boot-foundation", modIds: [0, 1, 2] },
+      { id: "spring-boot-professional", modIds: [3, 4, 5] },
+      { id: "spring-boot-architect", modIds: [6, 7] }
+    ];
+
+    springTrackMap.forEach(st => {
+      const c = COURSES.find(item => item.id === st.id);
+      if (c) {
+        c.modules = allMods.filter(m => st.modIds.includes(m.id));
+        c.modulesCount = c.modules.length;
+        c.lessonsCount = c.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.filter(l => l.type !== "quiz").length : 0), 0);
+        c.quizCount = c.modules.reduce((acc, m) => {
+          const q = (m.lessons || []).find(l => l.type === "quiz");
+          const exp = (window.EXPANDED_QUIZZES && window.EXPANDED_QUIZZES[String(m.id)]) || [];
+          return acc + (q && q.questions ? q.questions.length : 0) + exp.length;
+        }, 0);
+      }
+    });
 
     // 2. Extra courses (Java, React, DevOps)
     if (window.EXTRA_COURSES) {
@@ -138,13 +478,19 @@
         if (target && src && src.modules) {
           target.modules = src.modules;
           target.modulesCount = src.modules.length;
-          target.lessonsCount = src.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.length : 0), 0);
+          target.lessonsCount = src.modules.reduce((acc, m) => acc + (m.lessons ? m.lessons.filter(l => l.type !== "quiz").length : 0), 0);
           target.quizCount = src.modules.reduce((acc, m) => {
             const q = (m.lessons || []).find(l => l.type === "quiz");
             return acc + (q && q.questions ? q.questions.length : 0);
           }, 0);
         }
       });
+    }
+
+    // 3. Fallback bridge: If activeCourseId was 'spring-boot-mastery', default to 'spring-boot-foundation'
+    if (state.activeCourseId === "spring-boot-mastery" || !COURSES.some(c => c.id === state.activeCourseId)) {
+      state.activeCourseId = "spring-boot-foundation";
+      localStorage.setItem(ACTIVE_COURSE_KEY, "spring-boot-foundation");
     }
   }
 
@@ -257,13 +603,17 @@
       } else {
         state.enrolledCourses = {};
       }
-      // Migration bridge: If user previously enrolled any module, grant Spring Boot Mastery course
-      if (Object.keys(state.enrolledModules).length > 0) {
-        state.enrolledCourses["spring-boot-mastery"] = true;
+      // Migration bridge: If user previously enrolled any module or legacy course, grant all 3 Spring Boot Track courses
+      if (Object.keys(state.enrolledModules).length > 0 || state.enrolledCourses["spring-boot-mastery"]) {
+        state.enrolledCourses["spring-boot-foundation"] = true;
+        state.enrolledCourses["spring-boot-professional"] = true;
+        state.enrolledCourses["spring-boot-architect"] = true;
       }
       const savedActive = localStorage.getItem(ACTIVE_COURSE_KEY);
       if (savedActive && COURSES.some(c => c.id === savedActive)) {
         state.activeCourseId = savedActive;
+      } else {
+        state.activeCourseId = "spring-boot-foundation";
       }
     } catch (e) { /* fresh */ }
   }
@@ -273,10 +623,14 @@
     if (!state.currentUser) return false;
     const cId = String(courseId);
     if (state.enrolledCourses[cId]) return true;
-    if (cId === "spring-boot-mastery") {
+
+    // Bridge for spring boot track courses
+    const isSpringTrack = ["spring-boot-foundation", "spring-boot-professional", "spring-boot-architect", "spring-boot-mastery"].includes(cId);
+    if (isSpringTrack) {
+      if (state.enrolledCourses["spring-boot-mastery"]) return true;
       if (Object.keys(state.enrolledModules).length > 0) return true;
-      const sb = COURSES.find(c => c.id === "spring-boot-mastery");
-      if (sb && (sb.modules || []).some(m => (m.lessons || []).some(l => state.completed[l.id]) || !!state.quizScores[m.id])) {
+      const c = COURSES.find(x => x.id === cId);
+      if (c && (c.modules || []).some(m => (m.lessons || []).some(l => state.completed[l.id]) || !!state.quizScores[m.id])) {
         return true;
       }
     }
@@ -298,10 +652,9 @@
     }
 
     state.enrolledCourses[cId] = true;
-    if (cId === "spring-boot-mastery") {
-      const sb = COURSES.find(c => c.id === "spring-boot-mastery");
-      if (sb && sb.modules) {
-        sb.modules.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+    if (["spring-boot-foundation", "spring-boot-professional", "spring-boot-architect"].includes(cId)) {
+      if (course && course.modules) {
+        course.modules.forEach(m => { state.enrolledModules[String(m.id)] = true; });
       }
     }
     save();
@@ -474,12 +827,10 @@
       if (Array.isArray(remoteEnrolls)) {
         remoteEnrolls.forEach(r => {
           const mid = String(r.module_id);
-          if (mid === "spring-boot-mastery" || ["0", "1", "2", "3", "4", "5", "6", "7"].includes(mid)) {
-            state.enrolledCourses["spring-boot-mastery"] = true;
-            const sb = COURSES.find(c => c.id === "spring-boot-mastery");
-            if (sb && sb.modules) {
-              sb.modules.forEach(m => { state.enrolledModules[String(m.id)] = true; });
-            }
+          if (["spring-boot-foundation", "spring-boot-professional", "spring-boot-architect", "spring-boot-mastery", "0", "1", "2", "3", "4", "5", "6", "7"].includes(mid)) {
+            state.enrolledCourses["spring-boot-foundation"] = true;
+            state.enrolledCourses["spring-boot-professional"] = true;
+            state.enrolledCourses["spring-boot-architect"] = true;
           } else {
             state.enrolledCourses[mid] = true;
           }
@@ -1595,7 +1946,7 @@
         <div class="module-card-meta">
           <span>📖 ${(m.lessons || []).length} bài</span>
           <span>⏱ ~${(m.lessons || []).reduce((a, l) => a + (l.minutes || 0), 0)}p</span>
-          ${quiz ? `<span>🏆 ${quiz.questions ? quiz.questions.length : 0} câu quiz</span>` : ""}
+          ${quiz ? `<span>🏆 Sát hạch 12/${(quiz.questions ? quiz.questions.length : 0) + ((window.EXPANDED_QUIZZES && window.EXPANDED_QUIZZES[String(m.id)]) ? window.EXPANDED_QUIZZES[String(m.id)].length : 0)} câu</span>` : ""}
         </div>
         <div class="module-card-progress">
           <div class="mcp-bar">
@@ -1660,6 +2011,210 @@
   }
 
   // ---------- Dedicated Course Catalog Page ----------
+  // ---------- Skill Placement Test Engine (CES-2026 v2.5) ----------
+  let placementState = {
+    currentIdx: 0,
+    answers: {},
+    isFinished: false
+  };
+
+  function openPlacementTestModal() {
+    placementState = {
+      currentIdx: 0,
+      answers: {},
+      isFinished: false
+    };
+    renderPlacementModal();
+  }
+
+  function closePlacementTestModal() {
+    const el = $("#placementModalBackdrop");
+    if (el) el.remove();
+  }
+
+  function renderPlacementModal() {
+    let backdrop = $("#placementModalBackdrop");
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.id = "placementModalBackdrop";
+      backdrop.className = "modal-backdrop";
+      document.body.appendChild(backdrop);
+    }
+
+    if (placementState.isFinished) {
+      renderPlacementResult(backdrop);
+      return;
+    }
+
+    const qIdx = placementState.currentIdx;
+    const qData = PLACEMENT_QUESTIONS[qIdx];
+    const totalQ = PLACEMENT_QUESTIONS.length;
+    const selectedAns = placementState.answers[qIdx];
+    const progressPct = Math.round(((qIdx + 1) / totalQ) * 100);
+
+    backdrop.innerHTML = `
+      <div class="placement-modal-box">
+        <div class="pm-header">
+          <div class="pm-title">
+            <span>🎯 Sát Hạch Định Vị Năng Lực (Placement Test)</span>
+          </div>
+          <button class="modal-close" id="pmCloseBtn" aria-label="Đóng">&times;</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span class="pm-tier-pill pm-tier-${qData.tier}">${escapeHtml(qData.tierLabel)}</span>
+          <span style="font-size: 13px; color: var(--text-2); font-weight: 600;">Câu hỏi ${qIdx + 1} / ${totalQ}</span>
+        </div>
+
+        <div class="pm-progress-bar">
+          <div class="pm-progress-fill" style="width: ${progressPct}%;"></div>
+        </div>
+
+        <div class="pm-question-text">${escapeHtml(qData.q)}</div>
+
+        <div class="pm-options-list">
+          ${qData.options.map((opt, i) => `
+            <div class="pm-option-item ${selectedAns === i ? 'selected' : ''}" data-pm-opt="${i}">
+              <div style="width: 22px; height: 22px; border-radius: 50%; border: 2px solid ${selectedAns === i ? '#a435f0' : 'var(--border-soft)'}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: ${selectedAns === i ? '#a435f0' : 'var(--text-2)'}; flex-shrink: 0;">
+                ${String.fromCharCode(65 + i)}
+              </div>
+              <div style="flex: 1; line-height: 1.4;">${escapeHtml(opt)}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="pm-actions">
+          <button class="btn btn-ghost" id="pmPrevBtn" ${qIdx === 0 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''}>← Câu trước</button>
+          <button class="btn btn-primary" id="pmNextBtn" ${selectedAns === undefined ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>
+            ${qIdx === totalQ - 1 ? 'Hoàn thành bài thi ✓' : 'Câu tiếp theo →'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    $("#pmCloseBtn", backdrop)?.addEventListener("click", closePlacementTestModal);
+
+    $$(".pm-option-item", backdrop).forEach(item => {
+      item.addEventListener("click", () => {
+        const opt = parseInt(item.dataset.pmOpt, 10);
+        placementState.answers[qIdx] = opt;
+        renderPlacementModal();
+      });
+    });
+
+    $("#pmPrevBtn", backdrop)?.addEventListener("click", () => {
+      if (placementState.currentIdx > 0) {
+        placementState.currentIdx--;
+        renderPlacementModal();
+      }
+    });
+
+    $("#pmNextBtn", backdrop)?.addEventListener("click", () => {
+      if (placementState.answers[qIdx] === undefined) return;
+      if (placementState.currentIdx < totalQ - 1) {
+        placementState.currentIdx++;
+        renderPlacementModal();
+      } else {
+        placementState.isFinished = true;
+        renderPlacementModal();
+      }
+    });
+  }
+
+  function renderPlacementResult(backdrop) {
+    let totalCorrect = 0;
+    let foundationCorrect = 0;
+    let professionalCorrect = 0;
+    let architectCorrect = 0;
+
+    PLACEMENT_QUESTIONS.forEach((q, idx) => {
+      const isCorrect = placementState.answers[idx] === q.answer;
+      if (isCorrect) {
+        totalCorrect++;
+        if (q.tier === "foundation") foundationCorrect++;
+        if (q.tier === "professional") professionalCorrect++;
+        if (q.tier === "architect") architectCorrect++;
+      }
+    });
+
+    let recCourseId = "spring-boot-foundation";
+    let recCourseTitle = "Spring Boot 3 Core & RESTful API Architecture";
+    let recReason = "Bạn nên bắt đầu từ Chặng 1 để làm chủ vững chắc Spring IoC Container, Bean Lifecycle và chuẩn RESTful API RFC 7807.";
+
+    if (foundationCorrect >= 4 && professionalCorrect < 4) {
+      recCourseId = "spring-boot-professional";
+      recCourseTitle = "Spring Boot Enterprise JPA, Security & Testing";
+      recReason = "Bạn đã có nền tảng tốt về Spring Core. Điểm xuất phát tối ưu nhất là đào sâu tối ưu hóa JPA N+1, Pessimistic Locking và Spring Security 6 với Testcontainers.";
+    } else if (foundationCorrect >= 4 && professionalCorrect >= 4) {
+      recCourseId = "spring-boot-architect";
+      recCourseTitle = "Spring Boot Cloud Native, Kafka & Distributed Architecture";
+      recReason = "Khả năng phân tích của bạn rất vững chắc. Bạn hoàn toàn sẵn sàng thử thách với kiến trúc phân tán Kafka, Transactional Outbox, Saga Pattern và Kubernetes.";
+    }
+
+    backdrop.innerHTML = `
+      <div class="placement-modal-box">
+        <div class="pm-header">
+          <div class="pm-title">
+            <span>🏆 KẾT QUẢ ĐỊNH VỊ NĂNG LỰC (CES-2026)</span>
+          </div>
+          <button class="modal-close" id="pmCloseBtn" aria-label="Đóng">&times;</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 20px 0; text-align: center;">
+          <div style="background: var(--bg-1); padding: 12px; border-radius: 8px; border: 1px solid var(--border-soft);">
+            <div style="font-size: 11px; color: var(--text-2); text-transform: uppercase;">Tổng điểm</div>
+            <div style="font-size: 22px; font-weight: 800; color: #a435f0;">${totalCorrect}/15</div>
+          </div>
+          <div style="background: var(--bg-1); padding: 12px; border-radius: 8px; border: 1px solid var(--border-soft);">
+            <div style="font-size: 11px; color: #10b981; text-transform: uppercase;">Foundation</div>
+            <div style="font-size: 20px; font-weight: 700; color: #10b981;">${foundationCorrect}/5</div>
+          </div>
+          <div style="background: var(--bg-1); padding: 12px; border-radius: 8px; border: 1px solid var(--border-soft);">
+            <div style="font-size: 11px; color: #3b82f6; text-transform: uppercase;">Professional</div>
+            <div style="font-size: 20px; font-weight: 700; color: #3b82f6;">${professionalCorrect}/5</div>
+          </div>
+          <div style="background: var(--bg-1); padding: 12px; border-radius: 8px; border: 1px solid var(--border-soft);">
+            <div style="font-size: 11px; color: #a855f7; text-transform: uppercase;">Architect</div>
+            <div style="font-size: 20px; font-weight: 700; color: #a855f7;">${architectCorrect}/5</div>
+          </div>
+        </div>
+
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+          <div style="font-size: 12px; font-weight: 800; color: #10b981; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+            🎯 ĐỀ XUẤT ĐIỂM XUẤT PHÁT TỐI ƯU
+          </div>
+          <div style="font-size: 17px; font-weight: 800; color: var(--text-1); margin-bottom: 6px;">
+            ${escapeHtml(recCourseTitle)}
+          </div>
+          <div style="font-size: 13.5px; color: var(--text-2); line-height: 1.5;">
+            ${escapeHtml(recReason)}
+          </div>
+        </div>
+
+        <div class="pm-disclaimer-box">
+          <strong>⚠️ QUY CHUẨN KỸ THUẬT CES-2026 v2.5 LƯU Ý:</strong><br>
+          Bài thi Placement chỉ mang tính chất <em>gợi ý điểm xuất phát phù hợp</em> với kiến thức hiện có của bạn. Kết quả này <strong>KHÔNG MIỄN CHỨNG CHỈ CẤP DƯỚI</strong>. Để được cấp Chứng chỉ Kỹ sư chính quy (DevMastery Verified), học viên bắt buộc phải hoàn thành các Capstone Project và vượt qua bài thi Module thực chiến của từng khóa học tương ứng.
+        </div>
+
+        <div class="pm-actions" style="margin-top: 20px;">
+          <button class="btn btn-ghost" id="pmCloseResultBtn">Đóng cửa sổ</button>
+          <button class="btn btn-primary" id="pmStartRecCourseBtn" style="padding: 10px 20px; font-weight: 700;">
+            🚀 Bắt đầu khóa học được đề xuất →
+          </button>
+        </div>
+      </div>
+    `;
+
+    $("#pmCloseBtn", backdrop)?.addEventListener("click", closePlacementTestModal);
+    $("#pmCloseResultBtn", backdrop)?.addEventListener("click", closePlacementTestModal);
+    $("#pmStartRecCourseBtn", backdrop)?.addEventListener("click", () => {
+      closePlacementTestModal();
+      enrollCourse(recCourseId);
+      enterCourse(recCourseId);
+    });
+  }
+
+  // ---------- Dedicated Course Catalog Page ----------
   function renderCoursesCatalog() {
     const view = $("#view-courses");
     if (!view) return;
@@ -1677,6 +2232,8 @@
     });
 
     const enrolledCount = COURSES.filter(c => isCourseEnrolled(c.id)).length;
+    const showTrack = (state.catalogCategory === "all" || state.catalogCategory === "backend") && !state.catalogSearch;
+    const springTrack = TRACKS[0];
 
     let html = `
       <div class="cat-page-container">
@@ -1687,7 +2244,7 @@
             <div class="ub-card">
               <div class="ub-badge">⚡ NỀN TẢNG ĐÀO TẠO ENTERPRISE</div>
               <h1 class="ub-title">Làm chủ công nghệ thực chiến. Mở lối sự nghiệp đỉnh cao.</h1>
-              <p class="ub-desc">Hơn 80+ giờ đào tạo chuyên sâu từ Java Core, Spring Boot 3 &amp; Microservices, React 19 &amp; Next.js 15 đến Cloud Native Kubernetes. 256+ câu Quiz thực chiến sát hạch kiến trúc sư.</p>
+              <p class="ub-desc">Lộ trình đào tạo chuẩn kỹ sư quốc tế CES-2026: Java Core, Spring Boot 3 &amp; Microservices phân tán, React 19 Enterprise và Cloud Native Kubernetes. Đánh giá sát hạch kiến trúc sư chuyên sâu.</p>
               <div class="ub-actions">
                 <a href="#catCourseSection" class="ub-btn-primary" id="ubBtnExplore">Khám phá khóa học ngay ↓</a>
                 <button class="ub-btn-outline" data-view="user-dashboard">📚 Khóa học của tôi (${enrolledCount})</button>
@@ -1728,6 +2285,48 @@
           </div>
         </div>
 
+        <!-- 3-Stage Milestone Track Banner (CES-2026 v2.5) -->
+        ${showTrack && springTrack ? `
+          <div class="track-roadmap-container">
+            <div class="track-header">
+              <div>
+                <div class="track-badge-pill">⚡ LỘ TRÌNH CHUẨN KỸ SƯ (CES-2026 v2.5)</div>
+                <h2 class="track-title">${escapeHtml(springTrack.title)}</h2>
+                <p class="track-desc">${escapeHtml(springTrack.desc)}</p>
+                <div class="track-domain-tag">🏢 Bối cảnh thực chiến: ${escapeHtml(springTrack.domainContext)}</div>
+              </div>
+              <div>
+                <button class="btn-placement-test" id="btnLaunchPlacement">
+                  🎯 Sát Hạch Định Vị Năng Lực (15 câu)
+                </button>
+              </div>
+            </div>
+
+            <div class="track-stages-grid">
+              ${springTrack.stages.map((st, idx) => {
+                const c = COURSES.find(item => item.id === st.courseId);
+                const enrolled = isCourseEnrolled(st.courseId);
+                const prog = overallProgress(st.courseId);
+                return `
+                  <div class="track-stage-card" data-goto-course="${st.courseId}">
+                    <div>
+                      <div class="stage-step-num">CHẶNG 0${idx + 1} · ${(st.level || '').toUpperCase()}</div>
+                      <div class="stage-title">${escapeHtml(c ? c.shortTitle : st.title)}</div>
+                      <div class="stage-modules-list">
+                        ${c && c.modules ? c.modules.map(m => `• M${m.id}: ${escapeHtml(m.title)}`).join('<br>') : ''}
+                      </div>
+                    </div>
+                    <div class="stage-footer">
+                      <span class="stage-cert-name">🏆 ${escapeHtml(st.certificate)}</span>
+                      <span class="stage-action-link">${enrolled ? `Tiếp tục (${prog.pct}%) →` : 'Khám phá →'}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+
         <!-- Udemy Course Cards Grid -->
         <div class="cat-cards-grid">
           ${filtered.map(c => {
@@ -1758,26 +2357,32 @@
                   ${isActive ? '<span class="ud-badge-learning">⚡ Đang học</span>' : ''}
                 </div>
 
+                <div class="ud-level-badge-row">
+                  <span class="ud-level-pill ud-level-${c.level || 'foundation'}">${(c.level || 'foundation').toUpperCase()}</span>
+                  <span class="ud-stack-info">${c.stackVersion ? `${c.stackVersion.java} · Boot ${c.stackVersion.springBoot}` : (c.badge || '')}</span>
+                </div>
+
                 <h3 class="ud-card-title" title="${escapeHtml(c.title)}">
                   ${escapeHtml(c.title)}
                 </h3>
 
                 <div class="ud-card-instructor">${escapeHtml(c.instructor || "DevMastery Academy")}</div>
 
-                <!-- Ratings Row -->
-                <div class="ud-rating-row">
-                  <span class="ud-rating-score">${c.rating || 4.9}</span>
-                  <span class="ud-stars">★★★★★</span>
-                  <span class="ud-reviews-count">(${c.reviewsCount || "2,450"})</span>
-                  <span class="ud-students-count">· ${c.studentsCount || "10,000"} học viên</span>
-                </div>
-
                 <!-- Specs -->
                 <div class="ud-specs-row">
                   <span>⏱ ${c.hours}</span>
-                  <span>📖 ${c.lessonsCount} bài giảng</span>
-                  <span>🏆 ${c.quizCount} Quiz</span>
+                  <span>📖 ${c.lessonsCount} bài micro</span>
+                  <span>🏆 ${c.quizCount} câu quiz</span>
                 </div>
+
+                ${c.outcomes && c.outcomes.length ? `
+                  <div class="ud-card-outcomes">
+                    <div class="ud-co-title">Mục tiêu đầu ra:</div>
+                    <ul>
+                      ${c.outcomes.slice(0, 2).map(o => `<li>✓ ${escapeHtml(o)}</li>`).join('')}
+                    </ul>
+                  </div>
+                ` : ''}
 
                 <!-- Tags -->
                 <div class="ud-tags-row">
@@ -1786,9 +2391,8 @@
 
                 <!-- Price Row -->
                 <div class="ud-price-row">
-                  <div class="ud-current-price">Miễn phí 100%</div>
-                  <div class="ud-original-price">${c.originalPrice || "1.990.000 ₫"}</div>
-                  <div class="ud-discount-tag">-100% OFF</div>
+                  <div class="ud-current-price">Học miễn phí</div>
+                  <div class="ud-cert-verify-tag">${c.certificateTitle ? 'DevMastery Verified' : 'Thực chiến'}</div>
                 </div>
 
                 <!-- Progress if enrolled -->
@@ -1858,6 +2462,11 @@
         state.catalogCategory = tab.dataset.category;
         renderCoursesCatalog();
       });
+    });
+
+    // Placement test launcher button
+    $("#btnLaunchPlacement", view)?.addEventListener("click", () => {
+      openPlacementTestModal();
     });
 
     // Action buttons
@@ -2090,8 +2699,60 @@
     });
   }
 
-  // ---------- Quiz ----------
-  const quizState = { course: null, module: null, idx: 0, answers: [], finished: false };
+  // ---------- Quiz (CES-2026 v2.5 Standardized Engine) ----------
+  const quizState = {
+    course: null,
+    module: null,
+    quiz: null,
+    pool: [],
+    questions: [],
+    idx: 0,
+    answers: [],
+    finished: false
+  };
+
+  function getModuleQuizBank(m) {
+    if (!m) return [];
+    const quiz = (m.lessons || []).find((l) => l.type === "quiz");
+    const inlineQ = (quiz && Array.isArray(quiz.questions)) ? quiz.questions : [];
+    const expQ = (window.EXPANDED_QUIZZES && Array.isArray(window.EXPANDED_QUIZZES[String(m.id)]))
+      ? window.EXPANDED_QUIZZES[String(m.id)]
+      : [];
+    
+    const map = new Map();
+    [...inlineQ, ...expQ].forEach((q) => {
+      const key = (q.q || "").trim();
+      if (key && !map.has(key)) {
+        map.set(key, q);
+      }
+    });
+    return Array.from(map.values());
+  }
+
+  function findRelevantLesson(q, module) {
+    if (!module || !module.lessons) return null;
+    const lessons = module.lessons.filter((l) => l.type !== "quiz");
+    if (q.targetLessonId) {
+      const found = lessons.find((l) => l.id === q.targetLessonId);
+      if (found) return found;
+    }
+    const text = ((q.q || "") + " " + (q.scenario || "") + " " + (q.explain || "")).toLowerCase();
+    let bestLesson = null;
+    let maxMatches = 0;
+    lessons.forEach((l) => {
+      const lTitle = (l.title || "").toLowerCase();
+      const words = lTitle.split(/[\s,–—\(\)\.\:\/]+/).filter((w) => w.length >= 3);
+      let matches = 0;
+      words.forEach((w) => {
+        if (text.includes(w)) matches++;
+      });
+      if (matches > maxMatches) {
+        maxMatches = matches;
+        bestLesson = l;
+      }
+    });
+    return bestLesson || lessons[0] || null;
+  }
 
   function gotoQuiz(moduleId) {
     const activeCourse = getActiveCourse();
@@ -2102,6 +2763,10 @@
     showView("quiz");
     const view = $("#view-quiz");
 
+    const fullBank = getModuleQuizBank(m);
+    const poolSize = fullBank.length;
+    const pullCount = Math.min(poolSize, 12);
+
     // Access check 1: Chưa đăng nhập
     if (!state.currentUser) {
       view.innerHTML = `
@@ -2110,7 +2775,7 @@
             <div class="gate-icon-badge">🔒</div>
             <span class="gate-tag">Yêu cầu đăng nhập</span>
             <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">${escapeHtml(m.title)} · ${quiz.questions.length} câu hỏi trắc nghiệm</p>
+            <p class="gate-subtitle">${escapeHtml(m.title)} · 12 câu kịch bản (rút từ pool ${poolSize} câu)</p>
             <div class="gate-divider"></div>
             <p class="gate-desc">Vui lòng đăng nhập tài khoản học viên để tham gia thi Quiz, ghi nhận điểm số và xếp hạng trên hệ thống!</p>
             <div class="gate-actions">
@@ -2142,7 +2807,7 @@
             <div class="gate-icon-badge badge-enroll">🎓</div>
             <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
             <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(activeCourse.title)}</strong> (${quiz.questions.length} câu hỏi)</p>
+            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(activeCourse.title)}</strong> (${poolSize} câu trong ngân hàng)</p>
             <div class="gate-divider"></div>
             <p class="gate-desc">Bạn chưa ghi danh khóa học <strong>${escapeHtml(activeCourse.title)}</strong>. Hãy ghi danh ngay để mở khóa toàn bộ bài thi Quiz và bài học trong khóa!</p>
             <div class="gate-actions">
@@ -2163,38 +2828,56 @@
       return;
     }
 
+    // Fisher-Yates shuffle to pull 12 random scenario questions from full bank
+    const shuffled = [...fullBank];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const sessionQuestions = shuffled.slice(0, pullCount);
+
     quizState.course = activeCourse;
     quizState.module = m;
     quizState.quiz = quiz;
+    quizState.pool = fullBank;
+    quizState.questions = sessionQuestions;
     quizState.idx = 0;
-    quizState.answers = new Array(quiz.questions.length).fill(null);
+    quizState.answers = new Array(sessionQuestions.length).fill(null);
     quizState.finished = false;
     state.currentQuizModule = moduleId;
     renderQuiz();
   }
 
   function renderQuiz() {
-    const { quiz, idx, answers, course } = quizState;
+    const { questions, idx, answers, course, module, quiz, pool } = quizState;
     const view = $("#view-quiz");
-    const total = quiz.questions.length;
+    const total = questions.length;
     const scoreKey = quizState.course.id === "spring-boot-mastery" 
       ? quizState.module.id 
       : `${quizState.course.id}-${quizState.module.id}`;
 
     if (quizState.finished) {
-      const score = answers.filter((a, i) => a === quiz.questions[i].answer).length;
-      state.quizScores[scoreKey] = { score, total };
-      state.completed[quiz.id] = true;
+      const score = answers.filter((a, i) => a === questions[i].answer).length;
+      const pct = Math.round((score / total) * 100);
+      const passed = pct >= 80;
+
+      state.quizScores[scoreKey] = {
+        score,
+        total,
+        pct,
+        passed,
+        poolSize: pool ? pool.length : total,
+        timestamp: Date.now()
+      };
+
+      if (passed) {
+        state.completed[quiz.id] = true;
+        syncCompleteLessonCloud(quiz.id);
+      } else {
+        delete state.completed[quiz.id];
+      }
       save();
       syncQuizCloud(scoreKey, score, total);
-      syncCompleteLessonCloud(quiz.id);
-      const pct = Math.round((score / total) * 100);
-      const emoji = pct >= 80 ? "🏆" : pct >= 50 ? "💪" : "📖";
-      const msg = pct >= 80
-        ? "Xuất sắc! Bạn đã nắm vững toàn bộ kiến thức chuyên sâu của module này. Tiếp tục phát huy!"
-        : pct >= 50
-        ? "Khá ổn! Hãy xem lại các câu sai ở phần phân tích chi tiết bên dưới rồi thi lại để đạt điểm tối đa nhé."
-        : "Đừng nản — hãy đọc lại bài học, mọi giải thích chi tiết đều có ở phần xem lại đáp án. Bạn làm được!";
 
       const flat = flatIndex(course.id);
       const qIdx = flat.findIndex((x) => x.lesson.id === quiz.id);
@@ -2202,53 +2885,132 @@
       const courseProg = overallProgress(course.id);
       const isCourseDone = courseProg.pct === 100;
 
+      const wrongItems = questions
+        .map((qItem, i) => ({ q: qItem, chosen: answers[i], correct: qItem.answer, index: i }))
+        .filter((item) => item.chosen !== item.correct);
+
       view.innerHTML = `
         <div class="quiz-wrap">
-          <div class="quiz-result">
-            <div class="qr-emoji">${emoji}</div>
+          <div class="quiz-result ${passed ? "passed" : "failed"}">
+            <div class="qr-emoji">${passed ? "🏆" : "📖"}</div>
             <div class="qr-score">${score}<span class="qr-total">/${total}</span></div>
-            <div style="font-weight:700;font-size:16px;color:var(--text-2);margin-bottom:8px;">${pct}% câu trả lời chính xác</div>
-            <p class="qr-msg">${msg}</p>
+            <div class="qr-status-badge ${passed ? "pass" : "fail"}">
+              ${passed ? "✓ ĐẠT CHUẨN ĐẦU RA SÁT HẠCH CES-2026 (≥ 80%)" : "✕ CHƯA ĐẠT CHUẨN ĐẦU RA (YÊU CẦU ≥ 80%)"}
+            </div>
+            <div style="font-weight:700;font-size:16px;color:var(--text-2);margin-bottom:8px;">${pct}% câu trả lời chính xác (${score}/${total} câu)</div>
+            <p class="qr-msg">
+              ${passed
+                ? `Xuất sắc! Bạn đã vượt qua bài sát hạch kỹ thuật Module ${module.id} với 12 câu kịch bản ngẫu nhiên từ ngân hàng ${pool ? pool.length : total} câu. Năng lực của bạn đáp ứng tiêu chuẩn Certified Track!`
+                : `Quy chuẩn CES-2026 yêu cầu đạt tối thiểu 80% (10/12 câu) để công nhận chứng chỉ Certified Track. Bạn làm đúng ${score}/${total} câu. Hãy ôn tập theo gợi ý dưới đây trước khi bốc đề mới.`
+              }
+            </p>
             <div class="qr-actions">
-              <button class="btn btn-ghost" id="retryQuiz">🔄 Thi lại Quiz</button>
-              ${isCourseDone ? `
+              <button class="btn btn-primary" id="retryQuiz" style="${passed ? "" : "background:var(--grad-main); font-weight:700;"}">
+                🔄 Bốc đề mới & Thi lại (${total} câu từ pool ${pool ? pool.length : total} câu)
+              </button>
+              ${passed && isCourseDone ? `
                 <button class="btn btn-primary" data-open-cert="${course.id}" style="background: linear-gradient(135deg, #a435f0, #8710d8); font-weight:800;">🎓 Nhận chứng chỉ tốt nghiệp</button>
               ` : ""}
-              ${next ? `<button class="btn btn-primary" id="nextAfterQuiz">Tiếp tục: ${escapeHtml(next.lesson.title)} →</button>`
-                     : `<button class="btn btn-primary" data-view="dashboard">Về tổng quan khóa học 🎉</button>`}
+              ${passed && next ? `<button class="btn btn-ghost" id="nextAfterQuiz">Tiếp tục: ${escapeHtml(next.lesson.title)} →</button>` : ""}
+              <button class="btn btn-ghost" data-view="dashboard">📊 Về tổng quan khóa học</button>
+            </div>
+
+            ${!passed && wrongItems.length > 0 ? `
+              <div class="qr-retake-box">
+                <div class="qr-retake-head">
+                  <span class="qr-retake-icon">🎯</span>
+                  <div>
+                    <h4>Đề Xuất Ôn Tập Thích Ứng (Adaptive Retake Guidance)</h4>
+                    <p>Hệ thống phát hiện ${wrongItems.length} nội dung bạn cần củng cố lại trước khi thi lượt mới:</p>
+                  </div>
+                </div>
+                <div class="qr-retake-list">
+                  ${wrongItems.map((item) => {
+                    const rel = findRelevantLesson(item.q, module);
+                    return `
+                      <div class="qr-retake-item">
+                        <div class="qri-qnum">Câu ${item.index + 1}</div>
+                        <div class="qri-info">
+                          <div class="qri-question">${inline(item.q.q)}</div>
+                          <div class="qri-explain"><strong>Phân tích:</strong> ${inline(item.q.explain)}</div>
+                          ${rel ? `
+                            <div class="qri-action">
+                              <span class="qri-hint">Bài học cần đọc lại:</span>
+                              <button class="btn-link qri-lesson-btn" data-goto-lesson="${rel.id}">
+                                📖 [${rel.id}] ${escapeHtml(rel.title)} →
+                              </button>
+                            </div>
+                          ` : ""}
+                        </div>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              </div>
+            ` : ""}
+
+            <!-- Review all answers accordion -->
+            <div class="qr-all-review">
+              <details class="qr-details">
+                <summary class="qr-summary">🔍 Xem lại chi tiết toàn bộ ${total} câu hỏi trong lượt thi này</summary>
+                <div class="qr-review-cards">
+                  ${questions.map((qItem, i) => {
+                    const chosen = answers[i];
+                    const isRight = chosen === qItem.answer;
+                    const letters = ["A", "B", "C", "D", "E"];
+                    return `
+                      <div class="qr-review-card ${isRight ? "review-ok" : "review-bad"}">
+                        <div class="qrc-head">
+                          <span class="qrc-num">Câu ${i + 1}</span>
+                          <span class="qrc-badge">${isRight ? "✅ Đúng" : "❌ Sai"}</span>
+                        </div>
+                        <div class="qrc-q">${inline(qItem.q)}</div>
+                        <div class="qrc-ans-row">
+                          <span>Bạn chọn: <strong>${chosen !== null ? letters[chosen] + ". " + inline(qItem.options[chosen] || "") : "Chưa chọn"}</strong></span>
+                          ${!isRight ? `<span class="qrc-correct-ans">Đáp án đúng: <strong>${letters[qItem.answer]}. ${inline(qItem.options[qItem.answer])}</strong></span>` : ""}
+                        </div>
+                        <div class="qrc-exp">${inline(qItem.explain)}</div>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              </details>
             </div>
           </div>
         </div>`;
 
-      $("#retryQuiz").addEventListener("click", () => gotoQuiz(quizState.module.id));
+      $("#retryQuiz")?.addEventListener("click", () => gotoQuiz(quizState.module.id));
       const nxt = $("#nextAfterQuiz");
       if (nxt) nxt.addEventListener("click", () => gotoLesson(next.lesson.id));
+      $$("[data-goto-lesson]", view).forEach((b) => {
+        b.addEventListener("click", () => gotoLesson(b.dataset.gotoLesson));
+      });
       $$("[data-view]", view).forEach((b) =>
         b.addEventListener("click", () => gotoView(b.dataset.view)));
       return;
     }
 
-    const q = quiz.questions[idx];
+    const q = questions[idx];
     const chosen = answers[idx];
     const letters = ["A", "B", "C", "D", "E"];
-    const answeredCount = answers.filter(a => a !== null).length;
+    const answeredCount = answers.filter((a) => a !== null).length;
 
     view.innerHTML = `
       <div class="quiz-wrap">
         <div class="quiz-head">
-          <div class="q-badge">🏆 ${escapeHtml(quiz.title)} · ${escapeHtml(course.shortTitle)}</div>
-          <h2>Câu hỏi ${idx + 1} / ${total}</h2>
-          <p>Đã trả lời: <strong>${answeredCount}/${total}</strong> câu · Chọn đáp án rồi bấm Tiếp để xem giải thích.</p>
+          <div class="q-badge">🏆 ${escapeHtml(quiz.title || `Sát hạch Module ${module.id}`)} · ${escapeHtml(course.shortTitle)}</div>
+          <h2>Câu hỏi ${idx + 1} / ${total} <span class="q-pool-tag">(Rút ngẫu nhiên từ ngân hàng ${pool ? pool.length : total} câu)</span></h2>
+          <p>Đã trả lời: <strong>${answeredCount}/${total}</strong> câu · Chuẩn CES-2026 Certified: <strong>≥ 80% (10/${total} câu)</strong></p>
         </div>
 
-        <!-- Question Navigator Grid (Interactive 30-50 questions) -->
+        <!-- Question Navigator Grid (Interactive 12 questions) -->
         <div class="quiz-nav-container">
-          <div class="qnc-title">BẢNG ĐIỀU HƯỚNG CÂU HỎI (${total} CÂU):</div>
+          <div class="qnc-title">BẢNG ĐIỀU HƯỚNG CÂU HỎI (${total} CÂU SÁT HẠCH):</div>
           <div class="quiz-nav-grid">
-            ${quiz.questions.map((_, i) => {
+            ${questions.map((_, i) => {
               const isCurrent = i === idx;
               const isAnswered = answers[i] !== null;
-              const isCorrect = isAnswered && answers[i] === quiz.questions[i].answer;
+              const isCorrect = isAnswered && answers[i] === questions[i].answer;
               let cls = "qn-btn";
               if (isCurrent) cls += " current";
               if (isAnswered) cls += (isCorrect ? " correct" : " wrong");
@@ -2298,7 +3060,7 @@
       </div>`;
 
     // Jump to specific question
-    $$("[data-jump-q]", view).forEach(btn => {
+    $$("[data-jump-q]", view).forEach((btn) => {
       btn.addEventListener("click", () => {
         quizState.idx = parseInt(btn.dataset.jumpQ, 10);
         renderQuiz();
@@ -2309,7 +3071,7 @@
       b.addEventListener("click", () => {
         if (answers[idx] !== null) return;
         answers[idx] = parseInt(b.dataset.opt, 10);
-        if (idx === total - 1 && answers.every(a => a !== null)) {
+        if (idx === total - 1 && answers.every((a) => a !== null)) {
           quizState.finished = true;
         }
         renderQuiz();
