@@ -4320,8 +4320,8 @@ public class Course extends BaseAuditableEntity {
     public String toString() {
         return "Course{" +
             "id=" + id +
-            ", courseCode='" + courseCode + "<code>" +
-            ", title='" + title + "</code>" +
+            ", courseCode='" + courseCode + '\'' +
+            ", title='" + title + '\'' +
             ", credits=" + credits +
             "}";
     }
