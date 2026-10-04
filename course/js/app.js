@@ -589,6 +589,294 @@
     hideAuthAlert();
   }
 
+  // ---------- Certificate Management ----------
+  let currentCertData = null;
+
+  function generateCertCode(courseId, studentName) {
+    const cleanId = (courseId || "sb").replace(/[^a-zA-Z0-9]/g, "").substring(0, 4).toUpperCase();
+    const hash = Math.abs(
+      (studentName + courseId).split("").reduce((acc, ch) => ((acc << 5) - acc) + ch.charCodeAt(0), 0)
+    ) % 9000 + 1000;
+    return `UC-DEVMASTERY-${cleanId}-${hash}`;
+  }
+
+  function openCertificateModal(courseId) {
+    const course = COURSES.find((c) => c.id === courseId) || getActiveCourse();
+    const user = state.currentUser;
+    const defaultName = (user && (user.full_name || user.fullName || user.username)) || "Học viên DevMastery Pro";
+
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    const dateFormatted = `${day}/${month}/${year}`;
+
+    const code = generateCertCode(course.id, defaultName);
+
+    currentCertData = {
+      course,
+      studentName: defaultName,
+      date: dateFormatted,
+      code: code
+    };
+
+    const inputName = $("#certStudentNameInput");
+    if (inputName) inputName.value = defaultName;
+
+    const nameDisplay = $("#certStudentNameDisplay");
+    if (nameDisplay) nameDisplay.textContent = defaultName;
+
+    const titleDisplay = $("#certCourseTitleDisplay");
+    if (titleDisplay) titleDisplay.textContent = course.title;
+
+    const descDisplay = $("#certCourseDescDisplay");
+    if (descDisplay) {
+      descDisplay.textContent = `${course.modulesCount || 8} Module kiến trúc Enterprise, ${course.lessonsCount || 64} bài giảng chuyên sâu & ${course.quizCount || 256} câu hỏi sát hạch kỹ sư phần mềm`;
+    }
+
+    const codeDisplay = $("#certCodeDisplay");
+    if (codeDisplay) codeDisplay.textContent = code;
+
+    const dateDisplay = $("#certDateDisplay");
+    if (dateDisplay) dateDisplay.textContent = dateFormatted;
+
+    const backdrop = $("#certModalBackdrop");
+    if (backdrop) backdrop.style.display = "flex";
+  }
+
+  function closeCertificateModal() {
+    const backdrop = $("#certModalBackdrop");
+    if (backdrop) backdrop.style.display = "none";
+  }
+
+  function updateCertificateStudentName() {
+    const input = $("#certStudentNameInput");
+    if (!input || !currentCertData) return;
+    const newName = input.value.trim() || "Học viên DevMastery Pro";
+    currentCertData.studentName = newName;
+    currentCertData.code = generateCertCode(currentCertData.course.id, newName);
+
+    const nameDisplay = $("#certStudentNameDisplay");
+    if (nameDisplay) nameDisplay.textContent = newName;
+
+    const codeDisplay = $("#certCodeDisplay");
+    if (codeDisplay) codeDisplay.textContent = currentCertData.code;
+
+    toast(`✅ Đã cập nhật tên chứng chỉ: <strong>${escapeHtml(newName)}</strong>`);
+  }
+
+  function downloadCertificateAsPng() {
+    if (!currentCertData) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 2400;
+    canvas.height = 1700;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const { course, studentName, date, code } = currentCertData;
+
+    // 1. Background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 2400, 1700);
+
+    // Subtle inner gradient
+    const gradBg = ctx.createRadialGradient(1200, 850, 200, 1200, 850, 1100);
+    gradBg.addColorStop(0, "#ffffff");
+    gradBg.addColorStop(1, "#faf8f2");
+    ctx.fillStyle = gradBg;
+    ctx.fillRect(80, 80, 2240, 1540);
+
+    // 2. Borders
+    ctx.strokeStyle = "#c29d45";
+    ctx.lineWidth = 14;
+    ctx.strokeRect(60, 60, 2280, 1580);
+
+    ctx.strokeStyle = "#f3e8c9";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(82, 82, 2236, 1536);
+
+    ctx.strokeStyle = "#c29d45";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(96, 96, 2208, 1508);
+
+    // Corner Accents
+    ctx.strokeStyle = "#b4690e";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(108, 108, 36, 36);
+    ctx.strokeRect(2256, 108, 36, 36);
+    ctx.strokeRect(108, 1556, 36, 36);
+    ctx.strokeRect(2256, 1556, 36, 36);
+
+    // 3. Header: Brand & Code
+    ctx.fillStyle = "#a435f0";
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(140, 140, 64, 64, 12);
+    } else {
+      ctx.rect(140, 140, 64, 64);
+    }
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 38px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("U", 172, 174);
+
+    ctx.fillStyle = "#1c1d1f";
+    ctx.font = "700 34px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("DevMastery Academy", 220, 174);
+
+    ctx.fillStyle = "#6a6f73";
+    ctx.font = "600 24px monospace";
+    ctx.textAlign = "right";
+    ctx.fillText("MÃ XÁC THỰC: " + code, 2260, 174);
+
+    // 4. Kicker & Main Title
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#b4690e";
+    ctx.font = "800 28px system-ui, sans-serif";
+    ctx.fillText("CHỨNG NHẬN TỐT NGHIỆP", 1200, 310);
+
+    ctx.fillStyle = "#1c1d1f";
+    ctx.font = "900 68px Georgia, serif";
+    ctx.fillText("CERTIFICATE OF COMPLETION", 1200, 390);
+
+    ctx.strokeStyle = "#c29d45";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(950, 430);
+    ctx.lineTo(1450, 430);
+    ctx.stroke();
+
+    // 5. Body Text & Recipient Name
+    ctx.fillStyle = "#555555";
+    ctx.font = "italic 32px Georgia, serif";
+    ctx.fillText("Chứng chỉ này trang trọng ghi nhận và xác nhận rằng", 1200, 520);
+
+    ctx.fillStyle = "#1c1d1f";
+    ctx.font = "900 76px Georgia, serif";
+    ctx.fillText(studentName, 1200, 630);
+
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 3;
+    const nameWidth = Math.min(ctx.measureText(studentName).width + 120, 1400);
+    ctx.beginPath();
+    ctx.moveTo(1200 - nameWidth / 2, 660);
+    ctx.lineTo(1200 + nameWidth / 2, 660);
+    ctx.stroke();
+
+    ctx.fillStyle = "#666666";
+    ctx.font = "28px system-ui, sans-serif";
+    ctx.fillText("đã hoàn thành xuất sắc toàn bộ yêu cầu học tập và sát hạch chuyên môn khóa học:", 1200, 740);
+
+    ctx.fillStyle = "#a435f0";
+    ctx.font = "900 56px system-ui, sans-serif";
+    ctx.fillText(course.title, 1200, 830);
+
+    ctx.fillStyle = "#6a6f73";
+    ctx.font = "28px system-ui, sans-serif";
+    const specs = `${course.modulesCount || 8} Module kiến trúc Enterprise, ${course.lessonsCount || 64} bài giảng chuyên sâu & ${course.quizCount || 256} câu hỏi sát hạch kỹ sư phần mềm`;
+    ctx.fillText(specs, 1200, 900);
+
+    // 6. Footer (Signatures, Seal, Date)
+    ctx.textAlign = "left";
+    ctx.font = "italic 60px 'Brush Script MT', 'Dancing Script', 'Caveat', cursive, Georgia";
+    ctx.fillStyle = "#1c1d1f";
+    ctx.fillText("Văn Đức IT", 260, 1260);
+
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(260, 1290);
+    ctx.lineTo(660, 1290);
+    ctx.stroke();
+
+    ctx.fillStyle = "#1c1d1f";
+    ctx.font = "700 28px system-ui, sans-serif";
+    ctx.fillText("Nguyễn Văn Đức", 260, 1335);
+
+    ctx.fillStyle = "#6a6f73";
+    ctx.font = "24px system-ui, sans-serif";
+    ctx.fillText("Trưởng ban Giảng huấn DevMastery", 260, 1375);
+
+    // Center Gold Seal
+    ctx.save();
+    ctx.translate(1200, 1320);
+
+    const sealGrad = ctx.createRadialGradient(0, 0, 20, 0, 0, 110);
+    sealGrad.addColorStop(0, "#fffbee");
+    sealGrad.addColorStop(0.7, "#fef3c7");
+    sealGrad.addColorStop(1, "#fde68a");
+    ctx.fillStyle = sealGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 110, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#b4690e";
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    ctx.strokeStyle = "#d97706";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 98, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#b4690e";
+    ctx.font = "20px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("★ ★ ★ ★ ★", 0, -50);
+
+    ctx.fillStyle = "#92400e";
+    ctx.font = "900 22px system-ui, sans-serif";
+    ctx.fillText("VERIFIED", 0, -18);
+    ctx.fillText("HONOR", 0, 10);
+    ctx.fillText("GRADUATE", 0, 38);
+
+    ctx.fillStyle = "#b4690e";
+    ctx.font = "800 22px system-ui, sans-serif";
+    ctx.fillText("2026", 0, 70);
+    ctx.restore();
+
+    // Right: Date & Verification
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#1c1d1f";
+    ctx.font = "700 32px system-ui, sans-serif";
+    ctx.fillText(date, 2140, 1260);
+
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(1740, 1290);
+    ctx.lineTo(2140, 1290);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6a6f73";
+    ctx.font = "24px system-ui, sans-serif";
+    ctx.fillText("Ngày cấp chứng chỉ", 2140, 1335);
+
+    ctx.fillStyle = "#15803d";
+    ctx.font = "700 22px system-ui, sans-serif";
+    ctx.fillText("✓ Đã xác thực trên DevMastery", 2140, 1375);
+
+    // Export to file download
+    const cleanFileName = `Chung_Chi_DevMastery_${course.id}_${studentName.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
+    const dataUrl = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.download = cleanFileName;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast(`🎉 Đã tải xuống chứng chỉ chất lượng cao: <strong>${escapeHtml(cleanFileName)}</strong>`);
+  }
+
+  window.DevMasteryOpenCert = openCertificateModal;
+
   // ---------- Navigation & Progress Helpers ----------
   function findLesson(id) {
     // 1. Search active course
@@ -1025,6 +1313,15 @@
             <div class="cbb-prog-bar">
               <div class="cbb-prog-fill" style="width: ${prog.pct}%"></div>
             </div>
+            ${prog.pct === 100 ? `
+              <button class="cbb-cert-btn" data-open-cert="${activeCourse.id}">
+                🎓 Nhận chứng chỉ (100%)
+              </button>
+            ` : `
+              <button class="cbb-cert-preview-btn" data-preview-cert="${activeCourse.id}">
+                🎓 Xem mẫu chứng chỉ tốt nghiệp
+              </button>
+            `}
           </div>
         </div>
 
@@ -1185,6 +1482,13 @@
         <p class="hero-sub">${escapeHtml(activeCourse.desc)}</p>
         <div class="hero-actions">
           <button class="btn btn-primary" id="continueBtn">▶ Tiếp tục học</button>
+          ${total.pct === 100 ? `
+            <button class="btn btn-sm" data-open-cert="${activeCourse.id}" style="background: linear-gradient(135deg, #a435f0, #8710d8); color:#fff; font-weight:800; border:none; padding:10px 16px; border-radius:8px; box-shadow:0 4px 14px rgba(164,53,240,0.3); cursor:pointer;">
+              🎓 Nhận chứng chỉ hoàn thành
+            </button>
+          ` : `
+            <button class="btn btn-ghost" data-preview-cert="${activeCourse.id}">🎓 Xem mẫu chứng chỉ</button>
+          `}
           <button class="btn btn-secondary" data-view="courses">🌟 Khám phá các khóa khác</button>
           <button class="btn btn-ghost" data-view="user-dashboard">📊 Tiến độ của tôi</button>
           <button class="btn btn-ghost" data-view="curriculum">Xem giáo trình</button>
@@ -1731,7 +2035,14 @@
         syncUncompleteLessonCloud(lessonId);
       } else {
         state.completed[lessonId] = true;
-        toast("🎉 Đánh dấu hoàn thành!");
+        const currentCourse = getActiveCourse();
+        const prog = overallProgress(currentCourse.id);
+        if (prog.pct === 100) {
+          toast(`🏆 <strong>Chúc mừng! Bạn đã hoàn thành 100% khóa học ${escapeHtml(currentCourse.shortTitle)}!</strong>`, 7000);
+          setTimeout(() => openCertificateModal(currentCourse.id), 800);
+        } else {
+          toast("🎉 Đánh dấu hoàn thành!");
+        }
         syncCompleteLessonCloud(lessonId);
       }
       save();
@@ -1878,6 +2189,8 @@
       const flat = flatIndex(course.id);
       const qIdx = flat.findIndex((x) => x.lesson.id === quiz.id);
       const next = flat[qIdx + 1];
+      const courseProg = overallProgress(course.id);
+      const isCourseDone = courseProg.pct === 100;
 
       view.innerHTML = `
         <div class="quiz-wrap">
@@ -1888,6 +2201,9 @@
             <p class="qr-msg">${msg}</p>
             <div class="qr-actions">
               <button class="btn btn-ghost" id="retryQuiz">🔄 Thi lại Quiz</button>
+              ${isCourseDone ? `
+                <button class="btn btn-primary" data-open-cert="${course.id}" style="background: linear-gradient(135deg, #a435f0, #8710d8); font-weight:800;">🎓 Nhận chứng chỉ tốt nghiệp</button>
+              ` : ""}
               ${next ? `<button class="btn btn-primary" id="nextAfterQuiz">Tiếp tục: ${escapeHtml(next.lesson.title)} →</button>`
                      : `<button class="btn btn-primary" data-view="dashboard">Về tổng quan khóa học 🎉</button>`}
             </div>
@@ -2139,13 +2455,13 @@
             <div class="ud-stat-sub">Đã thi ${scores.length} bài thi module</div>
           </div>
 
-          <div class="ud-stat-card">
+          <div class="ud-stat-card" style="cursor: pointer;" data-preview-cert="${state.activeCourseId}" title="Nhấp để xem mẫu chứng chỉ tốt nghiệp">
             <div class="ud-stat-top">
-              <span class="ud-stat-title">Lộ trình Platform</span>
-              <span class="ud-stat-icon">🚀</span>
+              <span class="ud-stat-title">Chứng chỉ tốt nghiệp</span>
+              <span class="ud-stat-icon">🎓</span>
             </div>
-            <div class="ud-stat-num">4 Khóa</div>
-            <div class="ud-stat-sub">Java, Spring Boot, React, Kubernetes</div>
+            <div class="ud-stat-num">${enrolledCourses.filter(c => overallProgress(c.id).pct === 100).length} / ${enrolledCourses.length || 1}</div>
+            <div class="ud-stat-sub">${enrolledCourses.filter(c => overallProgress(c.id).pct === 100).length > 0 ? "🏆 Đã đủ điều kiện nhận chứng chỉ" : "🎓 Xem mẫu chứng chỉ hoàn thành"}</div>
           </div>
         </div>
 
@@ -2247,6 +2563,15 @@
                     }
                   </div>
                   <div class="ud-course-actions">
+                    ${cProg.pct === 100 ? `
+                      <button class="btn btn-sm" data-open-cert="${c.id}" style="background: linear-gradient(135deg, #a435f0, #8710d8); color:#fff; font-weight:700; border:none; padding:6px 14px; border-radius:6px; box-shadow:0 2px 8px rgba(164,53,240,0.3); cursor:pointer;">
+                        🎓 Nhận chứng chỉ
+                      </button>
+                    ` : `
+                      <button class="btn btn-ghost btn-sm" data-preview-cert="${c.id}" title="Xem trước mẫu chứng chỉ">
+                        🎓 Mẫu chứng chỉ
+                      </button>
+                    `}
                     <button class="btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh">✕ Hủy ghi danh</button>
                     <button class="btn btn-ghost btn-sm" data-switch-curriculum="${c.id}">📚 Xem giáo trình</button>
                     <button class="btn btn-primary btn-sm" data-switch-course="${c.id}" data-target-lesson="${nextIncomplete ? nextIncomplete.lesson.id : (cItems[0] ? cItems[0].lesson.id : '')}">
@@ -2745,6 +3070,35 @@
       toast("⏳ Đang đồng bộ với Supabase Cloud...");
       await syncLocalAndCloud();
       toast("☁️ Đã đồng bộ tiến độ mới nhất!");
+    });
+
+    // Certificate Modal Events
+    $("#certModalClose")?.addEventListener("click", closeCertificateModal);
+    $("#certModalBackdrop")?.addEventListener("click", (e) => {
+      if (e.target.id === "certModalBackdrop") closeCertificateModal();
+    });
+    $("#btnUpdateCertName")?.addEventListener("click", updateCertificateStudentName);
+    $("#certStudentNameInput")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") updateCertificateStudentName();
+    });
+    $("#btnDownloadCertPng")?.addEventListener("click", downloadCertificateAsPng);
+    $("#btnPrintCert")?.addEventListener("click", () => window.print());
+    $("#btnCopyCertCode")?.addEventListener("click", () => {
+      if (currentCertData && currentCertData.code) {
+        navigator.clipboard.writeText(currentCertData.code);
+        toast(`📋 Đã sao chép mã xác thực: <strong>${currentCertData.code}</strong>`);
+      }
+    });
+
+    // Global delegation for opening certificate modal
+    document.addEventListener("click", (e) => {
+      const certBtn = e.target.closest("[data-open-cert], [data-preview-cert]");
+      if (certBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const cid = certBtn.dataset.openCert || certBtn.dataset.previewCert;
+        openCertificateModal(cid);
+      }
     });
 
     updateAuthUI();

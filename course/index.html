@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-  <link rel="stylesheet" href="css/style.css?v=20261004.10">
+  <link rel="stylesheet" href="css/style.css?v=20261004.11">
   <script>
     (function() {
       try {
@@ -289,6 +289,109 @@
       </form>
     </div>
   </div>
-  <script src="js/app.js?v=20261004.10"></script>
+
+  <!-- ===== CERTIFICATE OF COMPLETION MODAL ===== -->
+  <div class="modal-backdrop" id="certModalBackdrop" style="display: none;">
+    <div class="cert-modal" id="certModal">
+      <button class="modal-close" id="certModalClose" aria-label="Đóng">&times;</button>
+      
+      <div class="cert-modal-header">
+        <div class="cert-modal-badge">🎓 UDEMY-STYLE VERIFIED CERTIFICATE</div>
+        <h3 id="certModalHeading">Chứng Chỉ Hoàn Thành Khóa Học</h3>
+        <p>Chứng nhận tốt nghiệp tiêu chuẩn kỹ sư chuyên nghiệp của DevMastery Academy</p>
+      </div>
+
+      <!-- Live customization controls -->
+      <div class="cert-modal-controls">
+        <div class="cert-control-item">
+          <label for="certStudentNameInput">Họ & Tên học viên in trên chứng chỉ:</label>
+          <div class="cert-input-row">
+            <input type="text" id="certStudentNameInput" placeholder="Nhập họ tên đầy đủ của bạn..." maxlength="45">
+            <button type="button" class="btn btn-primary btn-sm" id="btnUpdateCertName">Áp dụng tên</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Certificate Visual Container -->
+      <div class="cert-preview-wrapper" id="certPreviewWrapper">
+        <div class="cert-card" id="certCard">
+          <div class="cert-inner-frame">
+            <!-- Decorative corner brackets -->
+            <div class="cert-corner tl"></div>
+            <div class="cert-corner tr"></div>
+            <div class="cert-corner bl"></div>
+            <div class="cert-corner br"></div>
+
+            <!-- Header -->
+            <div class="cert-brand-row">
+              <div class="cert-brand">
+                <span class="cert-u-logo">U</span>
+                <span class="cert-brand-title">DevMastery <strong>Academy</strong></span>
+              </div>
+              <div class="cert-code-tag">MÃ XÁC THỰC: <strong id="certCodeDisplay">UC-DEVMASTERY-8921-SB</strong></div>
+            </div>
+
+            <div class="cert-heading-area">
+              <div class="cert-kicker">CHỨNG NHẬN TỐT NGHIỆP</div>
+              <h1 class="cert-main-title">CERTIFICATE OF COMPLETION</h1>
+              <div class="cert-divider-line"></div>
+            </div>
+
+            <!-- Recipient -->
+            <div class="cert-recipient-area">
+              <p class="cert-recip-lead">Chứng chỉ này trang trọng ghi nhận và xác nhận rằng</p>
+              <h2 class="cert-student-name" id="certStudentNameDisplay">Nguyễn Văn Đức</h2>
+              <p class="cert-recip-desc">đã hoàn thành xuất sắc toàn bộ yêu cầu học tập và sát hạch chuyên môn khóa học:</p>
+              <h3 class="cert-course-title" id="certCourseTitleDisplay">Spring Boot Mastery – Từ Zero đến Production</h3>
+              <p class="cert-course-desc" id="certCourseDescDisplay">8 Module kiến trúc Microservices Enterprise, 64 bài giảng chuyên sâu & 256 câu hỏi sát hạch kỹ sư phần mềm</p>
+            </div>
+
+            <!-- Footer & Signatures -->
+            <div class="cert-footer-area">
+              <div class="cert-sign-box">
+                <div class="cert-signature-draw">Văn Đức IT</div>
+                <div class="cert-sign-rule"></div>
+                <div class="cert-sign-name">Nguyễn Văn Đức</div>
+                <div class="cert-sign-role">Trưởng ban Giảng huấn DevMastery</div>
+              </div>
+
+              <div class="cert-seal-box">
+                <div class="cert-seal-circle">
+                  <div class="cert-seal-stars">★★★★★</div>
+                  <div class="cert-seal-text">VERIFIED<br>HONOR<br>GRADUATE</div>
+                  <div class="cert-seal-year">2026</div>
+                </div>
+              </div>
+
+              <div class="cert-date-box">
+                <div class="cert-date-value" id="certDateDisplay">04/10/2026</div>
+                <div class="cert-sign-rule"></div>
+                <div class="cert-date-label">Ngày cấp chứng chỉ</div>
+                <div class="cert-cert-status">✓ Đã xác thực trên DevMastery</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="cert-modal-actions">
+        <button type="button" class="btn-cert-btn btn-cert-png" id="btnDownloadCertPng">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Tải ảnh chứng chỉ (PNG 2400px)
+        </button>
+        <button type="button" class="btn-cert-btn btn-cert-print" id="btnPrintCert">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          In chứng chỉ / Lưu PDF
+        </button>
+        <button type="button" class="btn-cert-btn btn-cert-copy" id="btnCopyCertCode">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Sao chép mã xác thực
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=20261004.11"></script>
 </body>
 </html>
