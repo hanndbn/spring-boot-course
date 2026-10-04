@@ -57,73 +57,108 @@
     } catch (e) { /* fresh */ }
   }
 
-  // ---------- Cloud API Sync ----------
-  async function apiCall(endpoint, method = "GET", body = null) {
-    if (!API_BASE) {
-      const prompted = prompt("Chưa cấu hình API Backend. Vui lòng nhập địa chỉ máy chủ Spring Boot (ví dụ: http://localhost:8080/api/v1):");
-      if (prompted && prompted.trim()) {
-        API_BASE = prompted.trim().replace(/\/$/, "");
-        localStorage.setItem(API_BASE_KEY, API_BASE);
-      } else {
-        throw new Error("Chưa kết nối API Backend. Vui lòng chạy backend (localhost:8080) hoặc cấu hình địa chỉ máy chủ.");
-      }
-    }
-    const headers = { "Content-Type": "application/json" };
-    if (state.token) {
-      headers["Authorization"] = "Bearer " + state.token;
-    }
+  // ---------- Supabase Direct Cloud Integration ----------
+  const SUPABASE_URL = "https://rdtvdhliqnbflqstatsq.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkdHZkaGxpcW5iZmxxc3RhdHNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTM2MTAsImV4cCI6MjA4MzQyOTYxMH0._PuQmvqp026dvpEYgM0sbEZqhQk6sg4C4dz0hKrxp90";
+
+  async function hashPassword(str) {
+    const enc = new TextEncoder().encode(str + "_sbmastery_salt");
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function supabaseCall(endpoint, method = "GET", body = null, extraHeaders = {}) {
+    const headers = {
+      "apikey": SUPABASE_ANON,
+      "Authorization": "Bearer " + SUPABASE_ANON,
+      "Content-Type": "application/json",
+      ...extraHeaders
+    };
     const opts = { method, headers };
     if (body) opts.body = JSON.stringify(body);
     try {
-      const res = await fetch(API_BASE + endpoint, opts);
-      const data = await res.json().catch(() => null);
+      const res = await fetch(SUPABASE_URL + "/rest/v1" + endpoint, opts);
       if (!res.ok) {
-        throw new Error(data && (data.detail || data.message) ? (data.detail || data.message) : ("HTTP " + res.status));
+        const err = await res.json().catch(() => null);
+        throw new Error(err && (err.message || err.detail) ? (err.message || err.detail) : ("Lỗi Supabase HTTP " + res.status));
       }
-      return data;
+      if (res.status === 204) return null;
+      return await res.json().catch(() => null);
     } catch (err) {
-      console.warn("API Error [" + endpoint + "]:", err.message);
+      console.warn("Supabase API Error [" + endpoint + "]:", err.message);
       throw err;
     }
   }
 
   async function syncLocalAndCloud() {
-    if (!state.token) return;
+    if (!state.currentUser) return;
+    const uid = state.currentUser.id;
     try {
-      const synced = await apiCall("/progress/sync", "POST", {
-        completed: state.completed,
-        quizScores: state.quizScores
-      });
-      if (synced) {
-        if (synced.completedLessons) {
-          synced.completedLessons.forEach(id => { state.completed[id] = true; });
-        }
-        if (synced.quizScores) {
-          for (const mId in synced.quizScores) {
-            state.quizScores[mId] = synced.quizScores[mId];
-          }
-        }
-        save();
-        renderAll();
+      // 1. Lấy bài học đã hoàn thành từ Supabase
+      const remoteLessons = await supabaseCall("/user_lesson_progress?user_id=eq." + uid + "&completed=eq.true&select=lesson_id");
+      if (Array.isArray(remoteLessons)) {
+        remoteLessons.forEach(r => { state.completed[r.lesson_id] = true; });
       }
+
+      // 2. Lấy điểm quiz từ Supabase
+      const remoteQuiz = await supabaseCall("/user_quiz_results?user_id=eq." + uid + "&select=module_id,score,total_questions");
+      if (Array.isArray(remoteQuiz)) {
+        remoteQuiz.forEach(r => {
+          state.quizScores[r.module_id] = { score: r.score, total: r.total_questions };
+        });
+      }
+
+      // 3. Đẩy các bài học hoàn thành ở local lên Supabase nếu chưa có
+      const localLessonIds = Object.keys(state.completed).filter(id => state.completed[id]);
+      if (localLessonIds.length > 0) {
+        const payload = localLessonIds.map(id => ({ user_id: uid, lesson_id: id, completed: true }));
+        await supabaseCall("/user_lesson_progress", "POST", payload, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
+      }
+
+      // 4. Đẩy điểm quiz ở local lên Supabase
+      const quizKeys = Object.keys(state.quizScores);
+      if (quizKeys.length > 0) {
+        const qPayload = quizKeys.map(mId => ({
+          user_id: uid,
+          module_id: String(mId),
+          score: state.quizScores[mId].score,
+          total_questions: state.quizScores[mId].total,
+          passed: (state.quizScores[mId].score / state.quizScores[mId].total) >= 0.8
+        }));
+        await supabaseCall("/user_quiz_results", "POST", qPayload, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
+      }
+
+      save();
+      renderAll();
     } catch (e) {
-      // Offline fallback
+      console.warn("Cloud sync warning:", e.message);
     }
   }
 
   function syncCompleteLessonCloud(lessonId) {
-    if (!state.token) return;
-    apiCall("/progress/complete-lesson", "POST", { lessonId }).catch(() => {});
+    if (!state.currentUser) return;
+    supabaseCall("/user_lesson_progress", "POST", {
+      user_id: state.currentUser.id,
+      lesson_id: lessonId,
+      completed: true
+    }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
   }
 
   function syncUncompleteLessonCloud(lessonId) {
-    if (!state.token) return;
-    apiCall("/progress/lessons/" + encodeURIComponent(lessonId), "DELETE").catch(() => {});
+    if (!state.currentUser) return;
+    supabaseCall("/user_lesson_progress?user_id=eq." + state.currentUser.id + "&lesson_id=eq." + encodeURIComponent(lessonId), "DELETE")
+      .catch(err => console.warn(err));
   }
 
   function syncQuizCloud(moduleId, score, totalQuestions) {
-    if (!state.token) return;
-    apiCall("/progress/quiz-result", "POST", { moduleId, score, totalQuestions }).catch(() => {});
+    if (!state.currentUser) return;
+    supabaseCall("/user_quiz_results", "POST", {
+      user_id: state.currentUser.id,
+      module_id: String(moduleId),
+      score: score,
+      total_questions: totalQuestions,
+      passed: (score / totalQuestions) >= 0.8
+    }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
   }
 
   // ---------- Auth & User UI ----------
@@ -137,8 +172,8 @@
 
     if (state.currentUser && state.token) {
       if (authBtn) authBtn.classList.add("logged-in");
-      const displayName = state.currentUser.fullName || state.currentUser.username || "Học viên";
-      const initial = (state.currentUser.fullName || state.currentUser.username || "U").charAt(0).toUpperCase();
+      const displayName = state.currentUser.full_name || state.currentUser.fullName || state.currentUser.username || "Học viên";
+      const initial = (state.currentUser.full_name || state.currentUser.fullName || state.currentUser.username || "U").charAt(0).toUpperCase();
       if (authBtnText) authBtnText.textContent = displayName;
       if (dropdownAvatar) dropdownAvatar.textContent = initial;
       if (dropdownName) dropdownName.textContent = displayName;
@@ -1009,24 +1044,29 @@
         const btnText = submitBtn.querySelector(".btn-text") || submitBtn;
         const originalText = btnText.textContent;
         try {
-          btnText.textContent = "Đang xử lý...";
+          btnText.textContent = "Đang kiểm tra...";
           submitBtn.disabled = true;
           hideAuthAlert();
-          const res = await apiCall("/auth/login", "POST", { username, password });
-          state.token = res.token;
-          state.currentUser = {
-            id: res.id,
-            username: res.username,
-            email: res.email,
-            fullName: res.fullName,
-            role: res.role
-          };
+
+          const users = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(username) + ",email.eq." + encodeURIComponent(username) + ")&select=*");
+          if (!users || users.length === 0) {
+            throw new Error("Không tìm thấy tài khoản với Username hoặc Email này.");
+          }
+
+          const user = users[0];
+          const hashed = await hashPassword(password);
+          if (user.password_hash !== hashed) {
+            throw new Error("Mật khẩu không chính xác.");
+          }
+
+          state.currentUser = user;
+          state.token = "sb-session-" + user.id;
           localStorage.setItem(TOKEN_KEY, state.token);
           localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
           updateAuthUI();
           closeAuthModal();
-          toast("🎉 Chào mừng trở lại, " + (state.currentUser.fullName || state.currentUser.username) + "!");
-          syncLocalAndCloud();
+          toast("🎉 Chào mừng trở lại, " + (state.currentUser.full_name || state.currentUser.username) + "!");
+          await syncLocalAndCloud();
         } catch (err) {
           showAuthAlert(err.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
         } finally {
@@ -1050,21 +1090,33 @@
           btnText.textContent = "Đang tạo tài khoản...";
           submitBtn.disabled = true;
           hideAuthAlert();
-          const res = await apiCall("/auth/register", "POST", { fullName, username, email, password });
-          state.token = res.token;
-          state.currentUser = {
-            id: res.id,
-            username: res.username,
-            email: res.email,
-            fullName: res.fullName,
-            role: res.role
-          };
+
+          const existing = await supabaseCall("/users?or=(username.eq." + encodeURIComponent(username) + ",email.eq." + encodeURIComponent(email) + ")&select=id");
+          if (existing && existing.length > 0) {
+            throw new Error("Username hoặc Email này đã tồn tại trong hệ thống.");
+          }
+
+          const hashed = await hashPassword(password);
+          const created = await supabaseCall("/users", "POST", {
+            username: username,
+            email: email,
+            password_hash: hashed,
+            full_name: fullName || username,
+            role: "ROLE_USER"
+          }, { "Prefer": "return=representation" });
+
+          if (!created || created.length === 0) {
+            throw new Error("Không thể tạo tài khoản trên máy chủ.");
+          }
+
+          state.currentUser = created[0];
+          state.token = "sb-session-" + state.currentUser.id;
           localStorage.setItem(TOKEN_KEY, state.token);
           localStorage.setItem(USER_KEY, JSON.stringify(state.currentUser));
           updateAuthUI();
           closeAuthModal();
-          toast("✨ Đăng ký thành công! Chào mừng " + (state.currentUser.fullName || state.currentUser.username));
-          syncLocalAndCloud();
+          toast("✨ Đăng ký thành công! Chào mừng " + (state.currentUser.full_name || state.currentUser.username));
+          await syncLocalAndCloud();
         } catch (err) {
           showAuthAlert(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
         } finally {
