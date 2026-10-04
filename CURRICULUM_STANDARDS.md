@@ -1,8 +1,8 @@
-# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.0)
-## DevMastery Course & Curriculum Engineering Standard — Production Edition
+# BỘ QUY CHUẨN KỸ THUẬT THIẾT KẾ KHÓA HỌC (CES-2026 v2.1)
+## DevMastery Course & Curriculum Engineering Standard — Consensus Edition
 
 > **Tài liệu đặc tả kỹ thuật bắt buộc dành cho Giảng viên, Kỹ sư Nội dung và Hệ thống AI Agent khi biên soạn hoặc thẩm định bất kỳ khóa học nào trên DevMastery Academy.**  
-> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, kiểm định năng lực khép kín và loại bỏ hoàn toàn các chỉ số ảo/nội dung rác.*
+> *Được chuẩn hóa dựa trên triết lý Micro-Learning thực dụng, tích hợp biên bản đồng thuận 3-Agent (Product - Systems Architecture - Cognitive Science).*
 
 ---
 
@@ -11,13 +11,15 @@
 1. **Text-First & Interactive (Kiểu Educative):** Kỹ sư đọc và đối chiếu code nhanh gấp 2–3 lần xem video 40 giờ. Không dùng video thụ động; 100% nội dung là tài liệu kỹ thuật có thể tra cứu nhanh (`Ctrl + K`), copyable snippets và sơ đồ rõ ràng.
 2. **Nhịp độ hoàn thành Micro-Pacing (Kiểu Udemy):** Phân rã bài học theo **Single Responsibility Principle (SRP)**. Mỗi bài giải quyết trọn vẹn đúng 1 vấn đề trong **5 – 10 phút**.
 3. **Cạm bẫy & Sự cố Hậu kiểm (Kiểu ByteByteGo):** Không dạy ví dụ đồ chơi (Toy Code: `foo/bar`, `Cat/Dog`). 100% bài học xuất phát từ ngữ cảnh sản xuất: Ngân hàng, Cổng thanh toán, Sàn thương mại điện tử, Hệ thống phân tán chịu tải cao.
-4. **Kiểm định Năng lực Thực tế (Competency Gating):** Tick xanh tạo dopamine, nhưng **vượt qua cửa ải (Gate) mới tạo ra kỹ sư giỏi**. Học viên phải pass 80% Quiz tình huống và nộp Capstone Project chạy pass CI/CD mới được cấp chứng chỉ.
+4. **Cơ chế Hai Làn Học Tập (Dual-Track Progression):**
+   * **Làn Khảo sát (Audit Track):** Học viên tự do truy cập bất kỳ bài nào, không bị khóa cổng 80%, phù hợp kỹ sư cần tra cứu nhanh giải pháp gỡ lỗi tức thì tại doanh nghiệp.
+   * **Làn Chứng chỉ (Certified Track):** Bắt buộc vượt qua cổng 80% Quiz từng Module và nộp Đồ án Capstone pass kiểm thử tự động mới được cấp Chứng chỉ số ký xác thực (Verified Certificate).
 
 ---
 
 ## 2. Định Mức Quy Mô Chuẩn (Scale Caps & Boundary Limits)
 
-Để tránh tình trạng "sinh nội dung cho đủ số" làm loãng chất lượng, spec quy định rõ trần định mức (Ceiling Caps):
+Để triệt tiêu tình trạng "sinh nội dung cho đủ số" làm loãng chất lượng, spec quy định rõ trần định mức cứng (Hard Ceiling Caps):
 
 | Thông số | Bản MVP (Minimum Viable Course) | Khóa Standard hoàn chỉnh | Trần tối đa (Hard Ceiling) |
 |---|:---:|:---:|:---:|
@@ -26,7 +28,7 @@
 | **Tổng số bài học toàn khóa** | **60 – 80 bài** | **90 – 120 bài** | **Tối đa 150 bài** |
 | **Số câu Quiz / Module** | **10 – 12 câu** | **12 – 16 câu** | **Tối đa 18 câu** |
 | **Thời lượng đọc & lab / bài** | **5 – 8 phút** | **6 – 10 phút** | **Tối đa 15 phút** |
-| **Capstone Project** | 1 đồ án Mini-Service | 1 đồ án End-to-End | 1 hệ thống hoàn chỉnh |
+| **Đồ án Capstone** | 1 đồ án Mini-Service | 1 đồ án End-to-End | 1 hệ thống hoàn chỉnh |
 
 > [!IMPORTANT]
 > **Quy tắc trần cứng (Ceiling Rule):** Tuyệt đối không sinh khóa học vượt quá 150 bài vi mô hoặc module quá 22 bài. Nếu một chủ đề quá rộng, bắt buộc phải tách thành một Khóa học độc lập (ví dụ: tách *Spring Security Chuyên Sâu* ra khỏi *Spring Boot Core*).
@@ -35,7 +37,7 @@
 
 ## 3. Cấu Trúc Thứ Bậc Dữ Liệu Đồng Nhất (Unified Hierarchy)
 
-Để mã bài học (`Bài 1.2.3`), URL deep-link và Sidebar không bị lệch pha, cấu trúc phân cấp dữ liệu trong code bắt buộc phải có **4 cấp độ đồng nhất**:
+Để mã bài học (`Bài 1.2.3`), URL deep-link và Sidebar luôn khớp nhau 100%, cấu trúc phân cấp dữ liệu trong code bắt buộc tuân thủ **4 cấp độ đồng nhất**:
 
 ```mermaid
 graph TD
@@ -44,6 +46,7 @@ graph TD
     T --> L1["Micro-Lesson 1.2.1 (Theory - 6p)"]
     T --> L2["Micro-Lesson 1.2.2 (Practice - 8p)"]
     T --> L3["Micro-Lesson 1.2.3 (Pitfall - 5p)"]
+    T --> L4["Milestone Synthesis 1.2.4 (Tổng hợp luồng - 6p)"]
     M --> QZ["🏆 Capstone Quiz Module 1 (12 - 16 câu scenario)"]
 ```
 
@@ -133,7 +136,6 @@ Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí n
       options: ["Record có thể kế thừa class khác", "Record mặc định bất biến (immutable) và final", "Record không có equals/hashCode", "Record chỉ chạy trên JVM 8"],
       answer: 1
     }
-    // ... thêm 2 câu
   ],
 
   topics: [
@@ -153,7 +155,7 @@ Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí n
   quiz: {
     id: "1-quiz",
     title: "Sát Hạch Năng Lực Module 1: Spring Core & Container",
-    passThresholdPct: 80, // Tối thiểu 80% mới mở khóa module sau
+    passThresholdPct: 80, // Tối thiểu 80% (áp dụng cho Certified Track)
     allowRetake: true,
     questions: [ ... ]
   }
@@ -166,16 +168,16 @@ Bắt buộc có `outcomes`, `retrievalWarmup` (3 câu hỏi kích hoạt trí n
 
 Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài học. Mỗi `type` có quy định khối bắt buộc và khối cấm riêng:
 
-| Thành phần nội dung | `theory` (📖 Lý thuyết) | `practice` (💻 Thực hành) | `pitfall` (⚠️ Cạm bẫy) | `challenge` (🏆 Thử thách) |
-|---|:---:|:---:|:---:|:---:|
-| **Bối cảnh thực tế (Real-world Hook)** | **BẮT BUỘC** | Khuyến khích | **BẮT BUỘC** | **BẮT BUỘC** |
-| **Sơ đồ Mermaid / Mental Model** | **BẮT BUỘC** | Tùy chọn | Tùy chọn | Không cần |
-| **Mã nguồn chạy được (Runnable Code)** | Không ép (chỉ đoạn ngắn) | **BẮT BUỘC (100% test pass)** | Chỉ code gây lỗi & code sửa | Không (Chỉ để trong Lời giải) |
-| **Lệnh kiểm thử (cURL / Test Command)** | Không | **BẮT BUỘC** | **BẮT BUỘC** | Không |
-| **Triệu chứng lỗi & Post-Mortem** | Không cần | Không cần | **BẮT BUỘC** | Không cần |
-| **Gợi ý giấu kín (Collapsible Hint)** | Không | Không | Không | **BẮT BUỘC** |
-| **Reference Solution & Trade-offs** | Không | Không | Không | **BẮT BUỘC** |
-| **Khối hộp ghi nhớ (`:::tip`, `:::warn`)** | `:::takeaways` | `:::tip` | `:::warn` / `:::danger` | `:::takeaways` |
+| Thành phần nội dung | `theory` (📖 Lý thuyết) | `practice` (💻 Thực hành) | `pitfall` (⚠️ Cạm bẫy) | `challenge` (🏆 Thử thách) | `synthesis` (🗺️ Tổng hợp) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Bối cảnh thực tế (Real-world Hook)** | **BẮT BUỘC** | Khuyến khích | **BẮT BUỘC** | **BẮT BUỘC** | Tùy chọn |
+| **Sơ đồ Mermaid / Mental Model** | **BẮT BUỘC** | Tùy chọn | Tùy chọn | Không cần | **BẮT BUỘC (Sơ đồ lớn)** |
+| **Mã nguồn chạy được (Runnable Code)** | Không ép (chỉ đoạn ngắn) | **BẮT BUỘC (100% test pass)** | Chỉ code lỗi & code sửa | Không (Chỉ trong Lời giải) | Không |
+| **Lệnh kiểm thử (cURL / Test Command)** | Không | **BẮT BUỘC** | **BẮT BUỘC** | Không | Không |
+| **Triệu chứng lỗi & Post-Mortem** | Không cần | Không cần | **BẮT BUỘC** | Không cần | Không cần |
+| **Gợi ý giấu kín (Collapsible Hint)** | Không | Không | Không | **BẮT BUỘC** | Không |
+| **Reference Solution & Trade-offs** | Không | Không | Không | **BẮT BUỘC** | Không |
+| **Khối hộp ghi nhớ (`:::tip`, `:::warn`)** | `:::takeaways` | `:::tip` | `:::warn` / `:::danger` | `:::takeaways` | `:::takeaways` |
 
 ### 5.1. Cấu trúc bài `theory` (Thời lượng: 5 – 7 phút)
 1. **The Why (Hook):** Vấn đề kiến trúc trong thực tế.
@@ -191,51 +193,68 @@ Tuyệt đối **không ép một khuôn 5 phần cứng nhắc** cho mọi bài
 
 ### 5.3. Cấu trúc bài `pitfall` (Thời lượng: 5 – 8 phút)
 1. **Triệu chứng (The Symptom):** Lỗi log gì văng ra ở production? Alert Prometheus cảnh báo cái gì?
-2. **Căn nguyên kỹ thuật (Root Cause):** Tại sao code chạy ngon trên máy dev (Localhost) nhưng sập trên môi trường tải cao?
-3. **Mã nguồn lỗi vs Mã nguồn khắc phục (Diff Code):**
-   ```java
-   // ❌ SAI: Gây Connection Leak
-   // ✅ ĐÚNG: Sử dụng try-with-resources hoặc TransactionTemplate
-   ```
-4. **Bài học hậu kiểm (Post-Mortem):** Quy tắc viết Unit Test hoặc cấu hình Alert để lỗi này không bao giờ tái diễn.
+2. **Căn nguyên kỹ thuật (Root Cause):** Tại sao code chạy ngon trên máy dev nhưng sập trên môi trường tải cao?
+3. **Mã nguồn lỗi vs Mã nguồn khắc phục (Diff Code):** So sánh trực tiếp code SAI và code ĐÚNG.
+4. **Bài học hậu kiểm (Post-Mortem):** Quy tắc viết Unit Test hoặc cấu hình Alert để lỗi không bao giờ tái diễn.
 
-### 5.4. Cấu trúc bài `challenge` (Thời lượng: 10 – 15 phút)
-1. **Đặc tả yêu cầu & Ràng buộc (Specs & Constraints):** Rõ ràng I/O, thời gian thực thi tối đa, memory footprint.
-2. **Gợi ý từng bước (Collapsible Hints):** Giấu sau thẻ `<details>` để học viên tự tư duy trước.
-3. **Lời giải mẫu chuẩn mực (Reference Solution):** Code mẫu hoàn chỉnh đạt tiêu chuẩn Senior.
-4. **Phân tích Trade-offs:** Đánh đổi giữa Memory vs CPU, Độ phức tạp vs Khả năng bảo trì.
+### 5.4. Cấu trúc bài `challenge` (Thời lượng: 10 – 15 phút) & Quy chuẩn Giàn giáo (Scaffolding)
+* **Quy tắc Scaffolding:** Không bắt học viên viết từ đầu (Zero-scratch). Cung cấp sẵn một repo starter kit với 90% phần khung đã chạy, học viên chỉ cần điền đúng **1 hàm thuật toán lõi** hoặc **sửa đúng 1 file cấu hình lỗi** (Bug Bounty format).
+* **Đặc tả yêu cầu & Ràng buộc:** Rõ ràng I/O, thời gian thực thi tối đa, memory footprint.
+* **Gợi ý từng bước:** Giấu sau thẻ `<details>` để học viên tự tư duy trước.
+* **Lời giải mẫu chuẩn:** Reference Solution đạt tiêu chuẩn Senior kèm phân tích đánh đổi (Trade-offs).
 
----
-
-## 6. Quy Chuẩn Đề Thi Sát Hạch (Capstone Quiz Standard)
-
-### 6.1. Định mức & Tiêu chí
-* **Số lượng:** **12 đến 16 câu hỏi** cho mỗi Module (không làm tràn lan 30–50 câu loãng chất lượng).
-* **100% câu hỏi tình huống (Scenario-Based):**
-  - "Một kỹ sư cấu hình Redis Cache với TTL 10 phút, lúc 12h trưa lượng truy cập tăng đột biến làm Database chết đứng vì CPU 100%. Đây là lỗi gì và cách sửa?"
-  - Tuyệt đối cấm câu hỏi định nghĩa từ điển ("Spring Boot là gì?", "Annotation nào dùng để inject?").
-* **4 Đáp án phân hóa (Plausible Distractors):** Đáp án sai phải là những sai lầm thường gặp của lập trình viên Junior/Mid, không viết đáp án ngớ ngẩn.
-* **Bắt buộc phân tích đáp án (Deep Explanation):**
-  - Phải chỉ rõ vì sao đáp án đúng là giải pháp chuẩn.
-  - Phải chỉ rõ nếu chọn từng đáp án sai thì ở production sẽ gặp sự cố gì.
-
-### 6.2. Cổng Năng Lực (Competency Gating Rules)
-* **Ngưỡng đạt (Pass Threshold):** Phải trả lời đúng **tối thiểu 80%** (ví dụ: đúng 13/16 câu).
-* **Cơ chế thi lại (Retake Policy):** Nếu không đạt, được thi lại nhưng câu hỏi bị tráo ngẫu nhiên (Shuffle options). Hệ thống khuyến nghị học viên đọc lại các bài vi mô liên quan đến câu làm sai.
+### 5.5. Cấu trúc bài `synthesis` (Thời lượng: 5 – 8 phút) — Chống Phân Mảnh Kiến Thức
+* **Vị trí:** Nằm ở cuối mỗi Topic Cluster (sau 3–5 bài micro-learning).
+* **Bản đồ luồng toàn cảnh (Grand Schema Map):** 1 sơ đồ Mermaid lớn kết nối toàn bộ các thành phần đã học thành 1 chu trình nghiệp vụ khép kín.
+* **Bảng tổng kết quyết định (Decision Matrix):** Khi nào dùng kỹ thuật A vs khi nào dùng kỹ thuật B.
 
 ---
 
-## 7. Quy Chuẩn Đồ Án Tốt Nghiệp Cuối Khóa (Capstone Project Rubric)
+## 6. Quy Chuẩn Phần Cứng & Thoái Lui Mềm (Hardware Tolerance)
 
-Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến (Capstone Project)**, không được kết thúc bằng một bài trắc nghiệm.
+Để đảm bảo học viên dùng máy tính 8GB – 16GB RAM vẫn thực hành được trọn vẹn mà không bị tràn RAM Docker:
 
-### 7.1. Tiêu chí 4 Bắt Buộc của Capstone:
-1. **Kho mã nguồn riêng biệt (Git Repository):** Có file `README.md`, `docker-compose.yml` khởi chạy toàn bộ phụ thuộc (DB, Redis, Kafka...) bằng 1 lệnh duy nhất: `docker compose up -d`.
-2. **Bộ Test Suite tự động:** Bao gồm Unit Test (JUnit 5/Mockito) và Integration Test (Testcontainers) đạt độ bao phủ (Coverage) tối thiểu 75%. Build pipeline phải báo `BUILD SUCCESS`.
-3. **Tài liệu Kiến trúc (Architecture Decision Record - ADR):** Ít nhất 1 file ADR giải thích lý do chọn giải pháp kỹ thuật (ví dụ: tại sao chọn Redis Streams thay vì Kafka cho bài toán này, trade-offs là gì).
-4. **Kịch bản kiểm thử tải (Load Test Script):** File kịch bản k6 hoặc JMeter chạy thử nghiệm tối thiểu 500 TPS và phân tích biểu đồ Latency P95/P99.
+1. **Profile `local-lite` (Bắt buộc cho mọi bài thực hành):**
+   * Sử dụng cơ sở dữ liệu In-Memory (H2 Database, Embedded Redis, MockWebServer).
+   * Mức tiêu thụ RAM tối đa cho phép: `< 1.5 GB RAM`. Máy 8GB RAM chạy mượt mà.
+2. **Profile `enterprise-docker` (Tùy chọn nâng cao):**
+   * Dùng Docker Compose / Testcontainers thật (PostgreSQL, Kafka, Redis, Keycloak).
+   * Dành cho học viên máy mạnh (16GB+ RAM) muốn thử nghiệm sát hạch môi trường tải cao.
 
-### 7.2. Bảng Rubric Đánh Giá (Grading Rubric Matrix)
+---
+
+## 7. Quy Chuẩn Đề Thi Sát Hạch (Capstone Quiz Standard)
+
+### 7.1. Định mức & Tiêu chí
+* **Số lượng:** **12 đến 16 câu hỏi** cho mỗi Module (không làm 30–50 câu loãng chất lượng).
+* **100% câu hỏi tình huống (Scenario-Based):** Phân tích sự cố hạ tầng, lỗi race condition, deadlock, memory leak. Cấm câu hỏi định nghĩa từ điển.
+* **4 Đáp án phân hóa (Plausible Distractors):** Đáp án sai phải phản ánh đúng những sai lầm thường gặp của lập trình viên Junior/Mid.
+* **Bắt buộc phân tích đáp án (Deep Explanation):** Chỉ rõ tại sao đáp án đúng là giải pháp chuẩn, và tại sao từng đáp án sai sẽ gây ra lỗi gì ở production.
+
+### 7.2. Cổng Năng Lực & Retake Policy
+* **Ngưỡng đạt (Pass Threshold):** Trả lời đúng **tối thiểu 80%** (ví dụ: đúng 13/16 câu) trên *Certified Track*.
+* **Cơ chế thi lại:** Nếu chưa đạt 80%, đề thi sẽ tự động tráo thứ tự câu hỏi và phương án. Hệ thống chỉ rõ học viên cần đọc lại bài vi mô cụ thể nào trước khi thi lại.
+
+---
+
+## 8. Quy Chuẩn Đồ Án Tốt Nghiệp Cuối Khóa (Capstone Project & Automated Grading)
+
+Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến (Capstone Project)**, không dùng trắc nghiệm làm thước đo.
+
+### 8.1. Hệ Thống Chấm Điểm Tự Động (Automated Grading Harness)
+Để đảm bảo tính khách quan và giảm 90% chi phí vận hành:
+1. Học viên nộp đường link GitHub repository cá nhân.
+2. **GitHub Actions Test Runner của DevMastery** tự động clone và kích hoạt:
+   * `mvn test`: Chạy bộ test ẩn (Hidden Test Suite) xác thực 100% logic nghiệp vụ.
+   * `ArchUnit Scanner`: Kiểm tra tính toàn vẹn kiến trúc phân tầng (không import chéo, không vi phạm Clean Architecture).
+   * `k6 Runner`: Chạy kịch bản tải 500 TPS đo P95 Latency và kiểm tra Memory Leak.
+3. Hệ thống sinh Scorecard tự động sau 3 phút.
+
+### 8.2. Socratic AI Code Reviewer (Review Tài Liệu ADR)
+* AI đóng vai trò Kỹ sư Trưởng (Principal Reviewer), phân tích file `ADR.md` (Architecture Decision Record) của học viên.
+* AI đặt ra **2 câu hỏi phản biện chuyên sâu** về đánh đổi kỹ thuật (Trade-offs). Học viên bảo vệ được giải pháp của mình mới đạt chuẩn tốt nghiệp.
+
+### 8.3. Bảng Rubric Đánh Giá (Grading Rubric Matrix)
 
 | Tiêu chí | Cần cải thiện (0 điểm) | Đạt yêu cầu (1 điểm) | Xuất sắc (2 điểm) |
 |---|---|---|---|
@@ -247,27 +266,28 @@ Module cuối cùng của khóa học **bắt buộc là Dự Án Thực Chiến
 
 ---
 
-## 8. Quản Trị Vòng Đời Nội Dung (Content Lifecycle & Depreciation)
+## 9. Quản Trị Vòng Đời Tự Động (Weekly Automated CI Pipeline)
 
-Khóa học công nghệ dễ biến thành "nợ kỹ thuật" (Technical Debt) khi framework nâng cấp phiên bản lớn. Mọi khóa học phải tuân thủ quy tắc bảo trì:
+Thay vì trông chờ vào việc con người rà soát thủ công:
 
-1. **Ghi rõ Tech Stack Version:** Ngay đầu khóa học phải ghi rõ baseline (ví dụ: *Java 21 LTS + Spring Boot 3.3.4 + Postgres 16*).
-2. **Định kỳ rà soát 6 tháng:** Mỗi 6 tháng, Kỹ sư Nội dung phải chạy lại toàn bộ test suite của các bài `practice` trên phiên bản patch mới nhất.
-3. **Xử lý khi có Breaking Change:**
-   - Nếu API bị `deprecated`: Thêm hộp `:::warn Cảnh báo phiên bản: Từ bản X.X tính năng này được thay thế bằng Y.Y`.
-   - Nếu framework ra bản LTS mới: Tạo nhánh nâng cấp, kiểm thử xong mới cập nhật bài học, không để code mẫu trên web bị lỗi biên dịch.
+1. **Weekly CI Matrix:** Toàn bộ code mẫu của khóa học được quản lý trong repo chuẩn và được GitHub Actions tự động build test vào **0h00 Chủ nhật hàng tuần**.
+2. **Cơ chế Cảnh báo (Automated Breaking Change Alert):**
+   * Nếu có bản vá thư viện hoặc JDK mới làm gãy code, GitHub Actions tự động bắn cảnh báo về kênh Discord/Telegram của ban quản trị.
+   * Kỹ sư nội dung có SLA **72 giờ** để cập nhật bài học và code mẫu.
 
 ---
 
-## 9. Định Nghĩa Hoàn Thành (Definition of Done — DoD)
+## 10. Định Nghĩa Hoàn Thành (Definition of Done — DoD)
 
 Một bài học hoặc khóa học chỉ được coi là hoàn tất khi tích đủ các điều kiện sau:
 
-- [ ] **Định mức khép kín:** Khóa MVP từ 60–90 bài, mỗi module từ 12–20 bài, không vượt trần 22 bài/module.
-- [ ] **Data Model đồng nhất:** ID bài học theo đúng `module-topic-sub` (`1.2.3`), tương thích với router và sidebar.
-- [ ] **Chạy được thực tế (Run-tested):** 100% mã nguồn trong bài `practice` phải chạy thành công theo đúng các câu lệnh hướng dẫn trong bài, không dùng code giả định (pseudo-code).
+- [ ] **Định mức khép kín:** Khóa MVP từ 60–80 bài, mỗi module từ 12–20 bài, không vượt trần 22 bài/module.
+- [ ] **Data Model 4 cấp:** ID bài học theo đúng `module-topic-sub` (`1.2.3`), có mảng `topics: []`.
+- [ ] **Chạy được thực tế (Run-tested):** 100% mã nguồn trong bài `practice` phải chạy thành công theo đúng lệnh hướng dẫn, có profile `local-lite` chạy dưới 1.5GB RAM.
+- [ ] **Có bài Milestone Synthesis:** Mỗi Topic Cluster có 1 bài tổng hợp luồng kiến trúc bằng sơ đồ lớn.
 - [ ] **Chuẩn Quiz kịch bản:** Quiz module từ 12–16 câu hỏi tình huống, 4 đáp án phân hóa, có `explain` sâu nguyên nhân lỗi production.
-- [ ] **Đồ án Capstone có Rubric:** Module cuối có tiêu chí chấm rõ ràng, có yêu cầu repo Git và Testcontainers pass.
+- [ ] **Hỗ trợ Dual-Track:** Hệ thống hỗ trợ cả chế độ Audit tự do và Certified có khóa cổng 80%.
+- [ ] **Đồ án Capstone có Automated Test Harness:** Module cuối có repo mẫu, kịch bản CI chấm điểm tự động và AI phản biện ADR.
 - [ ] **Loại bỏ số liệu ảo:** Metadata khóa học không chứa rating/học viên giả định nếu chưa kết nối nguồn dữ liệu thật.
-- [ ] **Mobile Responsive:** Kiểm thử CDP hiển thị hoàn hảo trên viewport di động (390×844), không lỗi tràn ngang, không che lấp nút bấm.
+- [ ] **Mobile Responsive:** Kiểm thử CDP hiển thị hoàn hảo trên viewport di động (390×844), không lỗi tràn ngang.
 - [ ] **Đồng bộ Production:** Commit đầy đủ lên nhánh `main` và deploy thành công sang nhánh `gh-pages`.
