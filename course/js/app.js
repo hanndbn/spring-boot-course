@@ -12,6 +12,7 @@
   const ENROLL_KEY = "sbmastery-enrolled-modules-";
   const COURSE_ENROLL_KEY = "sbmastery-enrolled-courses-";
   const ACTIVE_COURSE_KEY = "sbmastery-active-course";
+  const THEME_KEY = "sbmastery-theme";
   const API_BASE_KEY = "sbmastery-api-base";
   let API_BASE = window.API_BASE_URL || localStorage.getItem(API_BASE_KEY) || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8080/api/v1" : "");
 
@@ -29,6 +30,13 @@
       modulesCount: 8,
       lessonsCount: 56,
       quizCount: 256,
+      rating: 4.9,
+      reviewsCount: "3,840",
+      studentsCount: "12,500",
+      instructor: "DevMastery Academy & Senior Engineers",
+      bestseller: true,
+      originalPrice: "1.990.000 ₫",
+      themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
       desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 56 bài học, 256 câu quiz thực chiến, Microservices, Spring Security, Kafka, Docker & Kubernetes.",
       tags: ["Java 21", "Spring Boot 3", "JPA/Hibernate", "Spring Security", "Microservices", "Docker", "K8s"],
       isAvailable: true,
@@ -46,6 +54,13 @@
       modulesCount: 4,
       lessonsCount: 15,
       quizCount: 8,
+      rating: 4.8,
+      reviewsCount: "1,920",
+      studentsCount: "8,400",
+      instructor: "DevMastery Academy & Java Architects",
+      bestseller: false,
+      originalPrice: "1.490.000 ₫",
+      themeGradient: "linear-gradient(135deg, #7c2d12 0%, #c2410c 50%, #ea580c 100%)",
       desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Clean Code.",
       tags: ["Java 21", "OOP", "SOLID", "Collections", "Virtual Threads", "Design Patterns"],
       isAvailable: true,
@@ -63,6 +78,13 @@
       modulesCount: 4,
       lessonsCount: 9,
       quizCount: 4,
+      rating: 4.9,
+      reviewsCount: "2,150",
+      studentsCount: "9,600",
+      instructor: "DevMastery Academy & Senior Frontend Leads",
+      bestseller: true,
+      originalPrice: "1.790.000 ₫",
+      themeGradient: "linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)",
       desc: "Làm chủ React 19, Server Components, Server Actions, Next.js 15 App Router, TypeScript, Zustand và Clean Architecture cho ứng dụng Enterprise.",
       tags: ["React 19", "Next.js 15", "TypeScript", "Zustand", "Tailwind CSS", "Server Actions"],
       isAvailable: true,
@@ -80,6 +102,13 @@
       modulesCount: 4,
       lessonsCount: 8,
       quizCount: 4,
+      rating: 4.8,
+      reviewsCount: "1,480",
+      studentsCount: "6,200",
+      instructor: "DevMastery Cloud & SRE Specialists",
+      bestseller: false,
+      originalPrice: "1.890.000 ₫",
+      themeGradient: "linear-gradient(135deg, #1e1b4b 0%, #4338ca 50%, #6366f1 100%)",
       desc: "Thực hành triển khai production: Docker containerization, Kubernetes cluster, Helm, CI/CD GitHub Actions, Prometheus, Grafana & ELK Stack.",
       tags: ["Docker", "Kubernetes", "CI/CD", "Helm", "Prometheus", "Grafana", "AWS"],
       isAvailable: true,
@@ -159,6 +188,35 @@
     if (!s) return "";
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
                     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ---------- Theme Management (Udemy Dual-Theme) ----------
+  function initTheme() {
+    try {
+      const savedTheme = localStorage.getItem(THEME_KEY) || "light";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+      updateThemeToggleUI(savedTheme);
+    } catch (e) {}
+  }
+
+  function setTheme(theme) {
+    try {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem(THEME_KEY, theme);
+      updateThemeToggleUI(theme);
+      toast(theme === "dark" ? "🌙 Đã chuyển sang giao diện Tối (Udemy Dark)" : "☀️ Đã chuyển sang giao diện Sáng (Udemy Light)");
+    } catch (e) {}
+  }
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    setTheme(current === "dark" ? "light" : "dark");
+  }
+
+  function updateThemeToggleUI(theme) {
+    const btn = $("#btnThemeToggle");
+    if (!btn) return;
+    btn.setAttribute("title", theme === "dark" ? "Chuyển sang giao diện Sáng (Udemy Light)" : "Chuyển sang giao diện Tối (Udemy Dark)");
   }
 
   function save() {
@@ -1309,18 +1367,33 @@
     let html = `
       <div class="cat-page-container">
         <!-- Catalog Hero -->
-        <div class="cat-hero">
-          <div class="cat-hero-badge">🎓 Hệ thống Đào tạo Fullstack &amp; Cloud Native Enterprise</div>
-          <h1>Khám Phá <span class="grad-text">Tất Cả Khóa Học</span></h1>
-          <p class="cat-hero-sub">
-            Lộ trình đào tạo bài bản và chuyên sâu từ Java Core, Spring Boot 3 &amp; Microservices, React 19 &amp; Next.js 15 đến Cloud Native DevOps &amp; Kubernetes. Ghi danh miễn phí và bắt đầu học ngay!
-          </p>
+        <!-- Udemy Billboard Hero -->
+        <div class="udemy-billboard">
+          <div class="ub-inner">
+            <div class="ub-card">
+              <div class="ub-badge">⚡ NỀN TẢNG ĐÀO TẠO ENTERPRISE</div>
+              <h1 class="ub-title">Làm chủ công nghệ thực chiến. Mở lối sự nghiệp đỉnh cao.</h1>
+              <p class="ub-desc">Hơn 80+ giờ đào tạo chuyên sâu từ Java Core, Spring Boot 3 &amp; Microservices, React 19 &amp; Next.js 15 đến Cloud Native Kubernetes. 256+ câu Quiz thực chiến sát hạch kiến trúc sư.</p>
+              <div class="ub-actions">
+                <a href="#catCourseSection" class="ub-btn-primary" id="ubBtnExplore">Khám phá khóa học ngay ↓</a>
+                <button class="ub-btn-outline" data-view="user-dashboard">📚 Khóa học của tôi (${enrolledCount})</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Header & Filter Tabs -->
+        <div class="cat-section-header" id="catCourseSection">
+          <div class="csh-title-row">
+            <h2>Các khóa học nổi bật</h2>
+            <div class="csh-subtitle">Tuyển tập các lộ trình đào tạo từ cơ bản đến production cho Kỹ sư phần mềm</div>
+          </div>
 
           <!-- Search & Filter Controls -->
           <div class="cat-controls">
             <div class="cat-search-box">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="text" id="catSearchInput" placeholder="Tìm kiếm theo tên khóa, công nghệ (Java, React, K8s, Kafka...)" value="${escapeHtml(state.catalogSearch)}">
+              <input type="text" id="catSearchInput" placeholder="Tìm kiếm theo tên khóa học hoặc công nghệ (Java, Spring Boot, React, Kubernetes...)" value="${escapeHtml(state.catalogSearch)}">
               ${state.catalogSearch ? '<button class="cat-search-clear" id="catSearchClear">&times;</button>' : ''}
             </div>
 
@@ -1329,19 +1402,19 @@
                 Tất cả (${COURSES.length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "backend" ? "active" : ""}" data-category="backend">
-                🍃 Backend &amp; Java (2)
+                🍃 Backend &amp; Java (${COURSES.filter(c => c.category === "backend").length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "frontend" ? "active" : ""}" data-category="frontend">
-                ⚛️ Frontend &amp; Web (1)
+                ⚛️ Frontend &amp; Web (${COURSES.filter(c => c.category === "frontend").length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "devops" ? "active" : ""}" data-category="devops">
-                ☸️ DevOps &amp; Cloud (1)
+                ☸️ DevOps &amp; Cloud (${COURSES.filter(c => c.category === "devops").length})
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Course Cards Grid -->
+        <!-- Udemy Course Cards Grid -->
         <div class="cat-cards-grid">
           ${filtered.map(c => {
             const enrolled = isCourseEnrolled(c.id);
@@ -1349,78 +1422,91 @@
             const prog = overallProgress(c.id);
 
             return `
-            <div class="cat-card ${enrolled ? "enrolled" : ""} ${isActive ? "active-learning" : ""}" data-card-course="${c.id}" style="cursor: pointer;">
-              <div class="cat-card-header" data-goto-course="${c.id}" title="Nhấp để vào học ${escapeHtml(c.shortTitle)}">
-                <div class="cat-card-icon-box">${c.icon}</div>
-                <div class="cat-card-title-box">
-                  <div class="cat-card-badge-row">
-                    <span class="cat-badge-cat">${c.badge}</span>
-                    <span class="cat-badge-lvl">${c.level}</span>
-                    ${isActive ? '<span class="cat-badge-active">⚡ Đang học</span>' : ''}
-                  </div>
-                  <h3 class="cat-card-title">${escapeHtml(c.title)}</h3>
+            <div class="ud-course-card ${enrolled ? "enrolled" : ""}" data-card-course="${c.id}">
+              <!-- Thumbnail Artwork (16:9 ratio) -->
+              <div class="ud-card-thumb" style="background: ${c.themeGradient || 'linear-gradient(135deg, #1e293b, #0f172a)'};" data-goto-course="${c.id}" title="Vào học khóa ${escapeHtml(c.shortTitle)}">
+                <div class="ud-thumb-overlay"></div>
+                ${c.bestseller ? '<div class="ud-badge-ribbon bestseller">Bán chạy nhất</div>' : '<div class="ud-badge-ribbon hot">Mới &amp; Nổi bật</div>'}
+                <div class="ud-thumb-center">
+                  <span class="ud-thumb-icon">${c.icon}</span>
+                  <span class="ud-thumb-title">${escapeHtml(c.shortTitle)}</span>
+                </div>
+                <div class="ud-thumb-duration">${c.hours}</div>
+                <div class="ud-thumb-play-hover">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </div>
               </div>
 
-              <p class="cat-card-desc">${escapeHtml(c.desc)}</p>
+              <!-- Card Body -->
+              <div class="ud-card-body" data-goto-course="${c.id}">
+                <div class="ud-card-badge-row">
+                  <span class="ud-card-cat-badge">${escapeHtml(c.badge)}</span>
+                  ${isActive ? '<span class="ud-badge-learning">⚡ Đang học</span>' : ''}
+                </div>
 
-              <!-- Tags -->
-              <div class="cat-card-tags">
-                ${c.tags.map(t => `<span class="cat-tag">${t}</span>`).join("")}
-              </div>
+                <h3 class="ud-card-title" title="${escapeHtml(c.title)}">
+                  ${escapeHtml(c.title)}
+                </h3>
 
-              <!-- Syllabus Preview -->
-              <div class="cat-card-syllabus" data-goto-course="${c.id}" style="cursor: pointer;" title="Xem giáo trình ${escapeHtml(c.shortTitle)}">
-                <div class="ccs-head">Lộ trình ${c.modulesCount} Module:</div>
-                <div class="ccs-list">
-                  ${(c.modules || []).slice(0, 4).map(m => `
-                    <div class="ccs-item">
-                      <span class="ccs-icon">${m.icon}</span>
-                      <span class="ccs-name">M${m.id}: ${escapeHtml(m.title)}</span>
+                <div class="ud-card-instructor">${escapeHtml(c.instructor || "DevMastery Academy")}</div>
+
+                <!-- Ratings Row -->
+                <div class="ud-rating-row">
+                  <span class="ud-rating-score">${c.rating || 4.9}</span>
+                  <span class="ud-stars">★★★★★</span>
+                  <span class="ud-reviews-count">(${c.reviewsCount || "2,450"})</span>
+                  <span class="ud-students-count">· ${c.studentsCount || "10,000"} học viên</span>
+                </div>
+
+                <!-- Specs -->
+                <div class="ud-specs-row">
+                  <span>⏱ ${c.hours}</span>
+                  <span>📖 ${c.lessonsCount} bài giảng</span>
+                  <span>🏆 ${c.quizCount} Quiz</span>
+                </div>
+
+                <!-- Tags -->
+                <div class="ud-tags-row">
+                  ${(c.tags || []).slice(0, 4).map(t => `<span class="ud-tag">${escapeHtml(t)}</span>`).join('')}
+                </div>
+
+                <!-- Price Row -->
+                <div class="ud-price-row">
+                  <div class="ud-current-price">Miễn phí 100%</div>
+                  <div class="ud-original-price">${c.originalPrice || "1.990.000 ₫"}</div>
+                  <div class="ud-discount-tag">-100% OFF</div>
+                </div>
+
+                <!-- Progress if enrolled -->
+                ${enrolled ? `
+                  <div class="ud-card-progress">
+                    <div class="ud-cp-bar"><div class="ud-cp-fill" style="width: ${prog.pct}%"></div></div>
+                    <div class="ud-cp-labels">
+                      <span>Tiến độ: <strong>${prog.pct}%</strong></span>
+                      <span>${prog.done}/${prog.total} hoàn thành</span>
                     </div>
-                  `).join("")}
-                  ${c.modulesCount > 4 ? `<div class="ccs-more">+ và ${c.modulesCount - 4} module chuyên sâu khác...</div>` : ''}
-                </div>
-              </div>
-
-              <!-- Meta Stats -->
-              <div class="cat-card-meta">
-                <span>🧩 ${c.modulesCount} Module</span>
-                <span>📖 ${c.lessonsCount} Bài học</span>
-                <span>🏆 ${c.quizCount} Câu Quiz</span>
-                <span>⏱ ${c.hours}</span>
-              </div>
-
-              <!-- Progress if enrolled -->
-              ${enrolled ? `
-                <div class="cat-card-progress">
-                  <div class="ccp-bar"><div class="ccp-fill" style="width: ${prog.pct}%"></div></div>
-                  <div class="ccp-info">
-                    <span>Tiến độ học tập: ${prog.pct}%</span>
-                    <span>${prog.done}/${prog.total} mục xong</span>
                   </div>
-                </div>
-              ` : ''}
+                ` : ''}
+              </div>
 
               <!-- Actions -->
-              <div class="cat-card-footer">
+              <div class="ud-card-footer">
                 ${enrolled ? `
-                  <div class="cat-enrolled-actions">
-                    <button class="btn btn-primary cat-btn-start" data-goto-course="${c.id}">
-                      ${isActive ? "Học tiếp bài đang dở →" : "🚀 Vào học khóa này →"}
+                  <div class="ud-card-enrolled-actions">
+                    <button class="ud-btn-continue" data-goto-course="${c.id}">
+                      ${isActive ? "▶ Tiếp tục học bài dở" : "🚀 Vào khóa học"}
                     </button>
-                    <button class="btn-unenroll-cat" data-unenroll-course="${c.id}" title="Hủy ghi danh">
+                    <button class="ud-btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh">
                       ✕ Hủy ghi danh
                     </button>
                   </div>
                 ` : `
-                  <div class="cat-unenrolled-actions">
-                    <span class="cat-free-tag">Miễn phí 100%</span>
-                    <button class="btn btn-ghost btn-sm" data-goto-course="${c.id}" style="font-size:12px;padding:6px 10px;">
+                  <div class="ud-card-guest-actions">
+                    <button class="ud-btn-preview" data-goto-course="${c.id}">
                       👁 Xem giáo trình
                     </button>
-                    <button class="btn btn-primary cat-btn-enroll" data-enroll-course="${c.id}">
-                      📝 Ghi danh ngay
+                    <button class="ud-btn-enroll" data-enroll-course="${c.id}">
+                      📝 Ghi danh miễn phí
                     </button>
                   </div>
                 `}
@@ -1462,18 +1548,27 @@
 
     // Action buttons
     $$("[data-enroll-course]", view).forEach(btn => {
-      btn.addEventListener("click", () => enrollCourse(btn.dataset.enrollCourse));
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        enrollCourse(btn.dataset.enrollCourse);
+      });
     });
 
     $$("[data-unenroll-course]", view).forEach(btn => {
-      btn.addEventListener("click", () => unenrollCourse(btn.dataset.unenrollCourse));
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        unenrollCourse(btn.dataset.unenrollCourse);
+      });
     });
 
     $$("[data-goto-course]", view).forEach(btn => {
-      btn.addEventListener("click", () => enterCourse(btn.dataset.gotoCourse));
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        enterCourse(btn.dataset.gotoCourse);
+      });
     });
 
-    $$(".cat-card", view).forEach(card => {
+    $$(".ud-course-card", view).forEach(card => {
       card.addEventListener("click", (e) => {
         if (e.target.closest("button") || e.target.closest("a")) return;
         enterCourse(card.dataset.cardCourse);
@@ -2417,6 +2512,8 @@
 
   // ---------- Init ----------
   function init() {
+    initTheme();
+    $("#btnThemeToggle")?.addEventListener("click", toggleTheme);
     initializeCoursesData();
     load();
     buildSearchIndex();
