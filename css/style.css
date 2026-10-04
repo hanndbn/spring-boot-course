@@ -393,6 +393,10 @@ body {
 }
 
 /* Content typography */
+.lesson-body h1 {
+  font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
+  margin: 32px 0 16px; color: var(--text-1);
+}
 .lesson-body h2 {
   font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
   margin: 36px 0 14px; padding-top: 20px;
@@ -402,8 +406,10 @@ body {
 .lesson-body h2:first-child { margin-top: 0; padding-top: 0; border-top: none; }
 .lesson-body h3 { font-size: 17px; font-weight: 700; margin: 26px 0 10px; color: var(--green-3); }
 .lesson-body h4 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; color: var(--text-1); }
+.lesson-body h5, .lesson-body h6 { font-size: 14px; font-weight: 700; margin: 16px 0 6px; color: var(--text-2); }
 .lesson-body p { margin: 12px 0; color: var(--text-2); }
-.lesson-body strong { color: var(--text-1); font-weight: 700; }
+.lesson-body strong, .lesson-body b { color: var(--text-1); font-weight: 700; }
+.lesson-body em, .lesson-body i { font-style: italic; }
 .lesson-body ul, .lesson-body ol { margin: 12px 0; padding-left: 24px; color: var(--text-2); }
 .lesson-body li { margin: 7px 0; }
 .lesson-body li::marker { color: var(--green-2); }
@@ -416,6 +422,48 @@ body {
   color: var(--green-1);
   padding: 2px 7px; border-radius: 6px;
   border: 1px solid rgba(139, 227, 107, 0.14);
+}
+.lesson-body kbd {
+  font-family: var(--mono); font-size: 0.82em;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-1);
+  padding: 2px 6px; border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+.lesson-body mark {
+  background: rgba(139, 227, 107, 0.25);
+  color: var(--green-1);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.lesson-body del, .lesson-body s {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+.lesson-body u {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lesson-body sup, .lesson-body sub {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+.lesson-body sup { top: -0.5em; }
+.lesson-body sub { bottom: -0.25em; }
+.lesson-body small {
+  font-size: 0.85em;
+  color: var(--text-3);
+}
+.lesson-body img.lesson-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  margin: 16px 0;
+  display: block;
 }
 .lesson-body blockquote {
   border-left: 3px solid var(--green-2);

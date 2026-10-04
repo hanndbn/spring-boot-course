@@ -280,15 +280,12 @@ JVM tự động bật Tiered Compilation (C1/C2) và kích hoạt Garbage-First
 
 ## 4. Production Pitfalls & Post-Mortem
 
-### 4.1. Sự cố 1: Ký Tự Xuống Dòng <code>
-</code> (CRLF) Làm Hỏng Maven Wrapper Trên Docker/Linux
+### 4.1. Sự cố 1: Ký Tự Xuống Dòng <code>\\r\\n</code> (CRLF) Làm Hỏng Maven Wrapper Trên Docker/Linux
 
 - **Bối cảnh**: Lập trình viên dùng Windows mở file script <code>mvnw</code> hoặc <code>entrypoint.sh</code> ra chỉnh sửa rồi commit lên Git.
 - **Hậu quả thảm họa**: Khi Jenkins CI hoặc Docker chạy trên Linux, tiến trình lập tức gãy với lỗi vô cùng khó hiểu:
-  <code>/bin/sh: ./mvnw: not found</code> hoặc <code>/bin/sh: 1: exec: ./mvnw: not found</code>.
-- **Nguyên nhân**: Windows sử dụng cặp ký tự <code>
-</code> (Carriage Return + Line Feed), trong khi Linux chỉ hiểu <code>
-</code> (Line Feed). Ký tự <code></code> bị Linux coi là một phần của tên file!
+  <code>/bin/sh: ./mvnw\\r: not found</code> hoặc <code>/bin/sh: 1: exec: ./mvnw: not found</code>.
+- **Nguyên nhân**: Windows sử dụng cặp ký tự <code>\\r\\n</code> (Carriage Return + Line Feed), trong khi Linux chỉ hiểu <code>\\n</code> (Line Feed). Ký tự <code>\\r</code> bị Linux coi là một phần của tên file!
 - **Giải pháp dứt khoát**:
   1. Tạo file <code>.gitattributes</code> với quy tắc <code>* text=auto eol=lf</code>.
   2. Chạy lệnh chuyển đổi trên file bị lỗi: <code>dos2unix mvnw</code> hoặc trong Notepad++ / IntelliJ chuyển <code>CRLF</code> -> <code>LF</code>.

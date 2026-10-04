@@ -435,8 +435,12 @@
       }
 
       // Headings
+      if (line.startsWith("###### ")) { html += `<h6>${inline(line.slice(7))}</h6>`; i++; continue; }
+      if (line.startsWith("##### ")) { html += `<h5>${inline(line.slice(6))}</h5>`; i++; continue; }
+      if (line.startsWith("#### ")) { html += `<h4>${inline(line.slice(5))}</h4>`; i++; continue; }
       if (line.startsWith("### ")) { html += `<h3>${inline(line.slice(4))}</h3>`; i++; continue; }
       if (line.startsWith("## ")) { html += `<h2>${inline(line.slice(3))}</h2>`; i++; continue; }
+      if (line.startsWith("# ")) { html += `<h1>${inline(line.slice(2))}</h1>`; i++; continue; }
 
       // HR
       if (/^---+$/.test(line.trim())) { html += `<hr>`; i++; continue; }
@@ -522,20 +526,36 @@
     return html;
   }
 
-  // Inline markdown: **bold**, *em*, `code`, <code>...</code>, [text](url)
+  // Inline markdown & safe HTML tag re-hydration
   function inline(s) {
     if (!s) return "";
     s = escapeHtml(s);
     // Restore safe inline tags that the author intended as HTML
     s = s.replace(/&lt;code&gt;([\s\S]*?)&lt;\/code&gt;/gi, "<code>$1</code>");
     s = s.replace(/&lt;mark&gt;([\s\S]*?)&lt;\/mark&gt;/gi, "<mark>$1</mark>");
+    s = s.replace(/&lt;kbd&gt;([\s\S]*?)&lt;\/kbd&gt;/gi, "<kbd>$1</kbd>");
     s = s.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, "<b>$1</b>");
+    s = s.replace(/&lt;strong&gt;([\s\S]*?)&lt;\/strong&gt;/gi, "<strong>$1</strong>");
+    s = s.replace(/&lt;i&gt;([\s\S]*?)&lt;\/i&gt;/gi, "<i>$1</i>");
+    s = s.replace(/&lt;em&gt;([\s\S]*?)&lt;\/em&gt;/gi, "<em>$1</em>");
+    s = s.replace(/&lt;u&gt;([\s\S]*?)&lt;\/u&gt;/gi, "<u>$1</u>");
+    s = s.replace(/&lt;del&gt;([\s\S]*?)&lt;\/del&gt;/gi, "<del>$1</del>");
+    s = s.replace(/&lt;s&gt;([\s\S]*?)&lt;\/s&gt;/gi, "<s>$1</s>");
+    s = s.replace(/&lt;sup&gt;([\s\S]*?)&lt;\/sup&gt;/gi, "<sup>$1</sup>");
+    s = s.replace(/&lt;sub&gt;([\s\S]*?)&lt;\/sub&gt;/gi, "<sub>$1</sub>");
+    s = s.replace(/&lt;small&gt;([\s\S]*?)&lt;\/small&gt;/gi, "<small>$1</small>");
     s = s.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+
+    // Markdown formatting
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     s = s.replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`);
-    s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,
+    s = s.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g,
+      '<img src="$2" alt="$1" class="lesson-img" loading="lazy">');
+    s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|#)[^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
     // line break inside paragraph
     s = s.replace(/\n/g, "<br>");
     return s;
