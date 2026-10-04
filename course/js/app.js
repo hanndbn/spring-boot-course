@@ -28,7 +28,7 @@
       level: "Zero to Production",
       hours: "~80h",
       modulesCount: 8,
-      lessonsCount: 56,
+      lessonsCount: 354,
       quizCount: 256,
       rating: 4.9,
       reviewsCount: "3,840",
@@ -37,7 +37,7 @@
       bestseller: true,
       originalPrice: "1.990.000 ₫",
       themeGradient: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
-      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 56 bài học, 256 câu quiz thực chiến, Microservices, Spring Security, Kafka, Docker & Kubernetes.",
+      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 354 bài giảng micro-learning, 256 câu quiz thực chiến, Microservices, Spring Security, Kafka, Docker & Kubernetes.",
       tags: ["Java 21", "Spring Boot 3", "JPA/Hibernate", "Spring Security", "Microservices", "Docker", "K8s"],
       isAvailable: true,
       modules: []

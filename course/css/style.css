@@ -310,8 +310,8 @@ body {
 }
 .nav-module.done .nm-check { opacity: 1; transform: scale(1); }
 
-.nav-lessons { overflow: hidden; max-height: 0; transition: max-height 0.35s ease; }
-.nav-module.open .nav-lessons { max-height: 800px; }
+.nav-lessons { overflow: hidden; max-height: 0; transition: max-height 0.45s ease; }
+.nav-module.open .nav-lessons { max-height: 6000px; }
 
 .nav-lesson {
   display: flex; align-items: center; gap: 9px;
