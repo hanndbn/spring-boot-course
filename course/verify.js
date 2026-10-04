@@ -53,10 +53,17 @@ function escapeHtml(s) {
           .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function inline(s) {
+  if (!s) return "";
   s = escapeHtml(s);
+  s = s.replace(/&lt;code&gt;([\s\S]*?)&lt;\/code&gt;/gi, "<code>$1</code>");
+  s = s.replace(/&lt;mark&gt;([\s\S]*?)&lt;\/mark&gt;/gi, "<mark>$1</mark>");
+  s = s.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, "<b>$1</b>");
+  s = s.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   s = s.replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`);
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>');
   s = s.replace(/\n/g, "<br>");
   return s;
 }
@@ -64,7 +71,8 @@ const testMd = "## Title\n\nHello **world** `code`\n\n| a | b |\n|---|---|\n| 1 
 // simulate key transform outcomes
 const checks = [
   ["bold", inline("Hello **world**").includes("<strong>world</strong>")],
-  ["inline code", inline("a `code` b").includes("<code>code</code>")],
+  ["inline backtick code", inline("a `code` b").includes("<code>code</code>")],
+  ["inline html code tag", inline("Dùng <code>JAVA_HOME</code> chuẩn.").includes("<code>JAVA_HOME</code>")],
   ["escape", escapeHtml("<script>") === "&lt;script&gt;"]
 ];
 checks.forEach(([name, ok]) => console.log(`  markdown ${name}: ${ok ? "PASS" : "FAIL"}`));

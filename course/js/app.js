@@ -378,14 +378,14 @@
     let html = "";
     let i = 0;
 
-    const codeBlock = (lang) => {
+    const codeBlock = (fence, lang) => {
       let buf = [];
       i++;
-      while (i < lines.length && !lines[i].startsWith("~~~")) {
+      while (i < lines.length && !lines[i].startsWith(fence)) {
         buf.push(lines[i]);
         i++;
       }
-      i++; // skip closing ~~~
+      i++; // skip closing fence
       const code = buf.join("\n");
       const esc = escapeHtml(code);
       if (lang === "mermaid") {
@@ -393,7 +393,7 @@
       }
       if (lang && window.hljs) {
         try {
-          return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code class="language-${lang} hljs">${window.hljs.highlight(code, { language: lang }).value}</code></pre></div>`;
+          return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code class="language-${lang} hljs">${window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value}</code></pre></div>`;
         } catch (e) { /* fallthrough */ }
       }
       return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang || "code"}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code>${esc}</code></pre></div>`;
@@ -402,10 +402,11 @@
     while (i < lines.length) {
       const line = lines[i];
 
-      // Fenced code
-      if (line.startsWith("~~~")) {
+      // Fenced code: support both ~~~ and ```
+      if (line.startsWith("~~~") || line.startsWith("```")) {
+        const fence = line.startsWith("~~~") ? "~~~" : "```";
         const lang = line.slice(3).trim();
-        html += codeBlock(lang);
+        html += codeBlock(fence, lang);
         continue;
       }
 
@@ -424,7 +425,7 @@
         i++; // skip closing
         const inner = renderMarkdown(buf.join("\n"));
         const icon = icons[type] || "ℹ️";
-        const t = title ? `<div class="callout-title">${escapeHtml(title)}</div>` : "";
+        const t = title ? `<div class="callout-title">${inline(title)}</div>` : "";
         if (type === "takeaways") {
           html += `<div class="key-takeaways"><h3>🎯 Ghi nhớ bài học</h3>${inner}</div>`;
         } else {
@@ -508,8 +509,8 @@
       let para = [line];
       i++;
       while (i < lines.length && lines[i].trim() !== "" &&
-             !lines[i].startsWith("~~~") && !lines[i].startsWith(":::") &&
-             !lines[i].startsWith("#") && !lines[i].trim().startsWith("|") &&
+             !lines[i].startsWith("~~~") && !lines[i].startsWith("```") &&
+             !lines[i].startsWith(":::") && !lines[i].startsWith("#") && !lines[i].trim().startsWith("|") &&
              !/^\s*[-*] /.test(lines[i]) && !/^\s*\d+\. /.test(lines[i]) &&
              !lines[i].startsWith("> ") && !/^---+$/.test(lines[i].trim())) {
         para.push(lines[i]);
@@ -521,9 +522,15 @@
     return html;
   }
 
-  // Inline markdown: **bold**, *em*, `code`, [text](url)
+  // Inline markdown: **bold**, *em*, `code`, <code>...</code>, [text](url)
   function inline(s) {
+    if (!s) return "";
     s = escapeHtml(s);
+    // Restore safe inline tags that the author intended as HTML
+    s = s.replace(/&lt;code&gt;([\s\S]*?)&lt;\/code&gt;/gi, "<code>$1</code>");
+    s = s.replace(/&lt;mark&gt;([\s\S]*?)&lt;\/mark&gt;/gi, "<mark>$1</mark>");
+    s = s.replace(/&lt;b&gt;([\s\S]*?)&lt;\/b&gt;/gi, "<b>$1</b>");
+    s = s.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     s = s.replace(/`([^`]+)`/g, (m, c) => `<code>${c}</code>`);
@@ -1042,8 +1049,8 @@
         </div>
         <div class="quiz-card">
           <div class="quiz-qnum">Câu hỏi ${idx + 1} / ${total}${q.level ? ` · <span class="q-level ${q.level}">${q.level === "hard" ? "🔥 Khó" : q.level === "medium" ? "⚡ Vừa" : "🎯 Cơ bản"}</span>` : ""}</div>
-          ${q.scenario ? `<div class="quiz-scenario"><div class="qs-label">📋 Tình huống</div><div class="qs-text">${escapeHtml(q.scenario)}</div></div>` : ""}
-          <div class="quiz-question">${escapeHtml(q.q)}</div>
+          ${q.scenario ? `<div class="quiz-scenario"><div class="qs-label">📋 Tình huống</div><div class="qs-text">${inline(q.scenario)}</div></div>` : ""}
+          <div class="quiz-question">${inline(q.q)}</div>
           ${q.code ? `<div class="quiz-code">${codeHtml(q.code, q.codeLang || "java")}</div>` : ""}
           <div class="quiz-options">
             ${q.options.map((opt, oi) => {
@@ -1054,19 +1061,19 @@
               }
               return `<button class="${cls}" data-opt="${oi}" ${chosen !== null ? "disabled" : ""}>
                 <span class="qo-letter">${letters[oi]}</span>
-                <span>${escapeHtml(opt)}</span>
+                <span>${inline(opt)}</span>
               </button>`;
             }).join("")}
           </div>
           ${chosen !== null ? `
             <div class="quiz-explain ${chosen === q.answer ? "ok" : "bad"}">
               <strong>${chosen === q.answer ? "✅ Chính xác!" : `❌ Chưa đúng — đáp án đúng là ${letters[q.answer]}.`}</strong>
-              ${escapeHtml(q.explain)}
+              ${inline(q.explain)}
             </div>
             ${q.why ? `<div class="quiz-why"><div class="qw-title">🔍 Mổ xẻ từng phương án</div>${q.why.map((w, wi) => `
               <div class="qw-row ${wi === q.answer ? "correct" : wi === chosen ? "chosen-wrong" : ""}">
                 <span class="qw-letter">${letters[wi]}</span>
-                <span class="qw-text">${escapeHtml(w)}</span>
+                <span class="qw-text">${inline(w)}</span>
               </div>`).join("")}</div>` : ""}` : ""}
         </div>
         <div class="quiz-actions">
@@ -1100,14 +1107,15 @@
       if (idx < total - 1) { quizState.idx++; renderQuiz(); }
       else { quizState.finished = true; renderQuiz(); }
     });
+    bindCopyButtons(view);
   }
 
   function codeHtml(code, lang) {
     let highlighted = escapeHtml(code);
     if (window.hljs) {
-      try { highlighted = window.hljs.highlight(code, { language: lang }).value; } catch (e) {}
+      try { highlighted = window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value; } catch (e) {}
     }
-    return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code>${highlighted}</code></pre></div>`;
+    return `<div class="code-block"><div class="code-block-header"><span class="cb-lang">${lang}</span><button class="cb-copy" data-code="${encodeURIComponent(code)}">Sao chép</button></div><pre><code class="language-${lang} hljs">${highlighted}</code></pre></div>`;
   }
 
   // ---------- Curriculum ----------
