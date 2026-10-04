@@ -10,8 +10,73 @@
   const TOKEN_KEY = "sbmastery-jwt-token";
   const USER_KEY = "sbmastery-user-info";
   const ENROLL_KEY = "sbmastery-enrolled-modules-";
+  const COURSE_ENROLL_KEY = "sbmastery-enrolled-courses-";
   const API_BASE_KEY = "sbmastery-api-base";
   let API_BASE = window.API_BASE_URL || localStorage.getItem(API_BASE_KEY) || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8080/api/v1" : "");
+
+  // ---------- Multi-Course Catalog Architecture ----------
+  const COURSES = [
+    {
+      id: "spring-boot-mastery",
+      title: "Spring Boot Mastery — Từ Zero đến Production",
+      shortTitle: "Spring Boot Mastery",
+      icon: "🍃",
+      badge: "Backend & Microservices",
+      level: "Zero to Production",
+      hours: "~80h",
+      modulesCount: 8,
+      lessonsCount: 56,
+      quizCount: 98,
+      desc: "Khóa học Spring Boot 3 & Java 21 toàn diện nhất: 8 Module, 56 bài học, 98 câu quiz, thực chiến Microservices, Spring Security, Kafka, Docker & Kubernetes.",
+      tags: ["Java 21", "Spring Boot 3", "JPA/Hibernate", "Spring Security", "Microservices", "Docker", "K8s"],
+      isAvailable: true
+    },
+    {
+      id: "react-mastery",
+      title: "React 19 & Next.js 15 — Fullstack Enterprise",
+      shortTitle: "React 19 & Next.js 15",
+      icon: "⚛️",
+      badge: "Frontend & Fullstack",
+      level: "Intermediate & Advanced",
+      hours: "~60h",
+      modulesCount: 6,
+      lessonsCount: 42,
+      quizCount: 60,
+      desc: "Làm chủ React 19, Server Components, Server Actions, Next.js 15 App Router, TypeScript, Zustand, Tailwind CSS và Clean Architecture cho ứng dụng Enterprise.",
+      tags: ["React 19", "Next.js 15", "TypeScript", "Zustand", "Tailwind CSS", "Server Actions"],
+      isAvailable: true
+    },
+    {
+      id: "devops-k8s",
+      title: "Cloud Native DevOps & Kubernetes Production",
+      shortTitle: "DevOps & Kubernetes",
+      icon: "☸️",
+      badge: "DevOps & Cloud Native",
+      level: "Advanced & Production",
+      hours: "~50h",
+      modulesCount: 5,
+      lessonsCount: 35,
+      quizCount: 50,
+      desc: "Thực hành triển khai production: Docker containerization, Kubernetes cluster, Helm, CI/CD GitHub Actions, Prometheus, Grafana & ELK Stack.",
+      tags: ["Docker", "Kubernetes", "CI/CD", "Helm", "Prometheus", "Grafana", "AWS"],
+      isAvailable: true
+    },
+    {
+      id: "java-core-mastery",
+      title: "Java Core & Clean Code Professional",
+      shortTitle: "Java Core & Design Patterns",
+      icon: "☕",
+      badge: "Java Foundation",
+      level: "Core & Best Practices",
+      hours: "~35h",
+      modulesCount: 4,
+      lessonsCount: 28,
+      quizCount: 40,
+      desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Unit Testing JUnit 5.",
+      tags: ["Java 21", "OOP", "SOLID", "Design Patterns", "Virtual Threads", "JUnit 5"],
+      isAvailable: true
+    }
+  ];
 
   // ---------- State ----------
   const state = {
@@ -20,8 +85,10 @@
     currentQuizModule: null,  // module id
     completed: {},            // { lessonId: true }
     quizScores: {},           // { moduleId: {score, total} }
-    enrolledModules: {},      // { moduleId: true }
+    enrolledCourses: {},      // { [courseId]: true }
+    enrolledModules: {},      // legacy support
     sidebarTab: "enrolled",   // "enrolled" | "all"
+    pendingEnrollCourse: null,
     pendingEnrollModule: null,
     pendingTargetLesson: null,
     searchIdx: [],
@@ -45,6 +112,7 @@
     }));
     const uid = state.currentUser ? state.currentUser.id : "guest";
     localStorage.setItem(ENROLL_KEY + uid, JSON.stringify(state.enrolledModules));
+    localStorage.setItem(COURSE_ENROLL_KEY + uid, JSON.stringify(state.enrolledCourses));
   }
 
   function load() {
@@ -68,75 +136,101 @@
       } else {
         state.enrolledModules = {};
       }
+      const rawCourseEnroll = localStorage.getItem(COURSE_ENROLL_KEY + uid);
+      if (rawCourseEnroll) {
+        state.enrolledCourses = JSON.parse(rawCourseEnroll) || {};
+      } else {
+        state.enrolledCourses = {};
+      }
+      // Migration bridge: If user previously enrolled any module, grant Spring Boot Mastery course
+      if (Object.keys(state.enrolledModules).length > 0) {
+        state.enrolledCourses["spring-boot-mastery"] = true;
+      }
     } catch (e) { /* fresh */ }
   }
 
-  function isModuleEnrolled(moduleId) {
+  // Course-level access control
+  function isCourseEnrolled(courseId) {
     if (!state.currentUser) return false;
-    return !!state.enrolledModules[String(moduleId)];
+    const cId = String(courseId);
+    if (state.enrolledCourses[cId]) return true;
+    if (cId === "spring-boot-mastery") {
+      if (Object.keys(state.enrolledModules).length > 0) return true;
+      const hasAnyProgress = MODULES.some(m => m.lessons.some(l => state.completed[l.id]) || !!state.quizScores[m.id]);
+      if (hasAnyProgress) return true;
+    }
+    return false;
   }
 
-  async function enrollModule(moduleId, silent = false) {
-    const mId = String(moduleId);
+  function isModuleEnrolled(moduleId) {
+    // All modules 0..7 belong to the Spring Boot Mastery course
+    return isCourseEnrolled("spring-boot-mastery");
+  }
+
+  async function enrollCourse(courseId, silent = false) {
+    const cId = String(courseId);
+    const course = COURSES.find(c => c.id === cId) || { title: cId };
     if (!state.currentUser) {
-      state.pendingEnrollModule = mId;
+      state.pendingEnrollCourse = cId;
       openAuthModal("login");
-      toast("🔑 Vui lòng đăng nhập để đăng ký học giáo trình này!");
+      toast(`🔑 Vui lòng đăng nhập để ghi danh khóa học "${course.title || cId}"!`);
       return false;
     }
-    state.enrolledModules[mId] = true;
+
+    state.enrolledCourses[cId] = true;
+    if (cId === "spring-boot-mastery") {
+      MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+    }
     save();
+
     supabaseCall("/user_enrollments", "POST", {
       user_id: state.currentUser.id,
-      module_id: mId
+      module_id: cId
     }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
 
     if (!silent) {
-      const mod = MODULES.find(m => String(m.id) === mId);
-      const modTitle = mod ? `Module ${mod.id}: ${mod.title}` : `Module ${mId}`;
-      toast(`🎉 Đã thêm <strong>${escapeHtml(modTitle)}</strong> vào danh sách học của bạn!`);
+      toast(`🎉 Chúc mừng! Bạn đã ghi danh thành công khóa học <strong>${escapeHtml(course.title)}</strong>!`);
     }
     renderAll();
     return true;
   }
 
-  async function enrollAllModules() {
-    if (!state.currentUser) {
-      openAuthModal("login");
-      toast("🔑 Vui lòng đăng nhập để đăng ký các giáo trình!");
+  async function unenrollCourse(courseId) {
+    if (!state.currentUser) return;
+    const cId = String(courseId);
+    const course = COURSES.find(c => c.id === cId) || { title: cId };
+    if (!confirm(`Bạn có chắc muốn hủy ghi danh khóa học "${course.title}" khỏi danh sách học cá nhân?\n(Ghi chú: Lịch sử và kết quả bài học đã làm vẫn được lưu trữ an toàn)`)) {
       return;
     }
-    MODULES.forEach(m => {
-      state.enrolledModules[String(m.id)] = true;
-    });
+
+    delete state.enrolledCourses[cId];
+    if (cId === "spring-boot-mastery") {
+      state.enrolledModules = {};
+    }
     save();
 
-    const payload = MODULES.map(m => ({
-      user_id: state.currentUser.id,
-      module_id: String(m.id)
-    }));
-    await supabaseCall("/user_enrollments", "POST", payload, { "Prefer": "resolution=merge-duplicates" }).catch(e => console.warn(e));
+    await supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + encodeURIComponent(cId), "DELETE")
+      .catch(e => console.warn(e));
 
-    toast("🎉 Chúc mừng! Bạn đã đăng ký trọn bộ 8 giáo trình Spring Boot Mastery.");
+    if (cId === "spring-boot-mastery") {
+      for (let i = 0; i <= 7; i++) {
+        supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + i, "DELETE").catch(() => {});
+      }
+    }
+
+    toast(`ℹ️ Đã hủy ghi danh khóa học "${escapeHtml(course.title)}".`);
     renderAll();
   }
 
+  // Backward-compatibility aliases
+  async function enrollModule(moduleId, silent = false) {
+    return enrollCourse("spring-boot-mastery", silent);
+  }
+  async function enrollAllModules() {
+    return enrollCourse("spring-boot-mastery");
+  }
   async function unenrollModule(moduleId) {
-    if (!state.currentUser) return;
-    const mId = String(moduleId);
-    const mod = MODULES.find(m => String(m.id) === mId);
-    const modTitle = mod ? `Module ${mod.id}: ${mod.title}` : `Module ${mId}`;
-    if (!confirm(`Bạn có chắc muốn hủy đăng ký "${modTitle}" khỏi danh sách học cá nhân?\n(Ghi chú: Lịch sử và kết quả bài học đã làm vẫn được lưu trữ an toàn)`)) {
-      return;
-    }
-    delete state.enrolledModules[mId];
-    save();
-
-    await supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + encodeURIComponent(mId), "DELETE")
-      .catch(e => console.warn(e));
-
-    toast(`ℹ️ Đã xóa ${escapeHtml(modTitle)} khỏi danh sách học.`);
-    renderAll();
+    return unenrollCourse("spring-boot-mastery");
   }
 
   // ---------- Supabase Direct Cloud Integration ----------
@@ -190,22 +284,27 @@
         });
       }
 
-      // 2b. Lấy danh sách giáo trình đã enroll từ Supabase
+      // 2b. Lấy danh sách khóa học đã ghi danh từ Supabase
       const remoteEnrolls = await supabaseCall("/user_enrollments?user_id=eq." + uid + "&select=module_id,enrolled_at");
       if (Array.isArray(remoteEnrolls)) {
         remoteEnrolls.forEach(r => {
-          state.enrolledModules[String(r.module_id)] = true;
+          const mid = String(r.module_id);
+          if (mid === "spring-boot-mastery" || ["0", "1", "2", "3", "4", "5", "6", "7"].includes(mid)) {
+            state.enrolledCourses["spring-boot-mastery"] = true;
+            MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+          } else {
+            state.enrolledCourses[mid] = true;
+          }
         });
       }
 
-      // 2c. Nếu học viên đã có bài học hoàn thành hoặc điểm quiz ở module nào, tự động enroll
-      MODULES.forEach(m => {
-        const hasCompleted = m.lessons.some(l => state.completed[l.id]) || !!state.quizScores[m.id];
-        if (hasCompleted && !state.enrolledModules[String(m.id)]) {
-          state.enrolledModules[String(m.id)] = true;
-          supabaseCall("/user_enrollments", "POST", { user_id: uid, module_id: String(m.id) }, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
-        }
-      });
+      // 2c. Nếu học viên đã có bài học hoàn thành hoặc điểm quiz ở Spring Boot, tự động ghi danh khóa Spring Boot Mastery
+      const hasSbProgress = MODULES.some(m => m.lessons.some(l => state.completed[l.id]) || !!state.quizScores[m.id]);
+      if (hasSbProgress && !state.enrolledCourses["spring-boot-mastery"]) {
+        state.enrolledCourses["spring-boot-mastery"] = true;
+        MODULES.forEach(m => { state.enrolledModules[String(m.id)] = true; });
+        supabaseCall("/user_enrollments", "POST", { user_id: uid, module_id: "spring-boot-mastery" }, { "Prefer": "resolution=merge-duplicates" }).catch(() => {});
+      }
 
       // 3. Đẩy các bài học hoàn thành ở local lên Supabase nếu chưa có
       const localLessonIds = Object.keys(state.completed).filter(id => state.completed[id]);
@@ -562,84 +661,71 @@
   }
 
   // ---------- Sidebar ----------
+  // ---------- Sidebar ----------
   function renderSidebar(activeLessonId) {
     const nav = $("#sidebarNav");
     const isGuest = !state.currentUser;
-    const enrolledMods = MODULES.filter((m) => isModuleEnrolled(m.id));
+    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
+    const enrolledCoursesCount = COURSES.filter(c => isCourseEnrolled(c.id)).length;
 
     let html = `
       <a class="nav-home ${state.view === "dashboard" ? "active" : ""}" data-view="dashboard">
         🏠 Tổng quan
       </a>
       <a class="nav-home ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
-        📊 Tiến độ của tôi ${enrolledMods.length > 0 ? `(${enrolledMods.length})` : ""}
+        📊 Tiến độ của tôi ${enrolledCoursesCount > 0 ? `(${enrolledCoursesCount} khóa)` : ""}
       </a>
       <a class="nav-home ${state.view === "curriculum" ? "active" : ""}" data-view="curriculum">
         📚 Chương trình chi tiết
       </a>`;
 
-    if (!isGuest) {
+    if (!isGuest && !isSbEnrolled) {
       html += `
-        <div class="sidebar-tabs">
-          <button class="s-tab ${state.sidebarTab === "enrolled" ? "active" : ""}" data-stab="enrolled">
-            Đang học (${enrolledMods.length})
-          </button>
-          <button class="s-tab ${state.sidebarTab === "all" ? "active" : ""}" data-stab="all">
-            Tất cả (${MODULES.length})
-          </button>
+        <div class="sidebar-course-cta">
+          <div class="s-cta-title">🍃 Spring Boot Mastery</div>
+          <p class="s-cta-desc">Chưa ghi danh khóa học</p>
+          <button class="btn btn-sm btn-primary s-cta-btn" id="btnSidebarEnroll">🚀 Ghi danh ngay</button>
         </div>`;
     }
 
-    const modsToDisplay = (!isGuest && state.sidebarTab === "enrolled")
-      ? enrolledMods
-      : MODULES;
+    html += `
+      <div class="sidebar-section-title">
+        <span>GIÁO TRÌNH SPRING BOOT (8 MODULE)</span>
+      </div>`;
 
-    if (!isGuest && state.sidebarTab === "enrolled" && enrolledMods.length === 0) {
+    MODULES.forEach((m) => {
+      const prog = moduleProgress(m);
+      const hasActive = m.lessons.some((l) => l.id === activeLessonId) ||
+                        (state.view === "quiz" && state.currentQuizModule === m.id);
+      const open = hasActive || prog.pct > 0;
+
       html += `
-        <div class="sidebar-empty-hint">
-          <span>Chưa có giáo trình nào trong danh sách học.</span><br>
-          <a data-view="user-dashboard">👉 Khám phá &amp; Đăng ký ngay</a>
-        </div>`;
-    } else {
-      modsToDisplay.forEach((m) => {
-        const prog = moduleProgress(m);
-        const hasActive = m.lessons.some((l) => l.id === activeLessonId) ||
-                          (state.view === "quiz" && state.currentQuizModule === m.id);
-        const open = hasActive || prog.pct > 0;
-        const enrolled = isModuleEnrolled(m.id);
-
-        html += `
-        <div class="nav-module mc-${m.id} ${open ? "open" : ""} ${prog.pct === 100 ? "done" : ""}">
-          <div class="nav-module-head" data-module="${m.id}">
-            <span class="nm-badge" style="background: var(--mc-color)">${m.icon}</span>
-            <span class="nm-title">${m.id}. ${escapeHtml(m.title)}</span>
-            ${enrolled ? '<span class="nm-check">✓</span>' : isGuest ? '<span class="nm-lock-icon">🔒</span>' : '<span class="nm-badge-unenrolled">+ Enroll</span>'}
-            <span class="nm-count">${prog.done}/${prog.total}</span>
-          </div>
-          <div class="nav-lessons">
-            ${m.lessons.map((l) => `
-              <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
-                   data-lesson="${l.id}">
-                <span class="nl-dot"></span>
-                <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
-                <span class="nl-mins">${l.minutes}p</span>
-              </div>`).join("")}
-          </div>
-        </div>`;
-      });
-    }
+      <div class="nav-module mc-${m.id} ${open ? "open" : ""} ${prog.pct === 100 ? "done" : ""}">
+        <div class="nav-module-head" data-module="${m.id}">
+          <span class="nm-badge" style="background: var(--mc-color)">${m.icon}</span>
+          <span class="nm-title">${m.id}. ${escapeHtml(m.title)}</span>
+          ${isSbEnrolled ? (prog.pct === 100 ? '<span class="nm-check">✓</span>' : '') : '<span class="nm-lock-icon">🔒</span>'}
+          <span class="nm-count">${prog.done}/${prog.total}</span>
+        </div>
+        <div class="nav-lessons">
+          ${m.lessons.map((l) => `
+            <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
+                 data-lesson="${l.id}">
+              <span class="nl-dot"></span>
+              <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
+              <span class="nl-mins">${l.minutes}p</span>
+            </div>`).join("")}
+        </div>
+      </div>`;
+    });
 
     nav.innerHTML = html;
 
-    $$(".s-tab", nav).forEach((tab) => {
-      tab.addEventListener("click", () => {
-        state.sidebarTab = tab.dataset.stab;
-        renderSidebar(activeLessonId);
-      });
-    });
+    const btnSidebarEnroll = $("#btnSidebarEnroll", nav);
+    if (btnSidebarEnroll) {
+      btnSidebarEnroll.addEventListener("click", () => enrollCourse("spring-boot-mastery"));
+    }
     $$(".nav-home", nav).forEach((el) =>
-      el.addEventListener("click", () => gotoView(el.dataset.view)));
-    $$(".sidebar-empty-hint a", nav).forEach((el) =>
       el.addEventListener("click", () => gotoView(el.dataset.view)));
     $$(".nav-module-head", nav).forEach((el) =>
       el.addEventListener("click", () => el.parentElement.classList.toggle("open")));
@@ -665,6 +751,7 @@
     $("#headerProgressPct").textContent = total.pct + "%";
     $("#dashRingText").textContent = total.pct + "%";
 
+    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
     const streakEl = $("#streakSub");
     if (streakEl) {
       const quizCount = MODULES.reduce((acc, m) => {
@@ -683,7 +770,6 @@
     grid.innerHTML = MODULES.map((m) => {
       const p = moduleProgress(m);
       const firstLesson = m.lessons[0];
-      const enrolled = isModuleEnrolled(m.id);
       return `
       <div class="module-card mc-${m.id}" data-lesson="${firstLesson.id}" data-module="${m.id}">
         <div class="mc-top">
@@ -704,11 +790,11 @@
           <div class="mc-progress-text"><span>${p.done}/${p.total} hoàn thành</span><span>${p.pct}%</span></div>
         </div>
         <div class="module-card-footer">
-          ${enrolled 
-            ? '<span class="mc-enrolled-pill">✓ Đã trong danh sách học</span><button class="btn btn-sm btn-primary btn-card-action" data-lesson="' + firstLesson.id + '">Vào học tiếp →</button>'
+          ${isSbEnrolled 
+            ? '<span class="mc-enrolled-pill">✓ Đã ghi danh khóa</span><button class="btn btn-sm btn-primary btn-card-action" data-lesson="' + firstLesson.id + '">Vào học tiếp →</button>'
             : state.currentUser 
-            ? '<span class="mc-unenrolled-pill">Chưa đăng ký</span><button class="btn btn-sm btn-secondary btn-card-enroll" data-module="' + m.id + '">+ Đăng ký học</button>'
-            : '<span class="mc-unenrolled-pill">Khóa học 8 Module</span><button class="btn btn-sm btn-primary btn-card-enroll" data-module="' + m.id + '">🔒 Đăng ký học</button>'
+            ? '<span class="mc-unenrolled-pill">Khóa 8 Module</span><button class="btn btn-sm btn-primary btn-card-enroll-course" data-course="spring-boot-mastery">🚀 Ghi danh khóa học</button>'
+            : '<span class="mc-unenrolled-pill">Khóa 8 Module</span><button class="btn btn-sm btn-primary btn-card-enroll-course" data-course="spring-boot-mastery">🔒 Đăng ký học</button>'
           }
         </div>
       </div>`;
@@ -716,9 +802,9 @@
 
     $$(".module-card", grid).forEach((card) => {
       card.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-card-enroll")) {
+        if (e.target.closest(".btn-card-enroll-course") || e.target.closest(".btn-card-enroll")) {
           e.stopPropagation();
-          enrollModule(card.dataset.module);
+          enrollCourse("spring-boot-mastery");
         } else if (e.target.closest(".btn-card-action")) {
           e.stopPropagation();
           gotoLesson(card.dataset.lesson);
@@ -753,22 +839,22 @@
             <div class="gate-icon-badge">🔒</div>
             <span class="gate-tag">Yêu cầu tài khoản học viên</span>
             <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Module ${m.id}: ${escapeHtml(m.title)} · Thời lượng: ~${lesson.minutes || 15} phút</p>
+            <p class="gate-subtitle">Thuộc khóa <strong>Spring Boot Mastery</strong> · Module ${m.id}: ${escapeHtml(m.title)} · ~${lesson.minutes || 15} phút</p>
             <div class="gate-divider"></div>
             <p class="gate-desc">
-              Bạn chưa đăng nhập! Vui lòng đăng nhập hoặc tạo tài khoản để xem toàn bộ nội dung chi tiết bài học, sơ đồ tương tác, code mẫu production, lưu trữ tiến độ trên đám mây và thi trắc nghiệm.
+              Bạn chưa đăng nhập! Vui lòng đăng nhập hoặc tạo tài khoản miễn phí để ghi danh khóa học <strong>Spring Boot Mastery</strong>, mở khóa toàn bộ 8 module, thực hành code, lưu tiến độ trên đám mây và thi trắc nghiệm.
             </p>
             <div class="gate-features">
+              <div class="gate-feat-item"><span class="feat-icon">🍃</span> Mở khóa trọn bộ 8 Module và 56 bài học Spring Boot Mastery</div>
               <div class="gate-feat-item"><span class="feat-icon">☁️</span> Đồng bộ bài học vĩnh viễn trên Supabase Cloud Database</div>
               <div class="gate-feat-item"><span class="feat-icon">🏆</span> Thi Quiz trắc nghiệm đánh giá kiến thức sau mỗi module</div>
-              <div class="gate-feat-item"><span class="feat-icon">📋</span> Tự do ghi danh và quản lý lộ trình học tập cá nhân</div>
             </div>
             <div class="gate-actions">
               <button class="btn btn-primary btn-lg" id="btnGateLogin">🔑 Đăng nhập để học bài này</button>
               <button class="btn btn-secondary btn-lg" id="btnGateRegister">📝 Đăng ký tài khoản miễn phí</button>
             </div>
             <div class="gate-footer">
-              <button class="btn-link" id="btnGateBack">← Quay lại danh mục giáo trình</button>
+              <button class="btn-link" id="btnGateBack">← Quay lại danh mục khóa học</button>
             </div>
           </div>
         </div>`;
@@ -777,7 +863,7 @@
       if (btnGateLogin) {
         btnGateLogin.addEventListener("click", () => {
           state.pendingTargetLesson = lessonId;
-          state.pendingEnrollModule = String(m.id);
+          state.pendingEnrollCourse = "spring-boot-mastery";
           openAuthModal("login");
         });
       }
@@ -785,7 +871,7 @@
       if (btnGateReg) {
         btnGateReg.addEventListener("click", () => {
           state.pendingTargetLesson = lessonId;
-          state.pendingEnrollModule = String(m.id);
+          state.pendingEnrollCourse = "spring-boot-mastery";
           openAuthModal("register");
         });
       }
@@ -798,8 +884,8 @@
       return;
     }
 
-    // Access check 2: Đã đăng nhập nhưng chưa enroll module này
-    if (!isModuleEnrolled(m.id)) {
+    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học Spring Boot Mastery
+    if (!isCourseEnrolled("spring-boot-mastery")) {
       view.innerHTML = `
         <div class="lesson-header">
           <div class="breadcrumb">
@@ -810,21 +896,26 @@
         </div>
         <div class="lesson-gate-container">
           <div class="lesson-gate-card">
-            <div class="gate-icon-badge badge-enroll">📌</div>
-            <span class="gate-tag tag-enroll">Chưa đăng ký giáo trình này</span>
+            <div class="gate-icon-badge badge-enroll">🎓</div>
+            <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
             <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Thuộc Module ${m.id}: ${escapeHtml(m.title)} (${m.lessons.length} bài học · 1 bài thi Quiz)</p>
+            <p class="gate-subtitle">Khóa học: <strong>Spring Boot Mastery — Từ Zero đến Production</strong></p>
             <div class="gate-divider"></div>
             <p class="gate-desc">
-              Giáo trình này hiện chưa có trong <strong>Danh sách học của bạn</strong>.
-              Hãy bấm nút bên dưới để ghi danh (hoàn toàn miễn phí) và mở khóa bài học này cùng toàn bộ các bài khác trong module!
+              Bài học này nằm trong khóa học <strong>Spring Boot Mastery</strong> (8 Module · 56 Bài học · 98 Câu quiz).<br>
+              Bạn chỉ cần ghi danh khóa học <strong>1 lần duy nhất</strong> (hoàn toàn miễn phí) để mở khóa toàn bộ 8 module cùng 56 bài học!
             </p>
+            <div class="gate-features">
+              <div class="gate-feat-item"><span class="feat-icon">✨</span> Ghi danh 1 lần mở khóa toàn bộ 8 module (không cần đăng ký lẻ từng bài)</div>
+              <div class="gate-feat-item"><span class="feat-icon">💻</span> Toàn quyền truy cập source code dự án mẫu &amp; sơ đồ kiến trúc</div>
+              <div class="gate-feat-item"><span class="feat-icon">📈</span> Tự động lưu tiến độ vào Dashboard cá nhân trên Supabase Cloud</div>
+            </div>
             <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnGateEnroll">🚀 Đăng ký học Module ${m.id} ngay</button>
+              <button class="btn btn-primary btn-lg" id="btnGateEnroll">🚀 Ghi danh khóa Spring Boot Mastery (Miễn phí)</button>
               <button class="btn btn-ghost btn-lg" id="btnGateGoDashboard">📊 Về trang học tập của tôi</button>
             </div>
             <div class="gate-footer">
-              <button class="btn-link" id="btnGateBack">← Quay lại danh mục giáo trình</button>
+              <button class="btn-link" id="btnGateBack">← Quay lại danh mục khóa học</button>
             </div>
           </div>
         </div>`;
@@ -832,7 +923,7 @@
       const btnGateEnroll = $("#btnGateEnroll", view);
       if (btnGateEnroll) {
         btnGateEnroll.addEventListener("click", async () => {
-          await enrollModule(m.id);
+          await enrollCourse("spring-boot-mastery");
           renderLesson(lessonId);
         });
       }
@@ -959,39 +1050,43 @@
           </div>
         </div>`;
       $("#btnQuizGateLogin", view)?.addEventListener("click", () => {
-        state.pendingEnrollModule = String(m.id);
+        state.pendingEnrollCourse = "spring-boot-mastery";
         openAuthModal("login");
       });
       $("#btnQuizGateRegister", view)?.addEventListener("click", () => {
-        state.pendingEnrollModule = String(m.id);
+        state.pendingEnrollCourse = "spring-boot-mastery";
         openAuthModal("register");
       });
       $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
       return;
     }
 
-    // Access check 2: Chưa đăng ký module
-    if (!isModuleEnrolled(m.id)) {
+    // Access check 2: Chưa ghi danh khóa học Spring Boot Mastery
+    if (!isCourseEnrolled("spring-boot-mastery")) {
       view.innerHTML = `
         <div class="lesson-gate-container">
           <div class="lesson-gate-card">
-            <div class="gate-icon-badge badge-enroll">📌</div>
-            <span class="gate-tag tag-enroll">Chưa đăng ký giáo trình này</span>
+            <div class="gate-icon-badge badge-enroll">🎓</div>
+            <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
             <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">${escapeHtml(m.title)} · ${quiz.questions.length} câu hỏi</p>
+            <p class="gate-subtitle">Khóa học: <strong>Spring Boot Mastery</strong> (${quiz.questions.length} câu hỏi)</p>
             <div class="gate-divider"></div>
-            <p class="gate-desc">Bạn chưa đăng ký <strong>Module ${m.id}: ${escapeHtml(m.title)}</strong> vào danh sách học. Hãy đăng ký để mở khóa bài thi Quiz này!</p>
+            <p class="gate-desc">Bạn chưa ghi danh khóa học <strong>Spring Boot Mastery</strong>. Hãy ghi danh ngay để mở khóa toàn bộ bài thi Quiz và bài học trong khóa!</p>
             <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnQuizGateEnroll">🚀 Đăng ký học Module ${m.id}</button>
+              <button class="btn btn-primary btn-lg" id="btnQuizGateEnroll">🚀 Ghi danh khóa Spring Boot Mastery (Miễn phí)</button>
               <button class="btn btn-ghost btn-lg" id="btnQuizGateBack">📊 Về Dashboard của tôi</button>
+            </div>
+            <div class="gate-footer">
+              <button class="btn-link" id="btnQuizGateHome">← Quay lại danh mục khóa học</button>
             </div>
           </div>
         </div>`;
       $("#btnQuizGateEnroll", view)?.addEventListener("click", async () => {
-        await enrollModule(m.id);
+        await enrollCourse("spring-boot-mastery");
         gotoQuiz(moduleId);
       });
       $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("user-dashboard"));
+      $("#btnQuizGateHome", view)?.addEventListener("click", () => gotoView("dashboard"));
       return;
     }
 
@@ -1141,14 +1236,23 @@
   // ---------- Curriculum ----------
   function renderCurriculum() {
     const view = $("#view-curriculum");
+    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
     view.innerHTML = `
       <div class="curr-intro">
-        <h2>📚 Chương trình chi tiết</h2>
-        <p>8 module · ${allItems().length} bài học + quiz · ~80 giờ — click từng bài để bắt đầu học ngay.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2>📚 Khóa học: Spring Boot Mastery — Từ Zero đến Production</h2>
+            <p>8 module · ${allItems().length} bài học + quiz · ~80 giờ — click từng bài để bắt đầu học ngay.</p>
+          </div>
+          ${isSbEnrolled ? `
+            <span class="mc-enrolled-pill" style="font-size:13px;padding:6px 12px;">✓ Đã ghi danh khóa học</span>
+          ` : `
+            <button class="btn btn-primary btn-sm" id="btnCurrEnrollCourse">🚀 Ghi danh khóa học (Miễn phí)</button>
+          `}
+        </div>
       </div>
       ${MODULES.map((m) => {
         const p = moduleProgress(m);
-        const enrolled = isModuleEnrolled(m.id);
         return `
         <div class="curr-module mc-${m.id}">
           <div class="curr-module-head">
@@ -1157,7 +1261,7 @@
               <div class="cm-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
               <div class="cm-meta">${m.lessons.length} mục · ${m.lessons.reduce((a, l) => a + l.minutes, 0)} phút · ${p.done}/${p.total} xong</div>
             </div>
-            ${enrolled ? '<span class="mc-enrolled-pill" style="margin-right:10px;">✓ Đã đăng ký</span>' : '<span class="mc-unenrolled-pill" style="margin-right:10px;">Chưa đăng ký</span>'}
+            ${isSbEnrolled ? '<span class="mc-enrolled-pill" style="margin-right:10px;">✓ Đã mở khóa</span>' : '<span class="mc-unenrolled-pill" style="margin-right:10px;">🔒 Chưa ghi danh</span>'}
             <svg class="cm-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
           </div>
           <div class="curr-lessons">
@@ -1172,6 +1276,7 @@
         </div>`;
       }).join("")}`;
 
+    $("#btnCurrEnrollCourse", view)?.addEventListener("click", () => enrollCourse("spring-boot-mastery"));
     $$(".curr-module-head", view).forEach((h) =>
       h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
     $$(".curr-lesson", view).forEach((el) =>
@@ -1192,14 +1297,18 @@
     const all = allItems();
     const doneLessonsCount = all.filter((x) => x.lesson.type !== "quiz" && state.completed[x.lesson.id]).length;
     const totalLessonsCount = all.filter((x) => x.lesson.type !== "quiz").length;
+    const modulesDone = MODULES.filter((m) => moduleProgress(m).pct === 100).length;
     const doneMinutes = all
       .filter((x) => state.completed[x.lesson.id])
       .reduce((acc, x) => acc + (x.lesson.minutes || 0), 0);
     const doneHours = Math.round((doneMinutes / 60) * 10) / 10;
 
-    const enrolledMods = MODULES.filter((m) => isModuleEnrolled(m.id));
-    const unenrolledMods = MODULES.filter((m) => !isModuleEnrolled(m.id));
-    const completedEnrolled = enrolledMods.filter((m) => moduleProgress(m).pct === 100).length;
+    const enrolledCourses = COURSES.filter((c) => isCourseEnrolled(c.id));
+    const isSbEnrolled = isCourseEnrolled("spring-boot-mastery");
+    const completedCoursesCount = enrolledCourses.filter((c) => {
+      if (c.id === "spring-boot-mastery") return total.pct === 100;
+      return false;
+    }).length;
 
     const user = state.currentUser;
     const displayName = user ? (user.full_name || user.fullName || user.username) : "Khách thăm quan";
@@ -1219,7 +1328,7 @@
                 <span class="ud-badge ${user && user.role === "ROLE_ADMIN" ? "badge-admin" : "badge-user"}">${roleText}</span>
                 ${user ? '<span class="ud-badge badge-cloud">☁️ Đã kết nối Supabase Cloud</span>' : '<span class="ud-badge badge-local">🔒 Hãy đăng nhập để lưu trữ tiến độ &amp; ghi danh</span>'}
               </div>
-              <p class="ud-email">${escapeHtml(email || "Đăng nhập để lưu tiến độ vĩnh viễn và đăng ký học các giáo trình")}</p>
+              <p class="ud-email">${escapeHtml(email || "Đăng nhập để lưu tiến độ vĩnh viễn và đăng ký các khóa học")}</p>
             </div>
           </div>
           <div class="ud-profile-actions">
@@ -1239,16 +1348,16 @@
         <div class="ud-stats-grid">
           <div class="ud-stat-card">
             <div class="ud-stat-top">
-              <span class="ud-stat-title">Giáo trình đã ghi danh</span>
+              <span class="ud-stat-title">Khóa học đã ghi danh</span>
               <span class="ud-stat-icon">🎓</span>
             </div>
-            <div class="ud-stat-num">${enrolledMods.length} / ${MODULES.length}</div>
-            <div class="ud-stat-sub">${completedEnrolled} giáo trình đã hoàn thành 100%</div>
+            <div class="ud-stat-num">${enrolledCourses.length} / ${COURSES.length}</div>
+            <div class="ud-stat-sub">${completedCoursesCount} khóa đã hoàn thành 100%</div>
           </div>
 
           <div class="ud-stat-card">
             <div class="ud-stat-top">
-              <span class="ud-stat-title">Tổng bài học hoàn thành</span>
+              <span class="ud-stat-title">Bài học hoàn thành (Spring Boot)</span>
               <span class="ud-stat-icon">📖</span>
             </div>
             <div class="ud-stat-num">${doneLessonsCount} / ${totalLessonsCount}</div>
@@ -1264,7 +1373,7 @@
               <span class="ud-stat-icon">🏆</span>
             </div>
             <div class="ud-stat-num">${avgScore}</div>
-            <div class="ud-stat-sub">Đã thi ${scores.length}/${MODULES.length} module quiz</div>
+            <div class="ud-stat-sub">Đã thi ${scores.length}/${MODULES.length} bài thi module</div>
           </div>
 
           <div class="ud-stat-card">
@@ -1273,164 +1382,207 @@
               <span class="ud-stat-icon">⏱️</span>
             </div>
             <div class="ud-stat-num">~${doneHours}h</div>
-            <div class="ud-stat-sub">Tương đương ${doneMinutes} phút học</div>
+            <div class="ud-stat-sub">Tương đương ${doneMinutes} phút thực học</div>
           </div>
         </div>
 
-        <!-- Section 1: Danh sách giáo trình của tôi (Đã đăng ký) -->
+        <!-- Section 1: Khóa học đã ghi danh của tôi -->
         <div class="ud-section-head">
           <div class="ud-section-actions">
             <div>
-              <h3>🎓 Danh sách giáo trình của tôi (${enrolledMods.length}/${MODULES.length} đã đăng ký)</h3>
-              <p>Chỉ những giáo trình bạn đã ghi danh mới hiển thị và cho phép vào học ở đây.</p>
+              <h3>🎓 Khóa học đã ghi danh của tôi (${enrolledCourses.length}/${COURSES.length} khóa)</h3>
+              <p>Toàn bộ các khóa học bạn đã đăng ký kèm tiến độ học tập chi tiết.</p>
             </div>
-            ${user && unenrolledMods.length > 0 ? `
-              <button class="btn btn-secondary btn-sm" id="udBtnEnrollAllTop">✨ Đăng ký tất cả 8 Module</button>
-            ` : ""}
           </div>
         </div>
 
         ${!user ? `
           <div class="ud-empty-state">
             <div class="ud-empty-icon">🔒</div>
-            <h3>Vui lòng đăng nhập để xem danh sách giáo trình của bạn</h3>
-            <p>Sau khi đăng nhập hoặc tạo tài khoản miễn phí, bạn có thể đăng ký các giáo trình mong muốn để lưu trữ tiến độ cá nhân.</p>
+            <h3>Vui lòng đăng nhập để xem các khóa học của bạn</h3>
+            <p>Sau khi đăng nhập hoặc tạo tài khoản miễn phí, bạn có thể ghi danh các khóa học mong muốn và theo dõi tiến độ học tập trên mọi thiết bị.</p>
             <button class="btn btn-primary" id="udBtnLoginPrompt">🔑 Đăng nhập / Đăng ký ngay</button>
           </div>
-        ` : enrolledMods.length === 0 ? `
+        ` : enrolledCourses.length === 0 ? `
           <div class="ud-empty-state">
             <div class="ud-empty-icon">📂</div>
-            <h3>Chưa có giáo trình nào trong danh sách học của bạn</h3>
-            <p>Bạn chưa ghi danh vào giáo trình nào. Hãy xem danh mục các giáo trình có sẵn bên dưới và bấm <strong>Đăng ký học</strong> để bắt đầu!</p>
-            <button class="btn btn-primary" id="udBtnEnrollAllEmpty">✨ Đăng ký trọn bộ 8 Module Spring Boot</button>
+            <h3>Chưa có khóa học nào trong danh sách học của bạn</h3>
+            <p>Bạn chưa ghi danh vào khóa học nào. Hãy khám phá danh mục các khóa học bên dưới và bấm <strong>Ghi danh khóa học</strong> để bắt đầu!</p>
+            <button class="btn btn-primary" id="udBtnEnrollSbEmpty">🚀 Ghi danh khóa Spring Boot Mastery (Miễn phí)</button>
           </div>
         ` : `
-          <div class="ud-modules-list">
-            ${enrolledMods.map((m) => {
-              const p = moduleProgress(m);
-              const quizScore = state.quizScores[m.id];
-              const nextIncomplete = m.lessons.find((l) => !state.completed[l.id]);
-              const isCompleted = p.pct === 100;
-              const isStarted = p.pct > 0;
-              
-              let statusBadge = "";
-              if (isCompleted) {
-                statusBadge = '<span class="ud-mod-status done">✓ Hoàn thành 100%</span>';
-              } else if (isStarted) {
-                statusBadge = `<span class="ud-mod-status in-progress">⚡ Đang học (${p.pct}%)</span>`;
-              } else {
-                statusBadge = '<span class="ud-mod-status not-started">⏳ Chưa bắt đầu</span>';
-              }
+          <div class="ud-courses-list">
+            ${enrolledCourses.map((c) => {
+              if (c.id === "spring-boot-mastery") {
+                const nextIncomplete = all.find((x) => !state.completed[x.lesson.id]);
+                const isCompleted = total.pct === 100;
+                const isStarted = total.pct > 0;
 
-              let quizText = "";
-              if (quizScore) {
-                const qPct = Math.round((quizScore.score / quizScore.total) * 100);
-                const qEmoji = qPct >= 80 ? "🏆" : qPct >= 50 ? "💪" : "📖";
-                quizText = `<span class="ud-mod-quiz passed">${qEmoji} Quiz: ${quizScore.score}/${quizScore.total} (${qPct}%)</span>`;
-              } else {
-                const quizItem = m.lessons.find(l => l.type === "quiz");
-                quizText = `<span class="ud-mod-quiz todo">📝 Quiz: ${quizItem && quizItem.questions ? quizItem.questions.length : 0} câu</span>`;
-              }
+                let statusBadge = "";
+                if (isCompleted) {
+                  statusBadge = '<span class="ud-mod-status done">🏆 Hoàn thành 100%</span>';
+                } else if (isStarted) {
+                  statusBadge = `<span class="ud-mod-status in-progress">⚡ Đang học (${total.pct}%)</span>`;
+                } else {
+                  statusBadge = '<span class="ud-mod-status not-started">⏳ Chưa bắt đầu</span>';
+                }
 
-              return `
-              <div class="ud-module-card mc-${m.id} ${isCompleted ? "is-done" : isStarted ? "is-started" : ""}">
-                <div class="ud-mc-header">
-                  <div class="ud-mc-left">
-                    <span class="ud-mc-icon">${m.icon}</span>
-                    <div>
-                      <div class="ud-mc-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
-                      <div class="ud-mc-sub">${escapeHtml(m.subtitle)}</div>
+                return `
+                <div class="ud-course-card">
+                  <div class="ud-course-header">
+                    <div class="ud-course-left">
+                      <span class="ud-course-icon">${c.icon}</span>
+                      <div>
+                        <div class="ud-course-title">${escapeHtml(c.title)}</div>
+                        <div class="ud-course-meta">
+                          <span>🧩 ${c.modulesCount} Module</span>
+                          <span>📖 ${c.lessonsCount} Bài học</span>
+                          <span>🏆 ${c.quizCount} Câu Quiz</span>
+                          <span>⏱ ${c.hours}</span>
+                          <span class="ud-badge badge-user">${c.badge}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="ud-course-right">
+                      ${statusBadge}
                     </div>
                   </div>
-                  <div class="ud-mc-right">
-                    ${statusBadge}
-                    ${quizText}
-                  </div>
-                </div>
 
-                <!-- Progress bar -->
-                <div class="ud-mc-progress-box">
-                  <div class="ud-mc-bar">
-                    <div class="ud-mc-fill" style="width: ${p.pct}%"></div>
-                  </div>
-                  <div class="ud-mc-counts">
-                    <span>${p.done}/${p.total} mục đã xong</span>
-                    <span>${p.pct}%</span>
-                  </div>
-                </div>
+                  <div class="ud-course-desc">${escapeHtml(c.desc)}</div>
 
-                <!-- Current position & Next step -->
-                <div class="ud-mc-footer">
-                  <div class="ud-mc-next">
-                    ${isCompleted 
-                      ? '<span class="ud-next-done">🎉 Bạn đã hoàn thành toàn bộ bài học và bài thi của giáo trình này!</span>'
-                      : nextIncomplete 
-                      ? `<span class="ud-next-label">Bài tiếp theo cần học:</span> <strong>${nextIncomplete.type === "quiz" ? "🏆 Bài thi Quiz tổng hợp" : "📖 " + escapeHtml(nextIncomplete.title)}</strong>`
-                      : ""
-                    }
+                  <!-- Progress Bar -->
+                  <div class="ud-course-progress-box">
+                    <div class="ud-course-bar">
+                      <div class="ud-course-fill" style="width: ${total.pct}%"></div>
+                    </div>
+                    <div class="ud-course-counts">
+                      <span>${doneLessonsCount}/${totalLessonsCount} bài học hoàn thành · ${modulesDone}/${MODULES.length} module xong · ${scores.length}/${MODULES.length} quiz đã làm</span>
+                      <span>${total.pct}%</span>
+                    </div>
                   </div>
-                  <div class="ud-mc-action" style="display:flex;align-items:center;gap:10px;">
-                    <button class="btn-unenroll" data-unenroll="${m.id}" title="Hủy đăng ký giáo trình này">✕ Hủy đăng ký</button>
-                    ${isCompleted 
-                      ? `<button class="btn btn-ghost btn-sm" data-lesson-id="${m.lessons[0].id}">🔄 Ôn tập lại</button>`
-                      : nextIncomplete 
-                      ? `<button class="btn btn-primary btn-sm" data-lesson-id="${nextIncomplete.id}">Học tiếp →</button>`
-                      : `<button class="btn btn-primary btn-sm" data-lesson-id="${m.lessons[0].id}">Bắt đầu →</button>`
-                    }
+
+                  <!-- Mini Modules Tracker -->
+                  <div class="ud-mini-modules">
+                    ${MODULES.map((m) => {
+                      const p = moduleProgress(m);
+                      const cls = p.pct === 100 ? "done" : p.pct > 0 ? "in-progress" : "";
+                      return `<div class="ud-mini-chip ${cls}" data-lesson-id="${m.lessons[0].id}" title="Module ${m.id}: ${escapeHtml(m.title)} (${p.done}/${p.total})">
+                        M${m.id}: ${p.done}/${p.total} ${p.pct === 100 ? '✓' : ''}
+                      </div>`;
+                    }).join("")}
                   </div>
-                </div>
-              </div>`;
+
+                  <!-- Next Step & Actions -->
+                  <div class="ud-course-footer">
+                    <div class="ud-course-next">
+                      ${isCompleted
+                        ? '<span class="ud-next-done">🎉 Bạn đã hoàn thành toàn bộ khóa học Spring Boot Mastery!</span>'
+                        : nextIncomplete
+                        ? `<span class="ud-next-label">Bài tiếp theo cần học:</span> <strong>${nextIncomplete.lesson.type === "quiz" ? "🏆 Bài thi Quiz tổng hợp M" + nextIncomplete.module.id : "📖 " + escapeHtml(nextIncomplete.lesson.title)}</strong>`
+                        : ""
+                      }
+                    </div>
+                    <div class="ud-course-actions">
+                      <button class="btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh khóa học này">✕ Hủy ghi danh</button>
+                      <button class="btn btn-ghost btn-sm" data-view-curriculum="true">📚 Xem 8 Module</button>
+                      ${isCompleted
+                        ? `<button class="btn btn-ghost btn-sm" data-lesson-id="${all[0].lesson.id}">🔄 Ôn tập lại</button>`
+                        : nextIncomplete
+                        ? `<button class="btn btn-primary btn-sm" data-lesson-id="${nextIncomplete.lesson.id}">Học tiếp →</button>`
+                        : `<button class="btn btn-primary btn-sm" data-lesson-id="${all[0].lesson.id}">Bắt đầu →</button>`
+                      }
+                    </div>
+                  </div>
+                </div>`;
+              } else {
+                // Other enrolled courses
+                return `
+                <div class="ud-course-card course-preview">
+                  <div class="ud-course-header">
+                    <div class="ud-course-left">
+                      <span class="ud-course-icon">${c.icon}</span>
+                      <div>
+                        <div class="ud-course-title">${escapeHtml(c.title)}</div>
+                        <div class="ud-course-meta">
+                          <span>🧩 ${c.modulesCount} Module</span>
+                          <span>📖 ${c.lessonsCount} Bài học</span>
+                          <span>⏱ ${c.hours}</span>
+                          <span class="ud-badge badge-user">${c.badge}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="ud-course-right">
+                      <span class="ud-mod-status in-progress">🚀 Đã ghi danh (Bản xem trước)</span>
+                    </div>
+                  </div>
+                  <div class="ud-course-desc">${escapeHtml(c.desc)}</div>
+                  <div class="ud-tags-row">
+                    ${c.tags.map(t => `<span class="ud-tag">${t}</span>`).join("")}
+                  </div>
+                  <div class="ud-course-footer">
+                    <div class="ud-course-next">
+                      <span class="ud-next-label">Trạng thái:</span> <em>Đang cập nhật nội dung các bài thực hành và lab dự án.</em>
+                    </div>
+                    <div class="ud-course-actions">
+                      <button class="btn-unenroll" data-unenroll-course="${c.id}">✕ Hủy ghi danh</button>
+                    </div>
+                  </div>
+                </div>`;
+              }
             }).join("")}
           </div>
         `}
 
-        <!-- Section 2: Danh mục giáo trình có thể đăng ký (Catalog) -->
+        <!-- Section 2: Khám phá tất cả khóa học (Course Catalog) -->
         <div class="ud-catalog-section">
           <div class="ud-section-actions">
             <div>
-              <h3>🌟 Danh mục giáo trình có sẵn để đăng ký (${unenrolledMods.length} giáo trình)</h3>
-              <p>Khám phá các module chuyên sâu và bấm <strong>+ Đăng ký học</strong> để đưa vào danh sách học tập của bạn.</p>
+              <h3>🌟 Khám phá tất cả khóa học trên nền tảng (${COURSES.length} khóa học)</h3>
+              <p>Ghi danh các khóa học chuyên sâu từ Backend, Frontend đến DevOps để hoàn thiện bộ kỹ năng Fullstack Enterprise.</p>
             </div>
-            ${user && unenrolledMods.length > 0 ? `
-              <button class="btn btn-secondary btn-sm" id="udBtnEnrollRemaining">✨ Đăng ký tất cả (${unenrolledMods.length}) module còn lại</button>
-            ` : ""}
           </div>
 
-          ${unenrolledMods.length === 0 ? `
-            <div class="ud-all-enrolled">
-              <span>🎉 Tuyệt vời! Bạn đã đăng ký đầy đủ tất cả 8/8 giáo trình của Spring Boot Mastery. Chúc bạn học tập thật tốt!</span>
-            </div>
-          ` : `
-            <div class="ud-catalog-grid">
-              ${unenrolledMods.map((m) => {
-                const lessonCount = m.lessons.filter(l => l.type === "lesson").length;
-                const totalMins = m.lessons.reduce((a, l) => a + l.minutes, 0);
-                return `
-                <div class="ud-catalog-card mc-${m.id}">
-                  <div>
-                    <div class="ud-cat-top">
-                      <div class="ud-cat-badge">${m.icon}</div>
-                      <div>
-                        <div class="ud-cat-title">Module ${m.id}: ${escapeHtml(m.title)}</div>
-                        <div class="ud-cat-sub">${escapeHtml(m.subtitle)}</div>
-                      </div>
-                    </div>
-                    <div class="ud-cat-desc">${escapeHtml(m.desc)}</div>
-                    <div class="ud-cat-meta">
-                      <span>📖 ${lessonCount} bài học</span>
-                      <span>🏆 1 bài thi Quiz</span>
-                      <span>⏱ ~${totalMins} phút</span>
+          <div class="ud-catalog-grid">
+            ${COURSES.map((c) => {
+              const enrolled = isCourseEnrolled(c.id);
+              return `
+              <div class="ud-catalog-card ${enrolled ? "enrolled-card" : ""}">
+                <div>
+                  <div class="ud-cat-top">
+                    <div class="ud-cat-badge">${c.icon}</div>
+                    <div>
+                      <div class="ud-cat-title">${escapeHtml(c.title)}</div>
+                      <div class="ud-cat-sub">${escapeHtml(c.badge)} · ${c.level}</div>
                     </div>
                   </div>
-                  <div class="ud-cat-footer">
-                    <button class="btn btn-primary btn-sm" data-enroll-module="${m.id}">
-                      + Đăng ký học giáo trình này
+                  <div class="ud-cat-desc">${escapeHtml(c.desc)}</div>
+                  <div class="ud-tags-row">
+                    ${c.tags.map(t => `<span class="ud-tag">${t}</span>`).join("")}
+                  </div>
+                  <div class="ud-cat-meta">
+                    <span>🧩 ${c.modulesCount} Module</span>
+                    <span>📖 ${c.lessonsCount} Bài học</span>
+                    <span>🏆 ${c.quizCount} Quiz</span>
+                    <span>⏱ ${c.hours}</span>
+                  </div>
+                </div>
+                <div class="ud-cat-footer">
+                  ${enrolled ? `
+                    <span class="mc-enrolled-pill">✓ Đang trong danh sách học</span>
+                    ${c.id === "spring-boot-mastery" 
+                      ? `<button class="btn btn-primary btn-sm" data-goto-course="spring-boot-mastery">Vào học ngay →</button>`
+                      : `<button class="btn btn-ghost btn-sm" data-unenroll-course="${c.id}">✕ Hủy ghi danh</button>`
+                    }
+                  ` : `
+                    <span class="mc-unenrolled-pill">Miễn phí 100%</span>
+                    <button class="btn btn-primary btn-sm" data-enroll-course="${c.id}">
+                      🚀 Ghi danh khóa học
                     </button>
-                  </div>
-                </div>`;
-              }).join("")}
-            </div>
-          `}
+                  `}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
         </div>
       </div>
     `;
@@ -1438,61 +1590,49 @@
     view.innerHTML = html;
 
     // Event listeners
-    const btnSync = $("#udBtnSync", view);
-    if (btnSync) {
-      btnSync.addEventListener("click", async () => {
-        toast("⏳ Đang đồng bộ với Supabase...");
-        await syncLocalAndCloud();
-        renderUserDashboard();
-        toast("☁️ Đã đồng bộ mới nhất từ Supabase!");
-      });
-    }
-
-    const btnLogout = $("#udBtnLogout", view);
-    if (btnLogout) {
-      btnLogout.addEventListener("click", () => {
-        state.currentUser = null;
-        state.token = null;
-        state.enrolledModules = {};
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        updateAuthUI();
-        renderUserDashboard();
-        toast("👋 Đã đăng xuất.");
-      });
-    }
-
-    const btnLogin = $("#udBtnLogin", view);
-    if (btnLogin) {
-      btnLogin.addEventListener("click", () => openAuthModal("login"));
-    }
-
-    const btnLoginPrompt = $("#udBtnLoginPrompt", view);
-    if (btnLoginPrompt) {
-      btnLoginPrompt.addEventListener("click", () => openAuthModal("login"));
-    }
-
-    const btnEnrollAllTop = $("#udBtnEnrollAllTop", view);
-    if (btnEnrollAllTop) {
-      btnEnrollAllTop.addEventListener("click", enrollAllModules);
-    }
-
-    const btnEnrollAllEmpty = $("#udBtnEnrollAllEmpty", view);
-    if (btnEnrollAllEmpty) {
-      btnEnrollAllEmpty.addEventListener("click", enrollAllModules);
-    }
-
-    const btnEnrollRemaining = $("#udBtnEnrollRemaining", view);
-    if (btnEnrollRemaining) {
-      btnEnrollRemaining.addEventListener("click", enrollAllModules);
-    }
-
-    $$("[data-enroll-module]", view).forEach((btn) => {
-      btn.addEventListener("click", () => enrollModule(btn.dataset.enrollModule));
+    $("#udBtnSync", view)?.addEventListener("click", async () => {
+      toast("⏳ Đang đồng bộ với Supabase...");
+      await syncLocalAndCloud();
+      renderUserDashboard();
+      toast("☁️ Đã đồng bộ mới nhất từ Supabase!");
     });
 
-    $$("[data-unenroll]", view).forEach((btn) => {
-      btn.addEventListener("click", () => unenrollModule(btn.dataset.unenroll));
+    $("#udBtnLogout", view)?.addEventListener("click", () => {
+      state.currentUser = null;
+      state.token = null;
+      state.enrolledModules = {};
+      state.enrolledCourses = {};
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      updateAuthUI();
+      renderUserDashboard();
+      toast("👋 Đã đăng xuất.");
+    });
+
+    $("#udBtnLogin", view)?.addEventListener("click", () => openAuthModal("login"));
+    $("#udBtnLoginPrompt", view)?.addEventListener("click", () => openAuthModal("login"));
+    $("#udBtnEnrollSbEmpty", view)?.addEventListener("click", () => enrollCourse("spring-boot-mastery"));
+
+    $$("[data-enroll-course]", view).forEach((btn) => {
+      btn.addEventListener("click", () => enrollCourse(btn.dataset.enrollCourse));
+    });
+
+    $$("[data-unenroll-course]", view).forEach((btn) => {
+      btn.addEventListener("click", () => unenrollCourse(btn.dataset.unenrollCourse));
+    });
+
+    $$("[data-goto-course]", view).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.dataset.gotoCourse === "spring-boot-mastery") {
+          const firstIncomplete = all.find((x) => !state.completed[x.lesson.id]);
+          if (firstIncomplete) gotoLesson(firstIncomplete.lesson.id);
+          else gotoView("dashboard");
+        }
+      });
+    });
+
+    $$("[data-view-curriculum]", view).forEach((btn) => {
+      btn.addEventListener("click", () => gotoView("curriculum"));
     });
 
     $$("[data-lesson-id]", view).forEach((btn) => {
@@ -1616,19 +1756,17 @@
     });
     $("#backdrop").addEventListener("click", closeSidebar);
 
-    $("#continueBtn").addEventListener("click", () => {
+    $("#continueBtn").addEventListener("click", async () => {
       if (!state.currentUser) {
+        state.pendingEnrollCourse = "spring-boot-mastery";
         openAuthModal("login");
         toast("🔑 Vui lòng đăng nhập để bắt đầu học!");
         return;
       }
-      const enrolledMods = MODULES.filter(m => isModuleEnrolled(m.id));
-      if (enrolledMods.length === 0) {
-        gotoView("user-dashboard");
-        toast("👉 Bạn chưa đăng ký giáo trình nào. Hãy chọn giáo trình để bắt đầu!");
-        return;
+      if (!isCourseEnrolled("spring-boot-mastery")) {
+        await enrollCourse("spring-boot-mastery");
       }
-      for (const m of enrolledMods) {
+      for (const m of MODULES) {
         const nextInMod = m.lessons.find(l => !state.completed[l.id]);
         if (nextInMod) {
           gotoLesson(nextInMod.id);
@@ -1723,6 +1861,7 @@
         state.currentUser = null;
         state.token = null;
         state.enrolledModules = {};
+        state.enrolledCourses = {};
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         userDropdown.style.display = "none";
@@ -1782,10 +1921,13 @@
           toast("🎉 Chào mừng trở lại, " + (state.currentUser.full_name || state.currentUser.username) + "!");
           await syncLocalAndCloud();
 
-          if (state.pendingEnrollModule) {
-            const pMod = state.pendingEnrollModule;
+          if (state.pendingEnrollCourse) {
+            const pCourse = state.pendingEnrollCourse;
+            state.pendingEnrollCourse = null;
+            await enrollCourse(pCourse, true);
+          } else if (state.pendingEnrollModule) {
             state.pendingEnrollModule = null;
-            await enrollModule(pMod, true);
+            await enrollCourse("spring-boot-mastery", true);
           }
           if (state.pendingTargetLesson) {
             const pTarget = state.pendingTargetLesson;
@@ -1845,10 +1987,13 @@
           toast("✨ Đăng ký thành công! Chào mừng " + (state.currentUser.full_name || state.currentUser.username));
           await syncLocalAndCloud();
 
-          if (state.pendingEnrollModule) {
-            const pMod = state.pendingEnrollModule;
+          if (state.pendingEnrollCourse) {
+            const pCourse = state.pendingEnrollCourse;
+            state.pendingEnrollCourse = null;
+            await enrollCourse(pCourse, true);
+          } else if (state.pendingEnrollModule) {
             state.pendingEnrollModule = null;
-            await enrollModule(pMod, true);
+            await enrollCourse("spring-boot-mastery", true);
           }
           if (state.pendingTargetLesson) {
             const pTarget = state.pendingTargetLesson;
