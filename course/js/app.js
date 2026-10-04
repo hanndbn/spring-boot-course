@@ -287,6 +287,24 @@
     renderAll();
   }
 
+  function updateBrandText(c) {
+    const brandText = $("#brandText");
+    if (!brandText) return;
+    const title = (c.shortTitle || c.title || "").trim();
+    if (title.endsWith("Mastery")) {
+      const prefix = title.replace(/\s*Mastery$/, "");
+      brandText.innerHTML = `${escapeHtml(prefix)} <span class="grad-text">Mastery</span>`;
+    } else {
+      const parts = title.split(" ");
+      if (parts.length > 1) {
+        const last = parts.pop();
+        brandText.innerHTML = `${escapeHtml(parts.join(" "))} <span class="grad-text">${escapeHtml(last)}</span>`;
+      } else {
+        brandText.innerHTML = `<span class="grad-text">${escapeHtml(title)}</span>`;
+      }
+    }
+  }
+
   function switchCourse(courseId, targetLessonId = null) {
     const c = COURSES.find(x => x.id === courseId);
     if (!c) return;
@@ -294,10 +312,7 @@
     localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
 
     // Update Brand Text
-    const brandText = $("#brandText");
-    if (brandText) {
-      brandText.innerHTML = `${escapeHtml(c.shortTitle)} <em>Mastery</em>`;
-    }
+    updateBrandText(c);
 
     if (targetLessonId) {
       gotoLesson(targetLessonId);
@@ -2176,10 +2191,7 @@
 
     // Brand title update
     const activeCourse = getActiveCourse();
-    const brandText = $("#brandText");
-    if (brandText) {
-      brandText.innerHTML = `${escapeHtml(activeCourse.shortTitle)} <em>Mastery</em>`;
-    }
+    updateBrandText(activeCourse);
 
     $("#menuToggle").addEventListener("click", () => {
       $("#sidebar").classList.toggle("open");
