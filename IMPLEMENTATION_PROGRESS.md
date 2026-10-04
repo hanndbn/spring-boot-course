@@ -13,6 +13,7 @@ Tài liệu này ghi lại chi tiết quá trình tái cấu trúc toàn diện 
 | **3** | **Chuẩn hóa 8 File Module (`module0.js` -> `module7.js`)** | Tinh gọn 346 bài xuống 132 bài chuẩn (≤ 22 bài/module, ≤ 4 bài/topic), bổ sung bài `synthesis` có sơ đồ Mermaid và ma trận quyết định ADR ở cuối mỗi Topic Cluster, thêm `retrievalWarmup` và `outcomes`. | ✅ Hoàn thành |
 | **4** | **Hợp nhất Ngân Hàng Đề Quiz (36+ câu/module) & Adaptive Retake Engine** | Ghép `expanded_quizzes.js` và quiz inline đạt 36 câu kịch bản/module (tổng 288 câu), cập nhật logic rút ngẫu nhiên 12 câu/lượt thi, ngưỡng đạt ≥ 80%, chỉ dẫn ôn tập thích ứng (Adaptive Retake Guidance) và rà soát đáp án chi tiết. | ✅ Hoàn thành |
 | **5** | **Kiểm thử Toàn Diện & Đồng Bộ Production** | Chạy `node verify.js` đạt 100% PASS (0 errors, 0 warnings), kiểm thử cú pháp JavaScript (`node -c`), đồng bộ git commit và đẩy lên nhánh `main` và `gh-pages`. | ✅ Hoàn thành |
+| **6** | **Nâng Tầm Trực Quan Hóa (100% Mermaid) & Mô Hình Lai Triple-Pillar** | Bổ sung sơ đồ kiến trúc Mermaid SVG cho 100% bài học (132/132 bài), tích hợp cơ chế tầng sâu từ Spring Docs 6.1+/Boot 3.3+ và nghiệp vụ thực chiến E-Commerce. | ✅ Hoàn thành |
 
 ---
 
@@ -112,3 +113,23 @@ Toàn bộ 346 bài ban đầu được sàng lọc, tái cấu trúc theo mô h
 - **Đồng bộ Git**:
   - Commit toàn bộ các thay đổi lên nhánh `main`.
   - Đồng bộ nhánh `gh-pages` để phục vụ bản chạy trực tiếp trên GitHub Pages.
+
+---
+
+### Bước 6: Nâng Tầm Trực Quan Hóa & Chi Tiết Hóa 100% Bài Học (CES-2026 Content Deep Dive & Visual Blueprint) — ✅ ĐÃ HOÀN THÀNH
+- **Áp dụng Mô hình Lai 3 Trụ Cột (Triple-Pillar Model)**:
+  1. *Trụ cột 1 (Cốt lõi)*: Chắt lọc cơ chế ngầm từ **Tài liệu chính thống Spring Framework 6.1+ & Spring Boot 3.3+** (`BeanPostProcessor`, `AutoConfigurationImportSelector`, `SecurityFilterChain`, `PersistenceContext`, `PlatformTransactionManager`).
+  2. *Trụ cột 2 (Thị giác & Sư phạm)*: Bổ sung sơ đồ trực quan Mermaid SVG cho **100% bài học toàn khóa (132/132 bài)**.
+  3. *Trụ cột 3 (Máu thịt thực chiến)*: Đóng đinh toàn bộ code và kịch bản vào **Domain E-Commerce Order & Payment Management System**.
+- **Kết quả Kiểm toán Độ phủ Minh họa (100% Đạt Chuẩn)**:
+  - Module 0 (Nền tảng Java & Công cụ): **16/16 bài có Mermaid (100%)**
+  - Module 1 (Spring Core & Boot căn bản): **16/16 bài có Mermaid (100%)**
+  - Module 2 (REST API chuyên nghiệp): **16/16 bài có Mermaid (100%)**
+  - Module 3 (Data Access & JPA): **16/16 bài có Mermaid (100%)**
+  - Module 4 (Testing): **16/16 bài có Mermaid (100%)** *(Tăng từ 25% lên 100%)*
+  - Module 5 (Security: JWT & Keycloak): **16/16 bài có Mermaid (100%)**
+  - Module 6 (Microservices & Messaging): **20/20 bài có Mermaid (100%)** *(Tăng từ 25% lên 100%)*
+  - Module 7 (DevOps & Observability): **16/16 bài có Mermaid (100%)**
+  - **TỔNG CỘNG TOÀN KHÓA: 132/132 BÀI CÓ SƠ ĐỒ MERMAID (100% ĐỘ PHỦ)**
+- **Kiểm định Kỹ thuật**: `node verify.js` đạt 100% PASS (0 errors, 0 warnings).
+
