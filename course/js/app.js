@@ -3720,7 +3720,33 @@ ${lesson ? lesson.content : ""}
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    const sessionQuestions = shuffled.slice(0, pullCount);
+    const sessionQuestions = shuffled.slice(0, pullCount).map((rawQ) => {
+      const q = { ...rawQ };
+      if (Array.isArray(q.options) && q.options.length > 1) {
+        const originalCorrectIndex = typeof q.answer === "number" ? q.answer : 0;
+        const hasWhy = Array.isArray(q.why) && q.why.length === q.options.length;
+
+        // Pair each option with its correctness and optional why rationale
+        const items = q.options.map((opt, idx) => ({
+          opt,
+          isCorrect: idx === originalCorrectIndex,
+          why: hasWhy ? q.why[idx] : null
+        }));
+
+        // Fisher-Yates shuffle options so the correct answer is randomized across A, B, C, D
+        for (let i = items.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [items[i], items[j]] = [items[j], items[i]];
+        }
+
+        q.options = items.map((x) => x.opt);
+        q.answer = items.findIndex((x) => x.isCorrect);
+        if (hasWhy) {
+          q.why = items.map((x) => x.why);
+        }
+      }
+      return q;
+    });
 
     quizState.course = activeCourse;
     quizState.module = m;
