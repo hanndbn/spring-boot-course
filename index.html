@@ -16,6 +16,8 @@
         var theme = localStorage.getItem("sbmastery-theme") || "light";
         document.documentElement.setAttribute("data-theme", theme);
       } catch(e) {}
+      window.API_BASE_URL = "https://spring-boot-backend-5pyo.onrender.com/api/v1";
+      window.SWAGGER_URL = "https://spring-boot-backend-5pyo.onrender.com/swagger-ui.html";
     })();
   </script>
 </head>
@@ -44,6 +46,10 @@
           <span class="nc-icon">📚</span>
           <span class="nc-text">Học tập của tôi</span>
         </button>
+        <a class="nav-catalog-btn" href="https://spring-boot-backend-5pyo.onrender.com/swagger-ui.html" target="_blank" rel="noopener noreferrer" title="Live Spring Boot 3 Swagger UI & OpenAPI Specification" style="text-decoration: none;">
+          <span class="nc-icon">⚡</span>
+          <span class="nc-text">Swagger API</span>
+        </a>
       </nav>
 
       <div class="search-box" id="searchBox">
