@@ -674,6 +674,7 @@
     enrolledModules: {},      // legacy support
     catalogCategory: "all",   // all | backend | frontend | devops
     catalogSearch: "",
+    activeTrackId: "spring-boot-track", // spring-boot-track | java-track
     pendingEnrollCourse: null,
     pendingTargetLesson: null,
     searchIdx: [],
@@ -771,6 +772,11 @@
       } else {
         state.enrolledCourses = {};
       }
+      // Purge legacy courses from enrolled state
+      delete state.enrolledCourses["java-21-foundation"];
+      delete state.enrolledCourses["java-core-mastery"];
+      delete state.enrolledCourses["spring-boot-mastery"];
+
       // Migration bridge: If user previously enrolled any module or legacy course, grant all 3 Spring Boot Track courses
       if (Object.keys(state.enrolledModules).length > 0 || state.enrolledCourses["spring-boot-mastery"]) {
         state.enrolledCourses["spring-boot-foundation"] = true;
@@ -778,7 +784,7 @@
         state.enrolledCourses["spring-boot-architect"] = true;
       }
       const savedActive = localStorage.getItem(ACTIVE_COURSE_KEY);
-      if (savedActive && COURSES.some(c => c.id === savedActive)) {
+      if (savedActive && COURSES.some(c => c.id === savedActive && c.isAvailable !== false)) {
         state.activeCourseId = savedActive;
       } else {
         state.activeCourseId = "spring-boot-foundation";
@@ -788,6 +794,8 @@
 
   // Course-level access control
   function isCourseEnrolled(courseId) {
+    const c = COURSES.find(x => x.id === courseId);
+    if (c && c.isAvailable === false) return false;
     if (!state.currentUser) return false;
     const cId = String(courseId);
     if (state.enrolledCourses[cId]) return true;
@@ -1770,7 +1778,7 @@
 
   // --- Mode 1: Platform Navigation Sidebar (Trang chủ / Khám phá & Học tập của tôi) ---
   function renderPlatformSidebar(nav) {
-    const enrolledCourses = COURSES.filter(c => isCourseEnrolled(c.id));
+    const enrolledCourses = COURSES.filter(c => c.isAvailable !== false && isCourseEnrolled(c.id));
     const activeCat = state.catalogCategory || "all";
 
     let html = `
@@ -1782,7 +1790,7 @@
             <span class="sp-icon">🌟</span>
             <div class="sp-content">
               <div class="sp-title">Khám phá khóa học</div>
-              <div class="sp-sub">Tất cả khóa học có sẵn (${COURSES.length})</div>
+              <div class="sp-sub">Tất cả khóa học có sẵn (${COURSES.filter(c => c.isAvailable !== false).length})</div>
             </div>
           </a>
           <a class="sp-nav-item ${state.view === "user-dashboard" ? "active" : ""}" data-view="user-dashboard">
@@ -1804,22 +1812,22 @@
             <button class="sp-cat-btn ${activeCat === "all" ? "active" : ""}" data-cat-filter="all">
               <span class="sp-cat-icon">⚡</span>
               <span class="sp-cat-label">Tất cả danh mục</span>
-              <span class="sp-cat-pill">${COURSES.length}</span>
+              <span class="sp-cat-pill">${COURSES.filter(c => c.isAvailable !== false).length}</span>
             </button>
             <button class="sp-cat-btn ${activeCat === "backend" ? "active" : ""}" data-cat-filter="backend">
               <span class="sp-cat-icon">🍃</span>
               <span class="sp-cat-label">Backend &amp; Java</span>
-              <span class="sp-cat-pill">2</span>
+              <span class="sp-cat-pill">${COURSES.filter(c => c.isAvailable !== false && c.category === "backend").length}</span>
             </button>
             <button class="sp-cat-btn ${activeCat === "frontend" ? "active" : ""}" data-cat-filter="frontend">
               <span class="sp-cat-icon">⚛️</span>
               <span class="sp-cat-label">Frontend &amp; Web</span>
-              <span class="sp-cat-pill">1</span>
+              <span class="sp-cat-pill">${COURSES.filter(c => c.isAvailable !== false && c.category === "frontend").length}</span>
             </button>
             <button class="sp-cat-btn ${activeCat === "devops" ? "active" : ""}" data-cat-filter="devops">
               <span class="sp-cat-icon">☸️</span>
               <span class="sp-cat-label">DevOps &amp; Cloud</span>
-              <span class="sp-cat-pill">1</span>
+              <span class="sp-cat-pill">${COURSES.filter(c => c.isAvailable !== false && c.category === "devops").length}</span>
             </button>
           </div>
         </div>
@@ -2585,47 +2593,69 @@
           </div>
         </div>
 
-        <!-- 3-Stage Milestone Track Banners (CES-2026 v2.5) -->
-        ${showTrack ? TRACKS.filter(t => state.catalogCategory === "all" || t.category === state.catalogCategory).map((track) => `
-          <div class="track-roadmap-container" style="margin-bottom: 2rem;">
-            <div class="track-header">
-              <div>
-                <div class="track-badge-pill">⚡ LỘ TRÌNH CHUẨN KỸ SƯ (CES-2026 v2.5)</div>
-                <h2 class="track-title">${escapeHtml(track.title)}</h2>
-                <p class="track-desc">${escapeHtml(track.desc)}</p>
-                <div class="track-domain-tag">🏢 Bối cảnh thực chiến: ${escapeHtml(track.domainContext)}</div>
-              </div>
-              <div>
-                <button class="btn-placement-test" id="${track.id === 'spring-boot-track' ? 'btnLaunchPlacement' : 'btnLaunchPlacement-' + track.id}">
-                  🎯 Sát Hạch Định Vị Năng Lực (15 câu)
-                </button>
-              </div>
-            </div>
+        <!-- 3-Stage Milestone Track Banners (CES-2026 v2.5) with Track Selector -->
+        ${showTrack ? (() => {
+          const availableTracks = TRACKS.filter(t => state.catalogCategory === "all" || t.category === state.catalogCategory);
+          if (availableTracks.length === 0) return '';
+          
+          let activeTrack = availableTracks.find(t => t.id === state.activeTrackId) || availableTracks[0];
 
-            <div class="track-stages-grid">
-              ${track.stages.map((st, idx) => {
-                const c = COURSES.find(item => item.id === st.courseId);
-                const enrolled = isCourseEnrolled(st.courseId);
-                const prog = overallProgress(st.courseId);
-                return `
-                  <div class="track-stage-card" data-goto-course="${st.courseId}">
-                    <div>
-                      <div class="stage-step-num">CHẶNG 0${idx + 1} · ${(st.level || '').toUpperCase()}</div>
-                      <div class="stage-title">${escapeHtml(c ? c.shortTitle : st.title)}</div>
-                      <div class="stage-modules-list">
-                        ${c && c.modules && c.modules.length ? c.modules.map(m => `• M${m.id}: ${escapeHtml(m.title)}`).join('<br>') : (c && c.modulesCount ? `• ${c.modulesCount} Chuyên đề chuyên sâu · ${c.hours}` : '• 4 Chuyên đề chuyên sâu · 12h')}
-                      </div>
-                    </div>
-                    <div class="stage-footer">
-                      <span class="stage-cert-name">🏆 ${escapeHtml(st.certificate)}</span>
-                      <span class="stage-action-link">${enrolled ? `Tiếp tục (${prog.pct}%) →` : 'Khám phá →'}</span>
-                    </div>
+          return `
+            <div class="track-roadmap-wrapper" style="margin-bottom: 2rem;">
+              <!-- Track Switcher Tabs -->
+              <div class="track-switcher-bar">
+                <span class="tsb-title">⚡ LỘ TRÌNH ĐÀO TẠO KỸ SƯ:</span>
+                <div class="tsb-tabs">
+                  ${availableTracks.map(t => `
+                    <button class="tsb-tab ${t.id === activeTrack.id ? 'active' : ''}" data-switch-track="${t.id}">
+                      ${t.id === 'spring-boot-track' ? '🍃 Lộ Trình Spring Boot &amp; Microservices (3 Chặng)' : '☕ Lộ Trình Chuyên Gia Java (Java Master - 3 Chặng)'}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Single Selected Track Roadmap Card -->
+              <div class="track-roadmap-container">
+                <div class="track-header">
+                  <div>
+                    <div class="track-badge-pill">⚡ LỘ TRÌNH CHUẨN KỸ SƯ (CES-2026 v2.5)</div>
+                    <h2 class="track-title">${escapeHtml(activeTrack.title)}</h2>
+                    <p class="track-desc">${escapeHtml(activeTrack.desc)}</p>
+                    <div class="track-domain-tag">🏢 Bối cảnh thực chiến: ${escapeHtml(activeTrack.domainContext)}</div>
                   </div>
-                `;
-              }).join('')}
+                  <div>
+                    <button class="btn-placement-test" id="${activeTrack.id === 'spring-boot-track' ? 'btnLaunchPlacement' : 'btnLaunchPlacement-' + activeTrack.id}">
+                      🎯 Sát Hạch Định Vị Năng Lực (15 câu)
+                    </button>
+                  </div>
+                </div>
+
+                <div class="track-stages-grid">
+                  ${activeTrack.stages.map((st, idx) => {
+                    const c = COURSES.find(item => item.id === st.courseId);
+                    const enrolled = isCourseEnrolled(st.courseId);
+                    const prog = overallProgress(st.courseId);
+                    return `
+                      <div class="track-stage-card" data-goto-course="${st.courseId}">
+                        <div>
+                          <div class="stage-step-num">CHẶNG 0${idx + 1} · ${(st.level || '').toUpperCase()}</div>
+                          <div class="stage-title">${escapeHtml(c ? c.shortTitle : st.title)}</div>
+                          <div class="stage-modules-list">
+                            ${c && c.modules && c.modules.length ? c.modules.map(m => `• M${m.id}: ${escapeHtml(m.title)}`).join('<br>') : (c && c.modulesCount ? `• ${c.modulesCount} Chuyên đề chuyên sâu · ${c.hours}` : '• 4 Chuyên đề chuyên sâu · 12h')}
+                          </div>
+                        </div>
+                        <div class="stage-footer">
+                          <span class="stage-cert-name">🏆 ${escapeHtml(st.certificate)}</span>
+                          <span class="stage-action-link">${enrolled ? `Tiếp tục (${prog.pct}%) →` : 'Khám phá →'}</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
             </div>
-          </div>
-        `).join('') : ''}
+          `;
+        })() : ''}
 
         <!-- Udemy Course Cards Grid -->
         <div class="cat-cards-grid">
@@ -2770,6 +2800,14 @@
     // Placement test launcher button
     $("#btnLaunchPlacement", view)?.addEventListener("click", () => {
       openPlacementTestModal();
+    });
+
+    // Track switcher buttons
+    $$("[data-switch-track]", view).forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.activeTrackId = btn.dataset.switchTrack;
+        renderCoursesCatalog();
+      });
     });
 
     // Action buttons
@@ -4201,7 +4239,7 @@ ${lesson ? lesson.content : ""}
               <span class="ud-stat-title">Khóa học đã ghi danh</span>
               <span class="ud-stat-icon">🎓</span>
             </div>
-            <div class="ud-stat-num">${enrolledCourses.length} / ${COURSES.length}</div>
+            <div class="ud-stat-num">${enrolledCourses.length} / ${COURSES.filter(c => c.isAvailable !== false).length}</div>
             <div class="ud-stat-sub">Đang theo học ${enrolledCourses.length} lộ trình chuyên sâu</div>
           </div>
 
@@ -4240,7 +4278,7 @@ ${lesson ? lesson.content : ""}
         <div class="ud-section-head">
           <div class="ud-section-actions">
             <div>
-              <h3>🎓 Khóa học đã ghi danh của tôi (${enrolledCourses.length}/${COURSES.length} khóa)</h3>
+              <h3>🎓 Khóa học đã ghi danh của tôi (${enrolledCourses.length}/${COURSES.filter(c => c.isAvailable !== false).length} khóa)</h3>
               <p>Toàn bộ các khóa học bạn đã đăng ký kèm tiến độ học tập chi tiết.</p>
             </div>
             <button class="btn btn-secondary btn-sm" data-view="courses">🌟 Khám phá thêm khóa học</button>

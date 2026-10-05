@@ -3909,6 +3909,51 @@ body {
   background: var(--accent-hover);
 }
 
+/* Track Switcher Bar */
+.track-switcher-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.tsb-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-2, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tsb-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tsb-tab {
+  padding: 8px 16px;
+  background: var(--surface, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  color: var(--text-1, #e2e8f0);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tsb-tab:hover {
+  border-color: var(--accent, #a435f0);
+  background: rgba(164, 53, 240, 0.08);
+}
+.tsb-tab.active {
+  background: var(--accent, #a435f0);
+  border-color: var(--accent, #a435f0);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(164, 53, 240, 0.35);
+}
+
 @media (max-width: 768px) {
   .udemy-billboard {
     padding: 24px 20px;
