@@ -640,6 +640,19 @@
     if (window.EXTRA_COURSES) {
       Object.keys(window.EXTRA_COURSES).forEach(cid => {
         const src = window.EXTRA_COURSES[cid];
+        if (src && src.modules) {
+          src.modules.forEach(m => {
+            if (m.quiz && !(m.lessons || []).some(l => l.type === "quiz")) {
+              m.lessons = m.lessons || [];
+              m.lessons.push({
+                id: m.quiz.id || `${m.id}-quiz`,
+                title: m.quiz.title || `Sát hạch Module ${m.id}`,
+                type: "quiz",
+                questions: m.quiz.questions || []
+              });
+            }
+          });
+        }
         const target = COURSES.find(c => c.id === cid);
         if (target && src && src.modules) {
           target.modules = src.modules;
@@ -3618,7 +3631,7 @@ ${lesson ? lesson.content : ""}
 
   function getModuleQuizBank(m) {
     if (!m) return [];
-    const quiz = (m.lessons || []).find((l) => l.type === "quiz");
+    const quiz = (m.lessons || []).find((l) => l.type === "quiz") || m.quiz;
     const inlineQ = (quiz && Array.isArray(quiz.questions)) ? quiz.questions : [];
     const expQ = (window.EXPANDED_QUIZZES && Array.isArray(window.EXPANDED_QUIZZES[String(m.id)]))
       ? window.EXPANDED_QUIZZES[String(m.id)]
@@ -3628,6 +3641,7 @@ ${lesson ? lesson.content : ""}
     [...inlineQ, ...expQ].forEach((q) => {
       const key = (q.q || "").trim();
       if (key && !map.has(key)) {
+        if (!q.explain && q.explanation) q.explain = q.explanation;
         map.set(key, q);
       }
     });
@@ -3641,7 +3655,7 @@ ${lesson ? lesson.content : ""}
       const found = lessons.find((l) => l.id === q.targetLessonId);
       if (found) return found;
     }
-    const text = ((q.q || "") + " " + (q.scenario || "") + " " + (q.explain || "")).toLowerCase();
+    const text = ((q.q || "") + " " + (q.scenario || "") + " " + (q.explain || q.explanation || "")).toLowerCase();
     let bestLesson = null;
     let maxMatches = 0;
     lessons.forEach((l) => {
@@ -3680,11 +3694,11 @@ ${lesson ? lesson.content : ""}
         }
       }
     }
-    const quiz = m && (m.lessons || []).find((l) => l.type === "quiz");
+    const quiz = m && ((m.lessons || []).find((l) => l.type === "quiz") || m.quiz);
     if (!quiz) return gotoView("dashboard");
     showView("quiz");
     setRouteHash("#/quiz/" + encodeURIComponent(moduleId));
-    renderSidebar(quiz.id);
+    renderSidebar(quiz.id || `${m.id}-quiz`);
     renderDashboardStats();
     window.scrollTo({ top: 0 });
     closeSidebar();
@@ -3804,7 +3818,7 @@ ${lesson ? lesson.content : ""}
                         <div class="qri-qnum">Câu ${item.index + 1}</div>
                         <div class="qri-info">
                           <div class="qri-question">${inline(item.q.q)}</div>
-                          <div class="qri-explain"><strong>Phân tích:</strong> ${inline(item.q.explain)}</div>
+                          <div class="qri-explain"><strong>Phân tích:</strong> ${inline(item.q.explain || item.q.explanation || "")}</div>
                           ${rel ? `
                             <div class="qri-action">
                               <span class="qri-hint">Bài học cần đọc lại:</span>
@@ -3841,7 +3855,7 @@ ${lesson ? lesson.content : ""}
                           <span>Bạn chọn: <strong>${chosen !== null ? letters[chosen] + ". " + inline(qItem.options[chosen] || "") : "Chưa chọn"}</strong></span>
                           ${!isRight ? `<span class="qrc-correct-ans">Đáp án đúng: <strong>${letters[qItem.answer]}. ${inline(qItem.options[qItem.answer])}</strong></span>` : ""}
                         </div>
-                        <div class="qrc-exp">${inline(qItem.explain)}</div>
+                        <div class="qrc-exp">${inline(qItem.explain || qItem.explanation || "")}</div>
                       </div>
                     `;
                   }).join("")}
@@ -3915,7 +3929,7 @@ ${lesson ? lesson.content : ""}
           ${chosen !== null ? `
             <div class="quiz-explain ${chosen === q.answer ? "ok" : "bad"}">
               <strong>${chosen === q.answer ? "✅ Chính xác!" : `❌ Chưa đúng — đáp án đúng là ${letters[q.answer]}.`}</strong>
-              ${inline(q.explain)}
+              ${inline(q.explain || q.explanation || "")}
             </div>
             ${q.why ? `<div class="quiz-why"><div class="qw-title">🔍 Mổ xẻ từng phương án</div>${q.why.map((w, wi) => `
               <div class="qw-row ${wi === q.answer ? "correct" : wi === chosen ? "chosen-wrong" : ""}">

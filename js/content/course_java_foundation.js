@@ -87,28 +87,208 @@
           "title": "Bài 1.4: String Immutability, String Pool & Tối Ưu StringBuilder Bytecode",
           "minutes": 8,
           "content": "\n:::target 🎯 MỤC TIÊU BÀI HỌC (10 PHÚT)\n- Giải mã tính bất biến (Immutability) của lớp `java.lang.String`.\n- Cơ chế lưu trữ chuỗi ký tự trong **String Constant Pool** của Heap.\n- Phân biệt toán tử so sánh `==` (so địa chỉ) và phương thức `.equals()` (so nội dung).\n- Tránh thảm họa cộng chuỗi trong vòng lặp bằng `StringBuilder` và Compact Strings Java 21.\n:::\n\n:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN: CUỐN SÁCH KHÔNG THỂ BỊ TẨY XÓA\n- Khi bạn in một cuốn sách giấy (tạo đối tượng `String`), mực in đã cố định. Nếu bạn muốn thêm 1 chữ, bạn không thể bôi xóa trang sách cũ, mà buộc phải **in một cuốn sách mới hoàn toàn**!\n- Nếu trong 1 vòng lặp 10,000 lần bạn dùng toán tử `str += i`, bạn đang bắt máy in in ra **10,000 cuốn sách mới** và vứt bỏ 9,999 cuốn vào sọt rác -> Máy in nghẽn mực, bộ nhớ RAM sập vì Garbage Collector quá tải!\n:::\n\n---\n\n## 1. Cái này là gì? (Kiến Trúc Vùng Nhớ String Constant Pool)\n\n```mermaid\nflowchart TD\n    subgraph STACK [\"Thread Stack\"]\n        S1[\"String s1 = 'PAID'\"]\n        S2[\"String s2 = 'PAID'\"]\n        S3[\"String s3 = new String('PAID')\"]\n    end\n\n    subgraph HEAP [\"JVM Heap Memory\"]\n        subgraph POOL [\"String Constant Pool (Tái sử dụng)\"]\n            P1[\"'PAID' (Ô nhớ 0x1111)\"]\n        end\n        OBJ[\"String Object độc lập (0x2222)\"]\n    end\n\n    S1 --> P1\n    S2 --> P1\n    S3 --> OBJ\n    OBJ -.->|\"Trỏ value nội bộ\"| P1\n    style POOL fill:#064e3b,stroke:#10b981,color:#fff\n    style STACK fill:#1e3a8a,stroke:#3b82f6,color:#fff\n```\n\n---\n\n## 2. Dùng khi nào & Tại sao? (Ma Trận So Sánh String, StringBuilder & StringBuffer)\n\n| Tiêu chí | `String` | `StringBuilder` | `StringBuffer` |\n|---|---|---|---|\n| **Tính khả biến** | Bất biến (Immutable) | Có thể thay đổi (Mutable) | Có thể thay đổi (Mutable) |\n| **An toàn đa luồng** | Thread-safe 100% | ❌ Không Thread-safe | ✅ Thread-safe (Có `synchronized`) |\n| **Hiệu năng nối chuỗi** | Kém trong vòng lặp lớn | ⭐ Siêu nhanh (Không lock) | Chậm hơn do overhead lock |\n| **Trường hợp sử dụng** | Khóa HashMap, DTO, Config | Nối chuỗi trong 1 luồng cục bộ | Dùng khi nhiều luồng cùng ghi 1 chuỗi |\n\n---\n\n## 3. Dùng như thế nào & Phân tích từng dòng code (Tối Ưu Xuất Báo Cáo Đơn Hàng)\n\nMã nguồn xuất hóa đơn CSV cho 10,000 sản phẩm:\n\n```java\npackage vn.mastery.ecommerce;\n\nimport java.util.List;\n\npublic class OrderReportGenerator {\n\n    public record InvoiceRow(String orderId, String sku, long amount) {}\n\n    // ✅ CHUẨN SENIOR: Dùng StringBuilder với dung lượng dự tính (Initial Capacity)\n    public static String generateCsvReport(List<InvoiceRow> rows) {\n        // Ước tính 50 ký tự mỗi dòng để tránh mảng ký tự nội bộ phải resize nhiều lần\n        StringBuilder sb = new StringBuilder(rows.size() * 50);\n        sb.append(\"order_id,sku,amount\\n\");\n\n        for (InvoiceRow row : rows) {\n            sb.append(row.orderId()).append(\",\")\n              .append(row.sku()).append(\",\")\n              .append(row.amount()).append(\"\\n\");\n        }\n        return sb.toString();\n    }\n}\n```\n\n### Bảng Phân Tích Kỹ Thuật StringBuilder:\n\n| Lệnh gọi | Cơ chế tối ưu ngầm | Lợi ích hiệu năng |\n|---|---|---|\n| `new StringBuilder(capacity)` | Cấp phát sẵn mảng byte[] nội bộ với kích thước chuẩn | Triệt tiêu hoàn toàn các thao tác `Arrays.copyOf()` mở rộng mảng |\n| `.append(...)` | Ghi trực tiếp các byte vào mảng bộ đệm hiện tại | Không sinh bất kỳ object rác nào trên Heap trong suốt vòng lặp |\n| Compact Strings (Java 9+) | Tự động mã hóa Latin-1 (1 byte/ký tự) thay vì UTF-16 (2 bytes) | Tiết kiệm 50% RAM cho các chuỗi ASCII (Mã đơn hàng, SKU) |\n\n---\n\n## 4. Cạm bẫy thực tế & Best Practices (Production Pitfalls & Actionable Checklist)\n\n### Cạm bẫy 1: So sánh chuỗi bằng toán tử `==`\n- **Vấn đề**: `orderStatus == \"PAID\"` trả về `true` khi chuỗi được lấy từ String Pool nhưng lập tức trả về `false` khi chuỗi được đọc từ Database hoặc JSON Request của Client!\n- **Giải pháp**: Luôn so sánh chuỗi bằng phương thức `\"PAID\".equals(orderStatus)` (đặt hằng số lên trước để chống `NullPointerException`).\n\n### Checklist Bài 1.4\n- [ ] Tuyệt đối không dùng toán tử `+` để cộng chuỗi bên trong vòng lặp `for`/`while`.\n- [ ] Luôn khởi tạo `StringBuilder` với kích thước dự tính (Initial Capacity) nếu biết trước.\n- [ ] Sử dụng `equals()` hoặc `equalsIgnoreCase()` thay cho toán tử `==`.\n"
+        },
+        {
+          "id": "j0-1-quiz",
+          "type": "quiz",
+          "title": "Sát Hạch Năng Lực Module 1: Cú Pháp Hiện Đại & Quản Lý Bộ Nhớ JVM",
+          "minutes": 15,
+          "questions": [
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-2",
+              "scenario": "Trong hệ thống E-Commerce, một vòng lặp duyệt qua 500,000 giao dịch để tính tổng doanh thu. Lập trình viên khai báo biến tổng: Long total = 0L; và trong vòng lặp viết: total += item.getAmount();",
+              "q": "Hiện tượng tiêu cực nào sẽ xảy ra trong bộ nhớ JVM?",
+              "options": [
+                "Phát sinh 500,000 đối tượng Long rác trên Heap do Autoboxing và Unboxing liên tục, làm kích hoạt GC STW pause kéo dài độ trễ hệ thống.",
+                "Trình biên dịch tự động tối ưu thành biến nguyên thủy long nên không ảnh hưởng gì đến bộ nhớ.",
+                "Biến Long tự động chia sẻ ô nhớ trong String Constant Pool.",
+                "Chương trình bị lỗi biên dịch Compile Error vì không thể cộng dồn Wrapper."
+              ],
+              "answer": 0,
+              "explain": "Biến Wrapper Long là immutable. Mỗi lần thực hiện toán tử +=, JVM phải unbox thành long nguyên thủy, cộng dồn, rồi autobox tạo ra một đối tượng Long mới trên Heap. 500,000 object rác sẽ làm quá tải Young Generation của Garbage Collector gây hiện tượng lag giật hệ thống."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-1-3",
+              "scenario": "Một hàm nhận vào tham số: public void processOrder(Order order, int discountRate). Bên trong hàm, lập trình viên gán discountRate = 20; và order.setDiscount(discountRate);",
+              "q": "Sau khi hàm kết thúc, biến discountRate ở hàm gọi ban đầu có bị thay đổi không?",
+              "options": [
+                "Không đổi, vì Java hoàn toàn là Pass-by-value; hàm chỉ nhận bản sao của biến nguyên thủy trên Stack frame của riêng nó.",
+                "Có đổi thành 20, vì biến được truyền theo tham chiếu (Pass-by-reference).",
+                "Chỉ đổi nếu biến discountRate được khai báo là static.",
+                "Ném ra ngoại lệ ConcurrentModificationException."
+              ],
+              "answer": 0,
+              "explain": "Java chỉ có cơ chế Pass-by-value. Khi truyền kiểu nguyên thủy int, một bản sao giá trị được đẩy vào Stack frame mới của hàm con. Mọi thay đổi đối với bản sao này biến mất khi hàm con kết thúc. Với order, giá trị bản sao của con trỏ trỏ tới cùng Object trên Heap nên thuộc tính bên trong Object thay đổi nhưng tham chiếu order không đổi."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-2",
+              "scenario": "Một hệ thống thanh toán tính toán tổng tiền đơn hàng lớn bằng công thức int total = price * quantity; Khi price = 100,000,000 và quantity = 30, giá trị in ra lại là một số âm.",
+              "q": "Nguyên nhân kỹ thuật và giải pháp chuẩn mực trong Java 21 là gì?",
+              "options": [
+                "Do hiện tượng tràn số nguyên 32-bit (Integer Overflow); giải pháp là dùng Math.multiplyExact() hoặc ép kiểu sang long.",
+                "Do CPU bị lỗi tính toán số học trên thanh ghi x86-64.",
+                "Do Java tự động convert sang số nhị phân bù 1.",
+                "Do bộ nhớ Heap bị quá tải dẫn đến sai lệch dữ liệu."
+              ],
+              "answer": 0,
+              "explain": "Kiểu int trong Java có giới hạn tối đa là 2^31 - 1 (khoảng 2.14 tỷ). Phép nhân vượt quá giới hạn này sẽ làm lật bit dấu (sign bit) thành số âm mà không hề ném lỗi. Trong Java, sử dụng Math.multiplyExact() sẽ chủ động ném ArithmeticException khi bị tràn số, hoặc sử dụng long/BigDecimal."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-4",
+              "scenario": "Hai chuỗi được tạo như sau: String s1 = \"ORDER_PAID\"; String s2 = new String(\"ORDER_PAID\");",
+              "q": "Biểu thức so sánh nào sau đây trả về kết quả false?",
+              "options": [
+                "s1 == s2",
+                "s1.equals(s2)",
+                "s1.intern() == s2.intern()",
+                "s1.compareTo(s2) == 0"
+              ],
+              "answer": 0,
+              "explain": "s1 là string literal được lưu trong String Constant Pool (nằm trong Heap). s2 được tạo qua từ khóa new sẽ luôn tạo một Object String mới hoàn toàn trên Heap thông thường. Do đó s1 == s2 so sánh địa chỉ tham chiếu sẽ trả về false, dù nội dung ký tự (s1.equals(s2)) là hoàn toàn giống nhau."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-1-4",
+              "scenario": "Trong một dịch vụ xuất hóa đơn, lập trình viên ghép chuỗi 10,000 dòng log bằng vòng lặp: String result = \"\"; for (int i = 0; i < 10000; i++) result += lines[i];",
+              "q": "Tại sao giải pháp này bị cấm ngặt nghèo trong mã nguồn doanh nghiệp?",
+              "options": [
+                "Độ phức tạp thuật toán O(N^2) về thời gian và tạo ra 10,000 đối tượng String/StringBuilder rác do String là immutable.",
+                "Vì phép cộng chuỗi bằng toán tử += không hỗ trợ ký tự UTF-8 tiếng Việt.",
+                "Vì vòng lặp for tự động khóa Thread (thread starvation).",
+                "Vì Java compiler sẽ từ chối biên dịch vòng lặp chứa chuỗi."
+              ],
+              "answer": 0,
+              "explain": "Do String là immutable, mỗi lần gọi result += lines[i], Java phải tạo ra một StringBuilder mới, sao chép toàn bộ chuỗi cũ result rồi tạo chuỗi mới. Với N=10,000, số lượng ký tự phải copy là cấp số cộng O(N^2), tốn hàng chục MB RAM và làm nghẽn CPU. Giải pháp bắt buộc là khởi tạo trước một StringBuilder với initialCapacity."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-1",
+              "scenario": "Khi biên dịch một file OrderService.java, lệnh javac tạo ra file OrderService.class. File class này chứa thông tin gì?",
+              "q": "Bản chất của mã Bytecode trong file .class là gì?",
+              "options": [
+                "Là tập lệnh nhị phân độc lập nền tảng được thiết kế cho kiến trúc máy ảo JVM thực thi.",
+                "Là mã máy assembly trực tiếp cho CPU Intel/AMD x86.",
+                "Là mã nguồn Java gốc đã được nén lại bằng thuật toán Gzip.",
+                "Là mã bytecode chỉ chạy được trên hệ điều hành Linux."
+              ],
+              "answer": 0,
+              "explain": "Bytecode là tập lệnh trung gian (opcode 1 byte) độc lập với phần cứng vật lý. Máy ảo JVM của từng hệ điều hành cụ thể (Windows, Linux, macOS) sẽ đọc mã bytecode này và biên dịch (JIT) hoặc thông dịch (Interpreter) thành mã máy bản địa (native machine code)."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-1-3",
+              "scenario": "Một ứng dụng microservice gặp lỗi: java.lang.OutOfMemoryError: Metaspace. Đội vận hành muốn tìm hiểu vùng nhớ Metaspace dùng để chứa những dữ liệu gì.",
+              "q": "Vùng nhớ Metaspace (từ Java 8+) lưu trữ thành phần nào sau đây?",
+              "options": [
+                "Metadata của Class, Constant Pool của class, Method Bytecode và Static variables nằm trong bộ nhớ native (ngoài Java Heap).",
+                "Tất cả các đối tượng Object thông thường được khởi tạo bằng từ khóa new.",
+                "Các biến cục bộ (Local variables) và Stack frame của mỗi Thread.",
+                "Các file tạm do ứng dụng ghi vào ổ đĩa cứng."
+              ],
+              "answer": 0,
+              "explain": "Từ Java 8, PermGen đã bị loại bỏ và thay thế bằng Metaspace. Metaspace nằm ở bộ nhớ native của hệ điều hành (không bị giới hạn bởi -Xmx của Heap trừ khi cấu hình -XX:MaxMetaspaceSize) và chịu trách nhiệm lưu Class Metadata, Method table, Field metadata khi class được nạp bởi ClassLoader."
+            },
+            {
+              "level": "easy",
+              "targetLessonId": "j0-1-2",
+              "scenario": "Trong hệ thống tính tiền, lập trình viên sử dụng double price = 0.1 + 0.2; System.out.println(price == 0.3);",
+              "q": "Màn hình console sẽ in ra kết quả gì và tại sao?",
+              "options": [
+                "false — Vì kiểu số thực double chuẩn IEEE 754 không thể biểu diễn chính xác số thập phân nhị phân hữu hạn, dẫn đến sai số 0.30000000000000004.",
+                "true — Vì phép toán 0.1 + 0.2 luôn bằng 0.3 trong mọi ngôn ngữ lập trình.",
+                "Compile Error — Vì Java không cho phép so sánh == giữa biến double.",
+                "NullPointerException — Vì kiểu nguyên thủy double chưa được khởi tạo."
+              ],
+              "answer": 0,
+              "explain": "Chuẩn IEEE 754 lưu trữ số thực dưới dạng nhị phân cơ số 2. Một số thập phân như 0.1 và 0.2 khi đổi sang nhị phân sẽ thành số vô hạn tuần hoàn, dẫn đến phép cộng tạo ra 0.30000000000000004. Trong nghiệp vụ tài chính, bắt buộc phải dùng BigDecimal."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-3",
+              "scenario": "Một lập trình viên gọi đệ quy vô hạn: public void recursiveCall() { recursiveCall(); }",
+              "q": "Lỗi gì sẽ phát sinh và xảy ra ở vùng nhớ nào của JVM?",
+              "options": [
+                "StackOverflowError — Xảy ra trên vùng nhớ Call Stack của Thread do cạn kiệt Stack Frame.",
+                "OutOfMemoryError: Java heap space — Xảy ra trên vùng nhớ Heap.",
+                "OutOfMemoryError: Metaspace — Xảy ra trên vùng nhớ Metaspace.",
+                "ConcurrentModificationException — Xảy ra trên vùng nhớ Cache."
+              ],
+              "answer": 0,
+              "explain": "Mỗi lời gọi hàm sẽ tạo ra một Stack Frame (chứa return address, local variables, operand stack) đẩy vào Stack của Thread hiện tại. Khi đệ quy không có điểm dừng, kích thước Call Stack vượt quá hạn mức (-Xss) và JVM ném ra java.lang.StackOverflowError."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-1-2",
+              "scenario": "Trong Java 21, từ khóa 'final' khi đặt trước một biến đối tượng (Object reference) có ý nghĩa kỹ thuật chuẩn xác là gì?",
+              "q": "Điều gì bị ngăn cấm khi một biến được khai báo 'final Order order = new Order();'?",
+              "options": [
+                "Ngăn cản việc gán lại con trỏ order sang một đối tượng Order khác; nhưng trạng thái nội tại bên trong Order vẫn có thể bị sửa đổi nếu class không immutable.",
+                "Đóng băng hoàn toàn toàn bộ thuộc tính bên trong Order không thể thay đổi giá trị.",
+                "Tự động biến class Order thành immutable và lưu trên Metaspace.",
+                "Yêu cầu mọi hàm trong class Order phải là static."
+              ],
+              "answer": 0,
+              "explain": "Từ khóa final trên biến đối tượng chỉ có nghĩa là con trỏ tham chiếu (reference pointer) không được phép trỏ tới địa chỉ ô nhớ khác (reassign). Nó hoàn toàn không bảo vệ các field bên trong đối tượng đó khỏi việc bị thay đổi (mutate)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-1-1",
+              "scenario": "Trong Java 21, tính năng Local-Variable Type Inference cho phép dùng từ khóa 'var' khi khai báo biến.",
+              "q": "Trường hợp nào sau đây việc sử dụng 'var' là HỢP LỆ?",
+              "options": [
+                "var order = new Order(\"ORD-01\"); bên trong thân hàm phương thức.",
+                "public var processOrder() { return 1; } làm kiểu trả về của phương thức.",
+                "private var orderId = \"ORD-01\"; làm trường thuộc tính (field) của Class.",
+                "var item; sau đó mới gán item = new OrderItem(); ở dòng tiếp theo."
+              ],
+              "answer": 0,
+              "explain": "'var' chỉ được phép áp dụng cho biến cục bộ (Local variable) bên trong thân phương thức hoặc vòng lặp, và bắt buộc phải có giá trị khởi tạo ngay tại dòng khai báo để trình biên dịch suy luận kiểu dữ liệu tại Compile-time. 'var' không được dùng cho field, method parameter hay return type."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-1-4",
+              "scenario": "Một lập trình viên gọi: String s = new String(\"PAYMENT\").intern();",
+              "q": "Phương thức .intern() thực hiện cơ chế gì bên dưới JVM?",
+              "options": [
+                "Kiểm tra xem chuỗi có nội dung tương đương đã tồn tại trong String Constant Pool chưa; nếu có thì trả về tham chiếu trong Pool, nếu chưa thì thêm chuỗi này vào Pool và trả về tham chiếu.",
+                "Chuyển đổi toàn bộ chuỗi thành mã hex nhị phân trong Metaspace.",
+                "Khóa chuỗi lại để ngăn cản các Thread khác truy cập đồng thời.",
+                "Tự động ép kiểu chuỗi thành StringBuilder để tối ưu hóa."
+              ],
+              "answer": 0,
+              "explain": "Phương thức native .intern() truy xuất trực tiếp vào String Table (String Pool) do JVM quản lý. Nếu chuỗi đã có trong Pool, nó trả về địa chỉ ô nhớ trong Pool, giúp tối ưu dung lượng RAM khi có hàng triệu chuỗi trùng lặp giá trị."
+            }
+          ]
         }
       ],
       "quiz": {
-        "id": "j0-quiz-1",
-        "type": "quiz",
-        "title": "Sát Hạch Module J0.1: Cú Pháp Hiện Đại & Quản Lý Bộ Nhớ JVM",
+        "id": "j0-1-quiz",
+        "title": "Sát Hạch Năng Lực Module 1: Cú Pháp Hiện Đại & Quản Lý Bộ Nhớ JVM",
+        "poolSize": 12,
+        "pullCount": 12,
+        "passThresholdPct": 80,
         "questions": [
           {
             "level": "medium",
+            "targetLessonId": "j0-1-2",
             "scenario": "Trong hệ thống E-Commerce, một vòng lặp duyệt qua 500,000 giao dịch để tính tổng doanh thu. Lập trình viên khai báo biến tổng: Long total = 0L; và trong vòng lặp viết: total += item.getAmount();",
             "q": "Hiện tượng tiêu cực nào sẽ xảy ra trong bộ nhớ JVM?",
             "options": [
               "Phát sinh 500,000 đối tượng Long rác trên Heap do Autoboxing và Unboxing liên tục, làm kích hoạt GC STW pause kéo dài độ trễ hệ thống.",
-              "Trình biên dịch tự động tối ưu thành biến nguyên thủy long nên không ảnh hưởng.",
+              "Trình biên dịch tự động tối ưu thành biến nguyên thủy long nên không ảnh hưởng gì đến bộ nhớ.",
               "Biến Long tự động chia sẻ ô nhớ trong String Constant Pool.",
-              "Chương trình bị lỗi biên dịch Compile Error."
+              "Chương trình bị lỗi biên dịch Compile Error vì không thể cộng dồn Wrapper."
             ],
             "answer": 0,
-            "explanation": "Biến Wrapper Long là immutable. Mỗi lần thực hiện toán tử +=, JVM phải unbox thành long nguyên thủy, cộng dồn, rồi autobox tạo ra một đối tượng Long mới trên Heap. 500,000 object rác sẽ làm quá tải Young Generation của Garbage Collector."
+            "explain": "Biến Wrapper Long là immutable. Mỗi lần thực hiện toán tử +=, JVM phải unbox thành long nguyên thủy, cộng dồn, rồi autobox tạo ra một đối tượng Long mới trên Heap. 500,000 object rác sẽ làm quá tải Young Generation của Garbage Collector gây hiện tượng lag giật hệ thống."
           },
           {
             "level": "hard",
+            "targetLessonId": "j0-1-3",
             "scenario": "Một hàm nhận vào tham số: public void processOrder(Order order, int discountRate). Bên trong hàm, lập trình viên gán discountRate = 20; và order.setDiscount(discountRate);",
             "q": "Sau khi hàm kết thúc, biến discountRate ở hàm gọi ban đầu có bị thay đổi không?",
             "options": [
@@ -118,10 +298,168 @@
               "Ném ra ngoại lệ ConcurrentModificationException."
             ],
             "answer": 0,
-            "explanation": "Java chỉ có cơ chế Pass-by-value. Khi truyền kiểu nguyên thủy int, một bản sao giá trị được đẩy vào Stack frame mới của hàm con. Mọi thay đổi đối với bản sao này biến mất khi hàm con kết thúc."
+            "explain": "Java chỉ có cơ chế Pass-by-value. Khi truyền kiểu nguyên thủy int, một bản sao giá trị được đẩy vào Stack frame mới của hàm con. Mọi thay đổi đối với bản sao này biến mất khi hàm con kết thúc. Với order, giá trị bản sao của con trỏ trỏ tới cùng Object trên Heap nên thuộc tính bên trong Object thay đổi nhưng tham chiếu order không đổi."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-1-2",
+            "scenario": "Một hệ thống thanh toán tính toán tổng tiền đơn hàng lớn bằng công thức int total = price * quantity; Khi price = 100,000,000 và quantity = 30, giá trị in ra lại là một số âm.",
+            "q": "Nguyên nhân kỹ thuật và giải pháp chuẩn mực trong Java 21 là gì?",
+            "options": [
+              "Do hiện tượng tràn số nguyên 32-bit (Integer Overflow); giải pháp là dùng Math.multiplyExact() hoặc ép kiểu sang long.",
+              "Do CPU bị lỗi tính toán số học trên thanh ghi x86-64.",
+              "Do Java tự động convert sang số nhị phân bù 1.",
+              "Do bộ nhớ Heap bị quá tải dẫn đến sai lệch dữ liệu."
+            ],
+            "answer": 0,
+            "explain": "Kiểu int trong Java có giới hạn tối đa là 2^31 - 1 (khoảng 2.14 tỷ). Phép nhân vượt quá giới hạn này sẽ làm lật bit dấu (sign bit) thành số âm mà không hề ném lỗi. Trong Java, sử dụng Math.multiplyExact() sẽ chủ động ném ArithmeticException khi bị tràn số, hoặc sử dụng long/BigDecimal."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-1-4",
+            "scenario": "Hai chuỗi được tạo như sau: String s1 = \"ORDER_PAID\"; String s2 = new String(\"ORDER_PAID\");",
+            "q": "Biểu thức so sánh nào sau đây trả về kết quả false?",
+            "options": [
+              "s1 == s2",
+              "s1.equals(s2)",
+              "s1.intern() == s2.intern()",
+              "s1.compareTo(s2) == 0"
+            ],
+            "answer": 0,
+            "explain": "s1 là string literal được lưu trong String Constant Pool (nằm trong Heap). s2 được tạo qua từ khóa new sẽ luôn tạo một Object String mới hoàn toàn trên Heap thông thường. Do đó s1 == s2 so sánh địa chỉ tham chiếu sẽ trả về false, dù nội dung ký tự (s1.equals(s2)) là hoàn toàn giống nhau."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-1-4",
+            "scenario": "Trong một dịch vụ xuất hóa đơn, lập trình viên ghép chuỗi 10,000 dòng log bằng vòng lặp: String result = \"\"; for (int i = 0; i < 10000; i++) result += lines[i];",
+            "q": "Tại sao giải pháp này bị cấm ngặt nghèo trong mã nguồn doanh nghiệp?",
+            "options": [
+              "Độ phức tạp thuật toán O(N^2) về thời gian và tạo ra 10,000 đối tượng String/StringBuilder rác do String là immutable.",
+              "Vì phép cộng chuỗi bằng toán tử += không hỗ trợ ký tự UTF-8 tiếng Việt.",
+              "Vì vòng lặp for tự động khóa Thread (thread starvation).",
+              "Vì Java compiler sẽ từ chối biên dịch vòng lặp chứa chuỗi."
+            ],
+            "answer": 0,
+            "explain": "Do String là immutable, mỗi lần gọi result += lines[i], Java phải tạo ra một StringBuilder mới, sao chép toàn bộ chuỗi cũ result rồi tạo chuỗi mới. Với N=10,000, số lượng ký tự phải copy là cấp số cộng O(N^2), tốn hàng chục MB RAM và làm nghẽn CPU. Giải pháp bắt buộc là khởi tạo trước một StringBuilder với initialCapacity."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-1-1",
+            "scenario": "Khi biên dịch một file OrderService.java, lệnh javac tạo ra file OrderService.class. File class này chứa thông tin gì?",
+            "q": "Bản chất của mã Bytecode trong file .class là gì?",
+            "options": [
+              "Là tập lệnh nhị phân độc lập nền tảng được thiết kế cho kiến trúc máy ảo JVM thực thi.",
+              "Là mã máy assembly trực tiếp cho CPU Intel/AMD x86.",
+              "Là mã nguồn Java gốc đã được nén lại bằng thuật toán Gzip.",
+              "Là mã bytecode chỉ chạy được trên hệ điều hành Linux."
+            ],
+            "answer": 0,
+            "explain": "Bytecode là tập lệnh trung gian (opcode 1 byte) độc lập với phần cứng vật lý. Máy ảo JVM của từng hệ điều hành cụ thể (Windows, Linux, macOS) sẽ đọc mã bytecode này và biên dịch (JIT) hoặc thông dịch (Interpreter) thành mã máy bản địa (native machine code)."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-1-3",
+            "scenario": "Một ứng dụng microservice gặp lỗi: java.lang.OutOfMemoryError: Metaspace. Đội vận hành muốn tìm hiểu vùng nhớ Metaspace dùng để chứa những dữ liệu gì.",
+            "q": "Vùng nhớ Metaspace (từ Java 8+) lưu trữ thành phần nào sau đây?",
+            "options": [
+              "Metadata của Class, Constant Pool của class, Method Bytecode và Static variables nằm trong bộ nhớ native (ngoài Java Heap).",
+              "Tất cả các đối tượng Object thông thường được khởi tạo bằng từ khóa new.",
+              "Các biến cục bộ (Local variables) và Stack frame của mỗi Thread.",
+              "Các file tạm do ứng dụng ghi vào ổ đĩa cứng."
+            ],
+            "answer": 0,
+            "explain": "Từ Java 8, PermGen đã bị loại bỏ và thay thế bằng Metaspace. Metaspace nằm ở bộ nhớ native của hệ điều hành (không bị giới hạn bởi -Xmx của Heap trừ khi cấu hình -XX:MaxMetaspaceSize) và chịu trách nhiệm lưu Class Metadata, Method table, Field metadata khi class được nạp bởi ClassLoader."
+          },
+          {
+            "level": "easy",
+            "targetLessonId": "j0-1-2",
+            "scenario": "Trong hệ thống tính tiền, lập trình viên sử dụng double price = 0.1 + 0.2; System.out.println(price == 0.3);",
+            "q": "Màn hình console sẽ in ra kết quả gì và tại sao?",
+            "options": [
+              "false — Vì kiểu số thực double chuẩn IEEE 754 không thể biểu diễn chính xác số thập phân nhị phân hữu hạn, dẫn đến sai số 0.30000000000000004.",
+              "true — Vì phép toán 0.1 + 0.2 luôn bằng 0.3 trong mọi ngôn ngữ lập trình.",
+              "Compile Error — Vì Java không cho phép so sánh == giữa biến double.",
+              "NullPointerException — Vì kiểu nguyên thủy double chưa được khởi tạo."
+            ],
+            "answer": 0,
+            "explain": "Chuẩn IEEE 754 lưu trữ số thực dưới dạng nhị phân cơ số 2. Một số thập phân như 0.1 và 0.2 khi đổi sang nhị phân sẽ thành số vô hạn tuần hoàn, dẫn đến phép cộng tạo ra 0.30000000000000004. Trong nghiệp vụ tài chính, bắt buộc phải dùng BigDecimal."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-1-3",
+            "scenario": "Một lập trình viên gọi đệ quy vô hạn: public void recursiveCall() { recursiveCall(); }",
+            "q": "Lỗi gì sẽ phát sinh và xảy ra ở vùng nhớ nào của JVM?",
+            "options": [
+              "StackOverflowError — Xảy ra trên vùng nhớ Call Stack của Thread do cạn kiệt Stack Frame.",
+              "OutOfMemoryError: Java heap space — Xảy ra trên vùng nhớ Heap.",
+              "OutOfMemoryError: Metaspace — Xảy ra trên vùng nhớ Metaspace.",
+              "ConcurrentModificationException — Xảy ra trên vùng nhớ Cache."
+            ],
+            "answer": 0,
+            "explain": "Mỗi lời gọi hàm sẽ tạo ra một Stack Frame (chứa return address, local variables, operand stack) đẩy vào Stack của Thread hiện tại. Khi đệ quy không có điểm dừng, kích thước Call Stack vượt quá hạn mức (-Xss) và JVM ném ra java.lang.StackOverflowError."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-1-2",
+            "scenario": "Trong Java 21, từ khóa 'final' khi đặt trước một biến đối tượng (Object reference) có ý nghĩa kỹ thuật chuẩn xác là gì?",
+            "q": "Điều gì bị ngăn cấm khi một biến được khai báo 'final Order order = new Order();'?",
+            "options": [
+              "Ngăn cản việc gán lại con trỏ order sang một đối tượng Order khác; nhưng trạng thái nội tại bên trong Order vẫn có thể bị sửa đổi nếu class không immutable.",
+              "Đóng băng hoàn toàn toàn bộ thuộc tính bên trong Order không thể thay đổi giá trị.",
+              "Tự động biến class Order thành immutable và lưu trên Metaspace.",
+              "Yêu cầu mọi hàm trong class Order phải là static."
+            ],
+            "answer": 0,
+            "explain": "Từ khóa final trên biến đối tượng chỉ có nghĩa là con trỏ tham chiếu (reference pointer) không được phép trỏ tới địa chỉ ô nhớ khác (reassign). Nó hoàn toàn không bảo vệ các field bên trong đối tượng đó khỏi việc bị thay đổi (mutate)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-1-1",
+            "scenario": "Trong Java 21, tính năng Local-Variable Type Inference cho phép dùng từ khóa 'var' khi khai báo biến.",
+            "q": "Trường hợp nào sau đây việc sử dụng 'var' là HỢP LỆ?",
+            "options": [
+              "var order = new Order(\"ORD-01\"); bên trong thân hàm phương thức.",
+              "public var processOrder() { return 1; } làm kiểu trả về của phương thức.",
+              "private var orderId = \"ORD-01\"; làm trường thuộc tính (field) của Class.",
+              "var item; sau đó mới gán item = new OrderItem(); ở dòng tiếp theo."
+            ],
+            "answer": 0,
+            "explain": "'var' chỉ được phép áp dụng cho biến cục bộ (Local variable) bên trong thân phương thức hoặc vòng lặp, và bắt buộc phải có giá trị khởi tạo ngay tại dòng khai báo để trình biên dịch suy luận kiểu dữ liệu tại Compile-time. 'var' không được dùng cho field, method parameter hay return type."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-1-4",
+            "scenario": "Một lập trình viên gọi: String s = new String(\"PAYMENT\").intern();",
+            "q": "Phương thức .intern() thực hiện cơ chế gì bên dưới JVM?",
+            "options": [
+              "Kiểm tra xem chuỗi có nội dung tương đương đã tồn tại trong String Constant Pool chưa; nếu có thì trả về tham chiếu trong Pool, nếu chưa thì thêm chuỗi này vào Pool và trả về tham chiếu.",
+              "Chuyển đổi toàn bộ chuỗi thành mã hex nhị phân trong Metaspace.",
+              "Khóa chuỗi lại để ngăn cản các Thread khác truy cập đồng thời.",
+              "Tự động ép kiểu chuỗi thành StringBuilder để tối ưu hóa."
+            ],
+            "answer": 0,
+            "explain": "Phương thức native .intern() truy xuất trực tiếp vào String Table (String Pool) do JVM quản lý. Nếu chuỗi đã có trong Pool, nó trả về địa chỉ ô nhớ trong Pool, giúp tối ưu dung lượng RAM khi có hàng triệu chuỗi trùng lặp giá trị."
           }
         ]
-      }
+      },
+      "subtitle": "JVM Architecture, Memory Layout, Data Types & String Pool Internals",
+      "outcomes": [
+        "Nắm vững bản chất bộ nhớ Stack, Heap, Metaspace và cơ chế thực thi Bytecode trên JVM 21",
+        "Phân biệt rạch ròi Primitive vs Wrapper Types và triệt tiêu cạm bẫy tràn số (Integer Overflow)",
+        "Làm chủ cơ chế Pass-by-value và cách truyền tham chiếu trong Java",
+        "Tối ưu hóa bộ nhớ với String Immutability, String Constant Pool và StringBuilder Bytecode"
+      ],
+      "topics": [
+        {
+          "id": 1,
+          "title": "Kiểu Dữ Liệu & Bản Chất Bộ Nhớ"
+        },
+        {
+          "id": 2,
+          "title": "Cơ Chế Truyền Tham Trị & Tối Ưu String"
+        }
+      ],
+      "retrievalWarmup": null
     },
     {
       "id": 102,
@@ -157,41 +495,413 @@
           "title": "Bài 2.4: Clean Class Design: Builder Pattern, Defensive Copying & Immutability",
           "minutes": 8,
           "content": "\n:::target 🎯 MỤC TIÊU BÀI HỌC (10 PHÚT)\n- Giải quyết bài toán \"Constructor ác mộng\" (Telescoping Constructor) bằng **Builder Pattern**.\n- Đảm bảo tính bất biến (Immutability) tuyệt đối cho các đối tượng tài chính DTO.\n- Áp dụng kỹ thuật sao chép phòng vệ (Defensive Copying) hai chiều.\n- So sánh Builder thủ công vs Java 21 Record Compact Constructor.\n:::\n\n:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN: GỌI MÓN THEO YÊU CẦU TẠI NHÀ HÀNG\n- **Telescoping Constructor**: Giống như phục vụ ép bạn phải đọc liền một câu dài: *\"Cho tôi 1 tô phở nhiều bánh, ít nước, không hành, thêm thịt bò tái, có quẩy, không trứng, nước ngọt Coca\"*. Chỉ cần đọc nhầm vị trí của \"quẩy\" và \"trứng\", bạn sẽ nhận nhầm món!\n- **Builder Pattern**: Giống như phiếu tích chọn món (Checklist):\n  - `builder.setPhanBanh(\"nhiều\").setHanh(false).setThit(\"tái\").build()`\n  - Rõ ràng, dễ đọc, không bao giờ nhầm thứ tự!\n:::\n\n---\n\n## 1. Cái này là gì? (Kiến Trúc Builder Pattern Chuẩn Joshua Bloch)\n\n```mermaid\nflowchart LR\n    Client[\"Client Code\"] --> BInit[\"Order.builder()\"]\n    BInit --> B1[\".customerId('CUST-01')\"]\n    B1 --> B2[\".shippingAddress('Hà Nội')\"]\n    B2 --> B3[\".addItem(item)\"]\n    B3 --> Build[\".build()\"]\n    Build --> Order[\"Immutable Order Instance<br/>(Không thể sửa đổi sau khi tạo)\"]\n    style Order fill:#064e3b,stroke:#10b981,color:#fff\n```\n\n---\n\n## 2. Dùng khi nào & Tại sao? (Ma Trận So Sánh Các Phương Pháp Khởi Tạo Đối Tượng)\n\n| Tiêu chí | Constructor thông thường | JavaBeans (Getters/Setters) | Builder Pattern (Chuẩn Effective Java) |\n|---|---|---|---|\n| **Số lượng thuộc tính** | Tốt khi $le 3$ thuộc tính | Linh hoạt nhưng rất nguy hiểm | Hoàn hảo khi $ge 4$ thuộc tính |\n| **Tính bất biến (Immutable)** | ✅ Có thể làm bất biến | ❌ Hoàn toàn khả biến (Mutable) | ✅ Bất biến 100% |\n| **Tính an toàn trạng thái** | Toàn vẹn lúc gọi constructor | Có thể bị dùng dở dang giữa chừng | Chỉ tạo object khi gọi `.build()` hợp lệ |\n| **Độ rõ nghĩa khi đọc** | Dễ nhầm giữa các tham số cùng kiểu (`String, String`) | Rõ ràng từng tên setter | Cực kỳ rõ ràng, fluent API mượt mà |\n\n---\n\n## 3. Dùng như thế nào & Phân tích từng dòng code (Triển Khai Builder & Defensive Copy)\n\n```java\npackage vn.mastery.ecommerce.dto;\n\nimport java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\nimport java.util.Objects;\n\npublic final class CustomerOrder {\n    private final String orderId;\n    private final String customerId;\n    private final List<String> itemSkus;\n\n    private CustomerOrder(Builder builder) {\n        this.orderId = Objects.requireNonNull(builder.orderId, \"orderId không được null\");\n        this.customerId = Objects.requireNonNull(builder.customerId, \"customerId không được null\");\n        // Defensive Copying chiều nạp vào: Ngăn builder sửa list sau khi build\n        this.itemSkus = Collections.unmodifiableList(new ArrayList<>(builder.itemSkus));\n    }\n\n    public String getOrderId() { return orderId; }\n    public String getCustomerId() { return customerId; }\n    // Defensive Copying chiều đọc ra\n    public List<String> getItemSkus() { return itemSkus; }\n\n    public static Builder builder() { return new Builder(); }\n\n    public static final class Builder {\n        private String orderId;\n        private String customerId;\n        private final List<String> itemSkus = new ArrayList<>();\n\n        public Builder orderId(String orderId) { this.orderId = orderId; return this; }\n        public Builder customerId(String customerId) { this.customerId = customerId; return this; }\n        public Builder addItem(String sku) { this.itemSkus.add(sku); return this; }\n\n        public CustomerOrder build() {\n            if (itemSkus.isEmpty()) throw new IllegalStateException(\"Đơn hàng không có sản phẩm!\");\n            return new CustomerOrder(this);\n        }\n    }\n}\n```\n\n### Bảng Phân Tích Kỹ Thuật Builder:\n\n| Chi tiết triển khai | Bản chất kỹ thuật | Mục đích bảo vệ |\n|---|---|---|\n| `private CustomerOrder(Builder)` | Constructor của class chính là `private` | Ép buộc 100% việc tạo object phải thông qua Builder |\n| `public final class` | Khóa kế thừa | Không cho phép bất kỳ class con nào phá vỡ tính bất biến |\n| `new ArrayList<>(builder.itemSkus)` | Defensive Copy 2 chiều | Ngăn việc Client sửa list bên ngoài làm thay đổi dữ liệu bên trong |\n\n---\n\n## 4. Cạm bẫy thực tế & Best Practices (Production Pitfalls & Actionable Checklist)\n\n### Cạm bẫy 1: Quên Defensive Copying trong Builder\n- **Vấn đề**: Gán trực tiếp `this.itemSkus = builder.itemSkus`. Client sau khi gọi `CustomerOrder order = builder.build()` vẫn có thể gọi `builder.addItem(\"HACK\")` làm thay đổi đơn hàng đã chốt!\n- **Giải pháp**: Luôn bọc qua `new ArrayList<>()` và `Collections.unmodifiableList()`.\n\n### Checklist Bài 2.4\n- [ ] Sử dụng Builder Pattern cho các class có trên 4 tham số khởi tạo.\n- [ ] Đặt class là `final` và các trường là `private final` để đảm bảo tính bất biến.\n- [ ] Luôn kiểm tra tính hợp lệ dữ liệu trong phương thức `build()`.\n"
+        },
+        {
+          "id": "j0-2-quiz",
+          "type": "quiz",
+          "title": "Sát Hạch Năng Lực Module 2: Lập Trình Hướng Đối Tượng & SOLID Thực Chiến",
+          "minutes": 15,
+          "questions": [
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-3",
+              "scenario": "Một class PaymentProcessor có cấu trúc: if (type.equals(\"CREDIT\")) payCredit(); else if (type.equals(\"MOMO\")) payMomo(); else if (type.equals(\"ZALO\")) payZalo(); Khi công ty muốn tích hợp thêm cổng thanh toán VNPay, lập trình viên bắt buộc phải sửa đổi code của PaymentProcessor.",
+              "q": "Thiết kế trên đang vi phạm nguyên lý SOLID nào nghiêm trọng nhất?",
+              "options": [
+                "Open/Closed Principle (OCP) — Module nên mở cho việc mở rộng (Open for extension) nhưng đóng với việc sửa đổi (Closed for modification).",
+                "Single Responsibility Principle (SRP) — Class có quá ít dòng code.",
+                "Liskov Substitution Principle (LSP) — Class con không thể thay thế class cha.",
+                "Interface Segregation Principle (ISP) — Interface quá nhiều method."
+              ],
+              "answer": 0,
+              "explain": "Việc dùng if-else kiểm tra kiểu thanh toán vi phạm nguyên lý Open/Closed Principle (OCP). Giải pháp chuẩn mực là tạo interface PaymentMethod với method pay(), sau đó mỗi loại thanh toán (MomoPayment, VnpayPayment) sẽ tự implement riêng. PaymentProcessor chỉ phụ thuộc vào interface này, khi thêm cổng thanh toán mới không cần sửa lại code cũ."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-4",
+              "scenario": "Một lập trình viên tạo class Order với field private final List<OrderItem> items; và viết getter: public List<OrderItem> getItems() { return this.items; } Một developer khác viết code: order.getItems().clear();",
+              "q": "Lỗ hổng bảo mật và kiến trúc nào đang xảy ra ở đây?",
+              "options": [
+                "Lỗ hổng để lộ tham chiếu khả biến (Mutable Reference Leak) làm phá vỡ tính đóng gói (Encapsulation) của đối tượng.",
+                "Lỗi vi phạm nguyên lý Interface Segregation.",
+                "Hiện tượng rò rỉ bộ nhớ Metaspace Leak.",
+                "Lỗi Deadlock do tranh chấp khóa danh sách."
+              ],
+              "answer": 0,
+              "explain": "Getter trả về trực tiếp đối tượng List nội bộ cho phép bên ngoài có thể gọi hàm .add(), .clear(), .remove() làm sai lệch trạng thái đơn hàng mà class Order không hề kiểm soát được. Giải pháp là áp dụng Defensive Copying: return Collections.unmodifiableList(this.items) hoặc List.copyOf(this.items)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-2-2",
+              "scenario": "Cho hai class: class SuperClass { public void show() {} } và class SubClass extends SuperClass { public void show() {} } Biến được gọi: SuperClass obj = new SubClass(); obj.show();",
+              "q": "Cơ chế nào của JVM được kích hoạt để thực thi phương thức show() của SubClass?",
+              "options": [
+                "Dynamic Binding (Late Binding) thông qua lệnh bytecode invokevirtual tra cứu bảng vtable tại Runtime.",
+                "Static Binding thông qua lệnh invokestatic tại thời điểm Compile-time.",
+                "Cơ chế Reflection ép kiểu ngầm định.",
+                "Cơ chế nạp chồng phương thức Method Overloading."
+              ],
+              "answer": 0,
+              "explain": "Các phương thức thông thường (non-static, non-private, non-final) trong Java đều là Virtual Method. Tại Runtime, JVM thực hiện lệnh invokevirtual để tra cứu bảng phương thức ảo (vtable) của đối tượng thực tế trên Heap (SubClass) để gọi đúng phương thức đã được override."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-3",
+              "scenario": "Một interface OrderRepository định nghĩa 15 phương thức bao gồm: saveOrder(), findById(), exportOrderToPdf(), sendSmsConfirmation(), calculateTax().",
+              "q": "Interface này vi phạm những nguyên lý SOLID nào?",
+              "options": [
+                "Vi phạm Single Responsibility Principle (SRP) và Interface Segregation Principle (ISP).",
+                "Vi phạm Dependency Inversion Principle (DIP).",
+                "Vi phạm Liskov Substitution Principle (LSP).",
+                "Không vi phạm nguyên lý nào vì interface càng đầy đủ chức năng càng tốt."
+              ],
+              "answer": 0,
+              "explain": "Một repository chỉ nên chịu trách nhiệm truy xuất cơ sở dữ liệu cho Order (SRP). Việc nhét thêm xuất PDF và gửi SMS khiến interface bị phình to (Fat Interface). Các class implement phải chịu trách nhiệm về những chức năng nó không quan tâm, vi phạm nghiêm trọng Interface Segregation Principle (ISP)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-2-1",
+              "scenario": "Trong thiết kế hướng đối tượng, Anemic Domain Model là một anti-pattern phổ biến.",
+              "q": "Đặc điểm nhận diện rõ ràng nhất của Anemic Domain Model là gì?",
+              "options": [
+                "Entity chỉ chứa các thuộc tính private cùng toàn bộ Getters/Setters thụ động, không chứa bất kỳ logic nghiệp vụ nào.",
+                "Entity chứa quá nhiều phương thức tính toán phức tạp.",
+                "Entity không kế thừa từ bất kỳ class cha nào.",
+                "Entity sử dụng Java Record thay cho Class thông thường."
+              ],
+              "answer": 0,
+              "explain": "Anemic Domain Model là class chỉ có dữ liệu (data container) mà thiếu hẳn hành vi (behavior). Toàn bộ logic nghiệp vụ bị phân tán và đưa ra các Service class khổng lồ. Thiết kế Rich Domain Model đưa logic validation và chuyển đổi trạng thái (state machine) vào chính Entity."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-3",
+              "scenario": "Class Square kế thừa từ class Rectangle. Khi client gọi rect.setWidth(10); rect.setHeight(20);, nếu là đối tượng Square, cả chiều rộng và dài đều biến thành 20, làm sai lệch kỳ vọng tính diện tích của Rectangle.",
+              "q": "Đây là ví dụ kinh điển vi phạm nguyên lý nào trong SOLID?",
+              "options": [
+                "Liskov Substitution Principle (LSP) — Đối tượng của class con không thể thay thế cho class cha mà không làm thay đổi tính đúng đắn của chương trình.",
+                "Single Responsibility Principle (SRP).",
+                "Dependency Inversion Principle (DIP).",
+                "Open/Closed Principle (OCP)."
+              ],
+              "answer": 0,
+              "explain": "Theo nguyên lý Liskov (LSP), nếu S là class con của T, thì các đối tượng kiểu T phải có thể được thay thế bởi đối tượng kiểu S mà không làm gián đoạn chương trình. Square thay đổi hành vi bất biến của Rectangle (cho phép thay đổi độc lập width và height), do đó Square không thể là con hợp lệ của Rectangle trong OOP."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-2-4",
+              "scenario": "Một lập trình viên muốn xây dựng một class Order bất biến (Immutable Class) an toàn trong môi trường đa luồng.",
+              "q": "Quy tắc nào sau đây KHÔNG bắt buộc khi thiết kế Immutable Class trong Java?",
+              "options": [
+                "Bắt buộc toàn bộ các phương thức của class phải được đánh dấu là synchronized.",
+                "Đánh dấu class là final (hoặc private constructor) để ngăn chặn class con kế thừa ghi đè.",
+                "Tất cả các field phải là private và final.",
+                "Không cung cấp bất kỳ setter nào và áp dụng Defensive Copying với các thuộc tính là mutable object."
+              ],
+              "answer": 0,
+              "explain": "Immutable Class đạt được sự an toàn đa luồng (Thread-safety) tự nhiên do trạng thái của nó không bao giờ thay đổi sau khi khởi tạo. Do đó, hoàn toàn không cần thiết phải đánh dấu các method là synchronized, giúp tối ưu hóa hiệu năng tối đa."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-2",
+              "scenario": "Trong Constructor của class cha (BaseOrder), lập trình viên gọi phương thức init(). Class con (VipOrder) override lại init() và sử dụng một thuộc tính vipCode được khai báo trong VipOrder.",
+              "q": "Hiện tượng tai hại nào sẽ xảy ra khi chạy new VipOrder()?",
+              "options": [
+                "init() của class con được gọi trước khi các field của class con kịp khởi tạo, dẫn đến vipCode mang giá trị null gây ra NullPointerException bí ẩn.",
+                "Java compiler báo lỗi đỏ Compile Error tại dòng gọi init().",
+                "JVM tự động hoãn lời gọi init() cho tới khi toàn bộ class con hoàn tất.",
+                "Class cha tự động bỏ qua phương thức override của class con."
+              ],
+              "answer": 0,
+              "explain": "Đây là cạm bẫy OOP cực kỳ nguy hiểm. Constructor của class cha luôn chạy trước constructor của con. Do Dynamic Binding, lời gọi init() trong constructor cha sẽ dispatch tới method init() của class con. Lúc này, các field của class con chưa hề được khởi tạo và đang mang giá trị mặc định (null/0), dẫn đến crash hệ thống."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-2-4",
+              "scenario": "Builder Pattern thường được áp dụng cho các Entity có nhiều thuộc tính tùy chọn.",
+              "q": "Lợi ích vượt trội của Builder Pattern so với Telescoping Constructor (nhiều constructor nạp chồng) là gì?",
+              "options": [
+                "Mã nguồn dễ đọc, linh hoạt thiết lập thuộc tính theo tên hàm, và cho phép kiểm tra tính toàn vẹn (validate) dữ liệu trước khi build() object.",
+                "Giúp tiết kiệm 100% dung lượng bộ nhớ Heap.",
+                "Tự động đồng bộ hóa đa luồng cho đối tượng.",
+                "Giúp class tự động chuyển thành interface."
+              ],
+              "answer": 0,
+              "explain": "Telescoping Constructor (như Order(a), Order(a,b), Order(a,b,c)) cực kỳ dễ gây nhầm lẫn thứ tự tham số cùng kiểu dữ liệu. Builder Pattern cung cấp cú pháp Fluent API rõ ràng, dễ bảo trì và cho phép kiểm tra tính hợp lệ của toàn bộ thuộc tính tại method build()."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-2-3",
+              "scenario": "Nguyên lý Dependency Inversion Principle (DIP) yêu cầu các module cấp cao không nên phụ thuộc vào module cấp thấp.",
+              "q": "Quy chuẩn kiến trúc nào thể hiện đúng nguyên lý DIP?",
+              "options": [
+                "Cả module cấp cao (OrderService) và cấp thấp (SqlOrderRepository) đều phụ thuộc vào một abstraction (OrderRepository interface).",
+                "Module cấp cao gọi trực tiếp new SqlOrderRepository() trong constructor của nó.",
+                "Tất cả các class phải phụ thuộc vào class cha chung Object.",
+                "Mọi class chỉ được phép giao tiếp thông qua socket mạng."
+              ],
+              "answer": 0,
+              "explain": "DIP khẳng định: Cả module cấp cao và cấp thấp đều phải phụ thuộc vào Abstraction (Interface/Abstract Class). Nhờ đó, OrderService có thể dễ dàng hoán đổi từ SqlOrderRepository sang MongoOrderRepository hoặc MockOrderRepository cho Unit Test mà không phải sửa 1 dòng code logic."
+            },
+            {
+              "level": "easy",
+              "targetLessonId": "j0-2-1",
+              "scenario": "Tính đóng gói (Encapsulation) trong lập trình hướng đối tượng.",
+              "q": "Mục đích cốt lõi của tính đóng gói là gì?",
+              "options": [
+                "Ẩn giấu chi tiết cài đặt bên trong và bảo vệ trạng thái của đối tượng khỏi sự can thiệp trực tiếp không hợp lệ từ bên ngoài.",
+                "Tự động biên dịch code thành mã máy nhị phân.",
+                "Cho phép tất cả các class trong project truy cập tự do vào field của nhau.",
+                "Tăng tốc độ kết nối cơ sở dữ liệu."
+              ],
+              "answer": 0,
+              "explain": "Đóng gói kết hợp dữ liệu (fields) và hành vi (methods) vào cùng một đơn vị (class), đồng thời sử dụng các access modifier (private, protected) để ngăn chặn việc sửa đổi dữ liệu tùy tiện từ bên ngoài, duy trì tính đúng đắn của đối tượng (Invariants)."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-2-2",
+              "scenario": "Một class có phương thức nạp chồng: public void log(Object o) và public void log(String s). Khi gọi logger.log(null);",
+              "q": "Phương thức nào sẽ được trình biên dịch lựa chọn và tại sao?",
+              "options": [
+                "log(String s) — Vì String là kiểu dữ liệu cụ thể và hẹp hơn (more specific) so với Object trong cây kế thừa.",
+                "log(Object o) — Vì Object là kiểu cha bao quát mọi kiểu dữ liệu.",
+                "Compile Error — Báo lỗi mơ hồ (Ambiguous method call) không thể biên dịch.",
+                "Ném ra NullPointerException tại thời điểm Runtime."
+              ],
+              "answer": 0,
+              "explain": "Theo Java Language Specification (JLS), khi chọn phương thức overload, compiler sẽ ưu tiên phương thức có kiểu tham số cụ thể nhất (most specific subtype). Do String là con trực tiếp của Object nên compiler sẽ chọn log(String). Nếu có 2 nhánh con ngang hàng (ví dụ String và Integer), lúc đó mới báo lỗi ambiguous."
+            }
+          ]
         }
       ],
       "quiz": {
-        "id": "j0-quiz-2",
-        "type": "quiz",
-        "title": "Sát Hạch Module J0.2: Lập Trình Hướng Đối Tượng & SOLID",
+        "id": "j0-2-quiz",
+        "title": "Sát Hạch Năng Lực Module 2: Lập Trình Hướng Đối Tượng & SOLID Thực Chiến",
+        "poolSize": 12,
+        "pullCount": 12,
+        "passThresholdPct": 80,
         "questions": [
           {
-            "level": "medium",
-            "scenario": "Một hệ thống thanh toán có Interface PaymentGateway với method: void refund(String txnId). Cổng thanh toán COD (Tiền mặt khi nhận hàng) implements interface này nhưng bên trong hàm refund ném ra: throw new UnsupportedOperationException('COD không hỗ trợ hoàn tiền online');",
+            "level": "hard",
+            "targetLessonId": "j0-2-3",
+            "scenario": "Một class PaymentProcessor có cấu trúc: if (type.equals(\"CREDIT\")) payCredit(); else if (type.equals(\"MOMO\")) payMomo(); else if (type.equals(\"ZALO\")) payZalo(); Khi công ty muốn tích hợp thêm cổng thanh toán VNPay, lập trình viên bắt buộc phải sửa đổi code của PaymentProcessor.",
             "q": "Thiết kế trên đang vi phạm nguyên lý SOLID nào nghiêm trọng nhất?",
             "options": [
-              "Nguyên lý Thay thế Liskov (Liskov Substitution Principle - LSP) và Phân tách Interface (ISP).",
-              "Nguyên lý Đơn Trách Nhiệm (Single Responsibility Principle).",
-              "Nguyên lý Đóng/Mở (Open/Closed Principle).",
-              "Không vi phạm nguyên lý nào."
+              "Open/Closed Principle (OCP) — Module nên mở cho việc mở rộng (Open for extension) nhưng đóng với việc sửa đổi (Closed for modification).",
+              "Single Responsibility Principle (SRP) — Class có quá ít dòng code.",
+              "Liskov Substitution Principle (LSP) — Class con không thể thay thế class cha.",
+              "Interface Segregation Principle (ISP) — Interface quá nhiều method."
             ],
             "answer": 0,
-            "explanation": "LSP quy định: Các đối tượng của class con phải có thể thay thế class cha mà không làm hỏng tính đúng đắn của chương trình. Việc ném UnsupportedOperationException khiến code gọi bị gãy runtime. Giải pháp chuẩn là tách interface RefundablePayment riêng."
+            "explain": "Việc dùng if-else kiểm tra kiểu thanh toán vi phạm nguyên lý Open/Closed Principle (OCP). Giải pháp chuẩn mực là tạo interface PaymentMethod với method pay(), sau đó mỗi loại thanh toán (MomoPayment, VnpayPayment) sẽ tự implement riêng. PaymentProcessor chỉ phụ thuộc vào interface này, khi thêm cổng thanh toán mới không cần sửa lại code cũ."
           },
           {
             "level": "hard",
-            "scenario": "Lập trình viên muốn tạo một class Order bất biến (Immutable). Trong class có thuộc tính: private final List<String> tags;. Lập trình viên viết getter: public List<String> getTags() { return this.tags; }",
-            "q": "Lỗ hổng bảo mật nào đang xảy ra ở đây?",
+            "targetLessonId": "j0-2-4",
+            "scenario": "Một lập trình viên tạo class Order với field private final List<OrderItem> items; và viết getter: public List<OrderItem> getItems() { return this.items; } Một developer khác viết code: order.getItems().clear();",
+            "q": "Lỗ hổng bảo mật và kiến trúc nào đang xảy ra ở đây?",
             "options": [
-              "Lỗ hổng Mutable Reference Leak: Bên ngoài có thể gọi order.getTags().clear() hoặc add() để sửa đổi danh sách nội bộ của Order.",
-              "Không có lỗi vì biến đã có từ khóa final.",
-              "Gây ra lỗi StackOverflowError khi gọi getter.",
-              "Làm cho Garbage Collector không thể thu hồi bộ nhớ."
+              "Lỗ hổng để lộ tham chiếu khả biến (Mutable Reference Leak) làm phá vỡ tính đóng gói (Encapsulation) của đối tượng.",
+              "Lỗi vi phạm nguyên lý Interface Segregation.",
+              "Hiện tượng rò rỉ bộ nhớ Metaspace Leak.",
+              "Lỗi Deadlock do tranh chấp khóa danh sách."
             ],
             "answer": 0,
-            "explanation": "Từ khóa final chỉ bảo vệ con trỏ tham chiếu không bị gán sang List khác, chứ không bảo vệ nội dung bên trong List. Caller có thể gọi order.getTags().add('HACK') làm thay đổi trạng thái object. Cần trả về Collections.unmodifiableList(tags)."
+            "explain": "Getter trả về trực tiếp đối tượng List nội bộ cho phép bên ngoài có thể gọi hàm .add(), .clear(), .remove() làm sai lệch trạng thái đơn hàng mà class Order không hề kiểm soát được. Giải pháp là áp dụng Defensive Copying: return Collections.unmodifiableList(this.items) hoặc List.copyOf(this.items)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-2-2",
+            "scenario": "Cho hai class: class SuperClass { public void show() {} } và class SubClass extends SuperClass { public void show() {} } Biến được gọi: SuperClass obj = new SubClass(); obj.show();",
+            "q": "Cơ chế nào của JVM được kích hoạt để thực thi phương thức show() của SubClass?",
+            "options": [
+              "Dynamic Binding (Late Binding) thông qua lệnh bytecode invokevirtual tra cứu bảng vtable tại Runtime.",
+              "Static Binding thông qua lệnh invokestatic tại thời điểm Compile-time.",
+              "Cơ chế Reflection ép kiểu ngầm định.",
+              "Cơ chế nạp chồng phương thức Method Overloading."
+            ],
+            "answer": 0,
+            "explain": "Các phương thức thông thường (non-static, non-private, non-final) trong Java đều là Virtual Method. Tại Runtime, JVM thực hiện lệnh invokevirtual để tra cứu bảng phương thức ảo (vtable) của đối tượng thực tế trên Heap (SubClass) để gọi đúng phương thức đã được override."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-2-3",
+            "scenario": "Một interface OrderRepository định nghĩa 15 phương thức bao gồm: saveOrder(), findById(), exportOrderToPdf(), sendSmsConfirmation(), calculateTax().",
+            "q": "Interface này vi phạm những nguyên lý SOLID nào?",
+            "options": [
+              "Vi phạm Single Responsibility Principle (SRP) và Interface Segregation Principle (ISP).",
+              "Vi phạm Dependency Inversion Principle (DIP).",
+              "Vi phạm Liskov Substitution Principle (LSP).",
+              "Không vi phạm nguyên lý nào vì interface càng đầy đủ chức năng càng tốt."
+            ],
+            "answer": 0,
+            "explain": "Một repository chỉ nên chịu trách nhiệm truy xuất cơ sở dữ liệu cho Order (SRP). Việc nhét thêm xuất PDF và gửi SMS khiến interface bị phình to (Fat Interface). Các class implement phải chịu trách nhiệm về những chức năng nó không quan tâm, vi phạm nghiêm trọng Interface Segregation Principle (ISP)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-2-1",
+            "scenario": "Trong thiết kế hướng đối tượng, Anemic Domain Model là một anti-pattern phổ biến.",
+            "q": "Đặc điểm nhận diện rõ ràng nhất của Anemic Domain Model là gì?",
+            "options": [
+              "Entity chỉ chứa các thuộc tính private cùng toàn bộ Getters/Setters thụ động, không chứa bất kỳ logic nghiệp vụ nào.",
+              "Entity chứa quá nhiều phương thức tính toán phức tạp.",
+              "Entity không kế thừa từ bất kỳ class cha nào.",
+              "Entity sử dụng Java Record thay cho Class thông thường."
+            ],
+            "answer": 0,
+            "explain": "Anemic Domain Model là class chỉ có dữ liệu (data container) mà thiếu hẳn hành vi (behavior). Toàn bộ logic nghiệp vụ bị phân tán và đưa ra các Service class khổng lồ. Thiết kế Rich Domain Model đưa logic validation và chuyển đổi trạng thái (state machine) vào chính Entity."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-2-3",
+            "scenario": "Class Square kế thừa từ class Rectangle. Khi client gọi rect.setWidth(10); rect.setHeight(20);, nếu là đối tượng Square, cả chiều rộng và dài đều biến thành 20, làm sai lệch kỳ vọng tính diện tích của Rectangle.",
+            "q": "Đây là ví dụ kinh điển vi phạm nguyên lý nào trong SOLID?",
+            "options": [
+              "Liskov Substitution Principle (LSP) — Đối tượng của class con không thể thay thế cho class cha mà không làm thay đổi tính đúng đắn của chương trình.",
+              "Single Responsibility Principle (SRP).",
+              "Dependency Inversion Principle (DIP).",
+              "Open/Closed Principle (OCP)."
+            ],
+            "answer": 0,
+            "explain": "Theo nguyên lý Liskov (LSP), nếu S là class con của T, thì các đối tượng kiểu T phải có thể được thay thế bởi đối tượng kiểu S mà không làm gián đoạn chương trình. Square thay đổi hành vi bất biến của Rectangle (cho phép thay đổi độc lập width và height), do đó Square không thể là con hợp lệ của Rectangle trong OOP."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-2-4",
+            "scenario": "Một lập trình viên muốn xây dựng một class Order bất biến (Immutable Class) an toàn trong môi trường đa luồng.",
+            "q": "Quy tắc nào sau đây KHÔNG bắt buộc khi thiết kế Immutable Class trong Java?",
+            "options": [
+              "Bắt buộc toàn bộ các phương thức của class phải được đánh dấu là synchronized.",
+              "Đánh dấu class là final (hoặc private constructor) để ngăn chặn class con kế thừa ghi đè.",
+              "Tất cả các field phải là private và final.",
+              "Không cung cấp bất kỳ setter nào và áp dụng Defensive Copying với các thuộc tính là mutable object."
+            ],
+            "answer": 0,
+            "explain": "Immutable Class đạt được sự an toàn đa luồng (Thread-safety) tự nhiên do trạng thái của nó không bao giờ thay đổi sau khi khởi tạo. Do đó, hoàn toàn không cần thiết phải đánh dấu các method là synchronized, giúp tối ưu hóa hiệu năng tối đa."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-2-2",
+            "scenario": "Trong Constructor của class cha (BaseOrder), lập trình viên gọi phương thức init(). Class con (VipOrder) override lại init() và sử dụng một thuộc tính vipCode được khai báo trong VipOrder.",
+            "q": "Hiện tượng tai hại nào sẽ xảy ra khi chạy new VipOrder()?",
+            "options": [
+              "init() của class con được gọi trước khi các field của class con kịp khởi tạo, dẫn đến vipCode mang giá trị null gây ra NullPointerException bí ẩn.",
+              "Java compiler báo lỗi đỏ Compile Error tại dòng gọi init().",
+              "JVM tự động hoãn lời gọi init() cho tới khi toàn bộ class con hoàn tất.",
+              "Class cha tự động bỏ qua phương thức override của class con."
+            ],
+            "answer": 0,
+            "explain": "Đây là cạm bẫy OOP cực kỳ nguy hiểm. Constructor của class cha luôn chạy trước constructor của con. Do Dynamic Binding, lời gọi init() trong constructor cha sẽ dispatch tới method init() của class con. Lúc này, các field của class con chưa hề được khởi tạo và đang mang giá trị mặc định (null/0), dẫn đến crash hệ thống."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-2-4",
+            "scenario": "Builder Pattern thường được áp dụng cho các Entity có nhiều thuộc tính tùy chọn.",
+            "q": "Lợi ích vượt trội của Builder Pattern so với Telescoping Constructor (nhiều constructor nạp chồng) là gì?",
+            "options": [
+              "Mã nguồn dễ đọc, linh hoạt thiết lập thuộc tính theo tên hàm, và cho phép kiểm tra tính toàn vẹn (validate) dữ liệu trước khi build() object.",
+              "Giúp tiết kiệm 100% dung lượng bộ nhớ Heap.",
+              "Tự động đồng bộ hóa đa luồng cho đối tượng.",
+              "Giúp class tự động chuyển thành interface."
+            ],
+            "answer": 0,
+            "explain": "Telescoping Constructor (như Order(a), Order(a,b), Order(a,b,c)) cực kỳ dễ gây nhầm lẫn thứ tự tham số cùng kiểu dữ liệu. Builder Pattern cung cấp cú pháp Fluent API rõ ràng, dễ bảo trì và cho phép kiểm tra tính hợp lệ của toàn bộ thuộc tính tại method build()."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-2-3",
+            "scenario": "Nguyên lý Dependency Inversion Principle (DIP) yêu cầu các module cấp cao không nên phụ thuộc vào module cấp thấp.",
+            "q": "Quy chuẩn kiến trúc nào thể hiện đúng nguyên lý DIP?",
+            "options": [
+              "Cả module cấp cao (OrderService) và cấp thấp (SqlOrderRepository) đều phụ thuộc vào một abstraction (OrderRepository interface).",
+              "Module cấp cao gọi trực tiếp new SqlOrderRepository() trong constructor của nó.",
+              "Tất cả các class phải phụ thuộc vào class cha chung Object.",
+              "Mọi class chỉ được phép giao tiếp thông qua socket mạng."
+            ],
+            "answer": 0,
+            "explain": "DIP khẳng định: Cả module cấp cao và cấp thấp đều phải phụ thuộc vào Abstraction (Interface/Abstract Class). Nhờ đó, OrderService có thể dễ dàng hoán đổi từ SqlOrderRepository sang MongoOrderRepository hoặc MockOrderRepository cho Unit Test mà không phải sửa 1 dòng code logic."
+          },
+          {
+            "level": "easy",
+            "targetLessonId": "j0-2-1",
+            "scenario": "Tính đóng gói (Encapsulation) trong lập trình hướng đối tượng.",
+            "q": "Mục đích cốt lõi của tính đóng gói là gì?",
+            "options": [
+              "Ẩn giấu chi tiết cài đặt bên trong và bảo vệ trạng thái của đối tượng khỏi sự can thiệp trực tiếp không hợp lệ từ bên ngoài.",
+              "Tự động biên dịch code thành mã máy nhị phân.",
+              "Cho phép tất cả các class trong project truy cập tự do vào field của nhau.",
+              "Tăng tốc độ kết nối cơ sở dữ liệu."
+            ],
+            "answer": 0,
+            "explain": "Đóng gói kết hợp dữ liệu (fields) và hành vi (methods) vào cùng một đơn vị (class), đồng thời sử dụng các access modifier (private, protected) để ngăn chặn việc sửa đổi dữ liệu tùy tiện từ bên ngoài, duy trì tính đúng đắn của đối tượng (Invariants)."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-2-2",
+            "scenario": "Một class có phương thức nạp chồng: public void log(Object o) và public void log(String s). Khi gọi logger.log(null);",
+            "q": "Phương thức nào sẽ được trình biên dịch lựa chọn và tại sao?",
+            "options": [
+              "log(String s) — Vì String là kiểu dữ liệu cụ thể và hẹp hơn (more specific) so với Object trong cây kế thừa.",
+              "log(Object o) — Vì Object là kiểu cha bao quát mọi kiểu dữ liệu.",
+              "Compile Error — Báo lỗi mơ hồ (Ambiguous method call) không thể biên dịch.",
+              "Ném ra NullPointerException tại thời điểm Runtime."
+            ],
+            "answer": 0,
+            "explain": "Theo Java Language Specification (JLS), khi chọn phương thức overload, compiler sẽ ưu tiên phương thức có kiểu tham số cụ thể nhất (most specific subtype). Do String là con trực tiếp của Object nên compiler sẽ chọn log(String). Nếu có 2 nhánh con ngang hàng (ví dụ String và Integer), lúc đó mới báo lỗi ambiguous."
           }
         ]
-      }
+      },
+      "subtitle": "OOP Pillars, Dynamic Binding, 5 SOLID Principles & Clean Class Architecture",
+      "outcomes": [
+        "Thiết kế Rich Domain Model chuẩn mực, bảo vệ Invariants và triệt tiêu Anemic Domain Model",
+        "Hiểu sâu cơ chế Dynamic Binding, Invokevirtual và cách thức JVM tra cứu bảng vtable",
+        "Vận dụng thuần thục 5 nguyên lý SOLID vào kiến trúc thanh toán E-Commerce",
+        "Áp dụng Builder Pattern, Defensive Copying và kiến trúc Class bất biến (Immutable Class)"
+      ],
+      "topics": [
+        {
+          "id": 1,
+          "title": "4 Trụ Cột OOP & Cơ Chế Binding"
+        },
+        {
+          "id": 2,
+          "title": "5 Nguyên Lý SOLID & Clean Design"
+        }
+      ],
+      "retrievalWarmup": [
+        {
+          "q": "Tại sao nên dùng Math.multiplyExact() thay vì toán tử nhân (*) thông thường khi tính toán tài chính?",
+          "options": [
+            "Vì Math.multiplyExact() sẽ ném ngoại lệ ArithmeticException ngay khi xảy ra tràn số nguyên.",
+            "Vì Math.multiplyExact() chạy nhanh gấp 10 lần toán tử nhân.",
+            "Vì toán tử nhân thông thường không hỗ trợ kiểu dữ liệu long.",
+            "Vì Math.multiplyExact() tự động làm tròn số thập phân."
+          ],
+          "answer": 0,
+          "explain": "Toán tử * khi vượt quá phạm vi lưu trữ sẽ âm thầm tràn số và đổi thành số âm mà không báo lỗi, gây tổn thất tài chính nghiêm trọng. Math.multiplyExact() bảo vệ hệ thống bằng cách ném ArithmeticException."
+        },
+        {
+          "q": "Phát biểu nào sau đây đúng về cơ chế truyền tham số trong Java?",
+          "options": [
+            "Java là 100% Pass-by-value đối với cả kiểu nguyên thủy và kiểu đối tượng tham chiếu.",
+            "Java truyền kiểu nguyên thủy bằng Pass-by-value, truyền đối tượng bằng Pass-by-reference.",
+            "Java chỉ truyền Pass-by-value nếu có từ khóa final.",
+            "Java cho phép chọn Pass-by-reference bằng con trỏ pointer."
+          ],
+          "answer": 0,
+          "explain": "Java chỉ có duy nhất cơ chế Pass-by-value. Khi truyền đối tượng, giá trị được sao chép chính là địa chỉ tham chiếu (reference address) trỏ tới object trên Heap."
+        },
+        {
+          "q": "String Constant Pool trong Java 21 được lưu trữ tại vùng nhớ nào?",
+          "options": [
+            "Java Heap Space",
+            "Metaspace",
+            "Native C-Heap",
+            "Thread Stack"
+          ],
+          "answer": 0,
+          "explain": "Từ Java 7 trở đi, String Constant Pool đã được chuyển hoàn toàn về vùng nhớ Java Heap để được Garbage Collector dọn dẹp khi không còn tham chiếu."
+        }
+      ]
     },
     {
       "id": 103,
@@ -227,41 +937,413 @@
           "title": "Bài 3.4: Hàng Đợi Ưu Tiên PriorityQueue, ArrayDeque & Thread-Safe Collections",
           "minutes": 8,
           "content": "\n:::target 🎯 MỤC TIÊU BÀI HỌC (10 PHÚT)\n- Làm chủ cấu trúc dữ liệu Hàng Đợi Ưu Tiên (`PriorityQueue` - Min/Max Binary Heap).\n- Phân biệt `ArrayDeque` (Double-Ended Queue) và `Stack` cổ lỗ sĩ bị khuyến cáo tránh dùng.\n- Hiểu rõ sự khác biệt giữa `ConcurrentHashMap` và `Collections.synchronizedMap()`.\n- Xây dựng hàng đợi điều phối giao dịch Flash Sale theo độ ưu tiên khách hàng VIP.\n:::\n\n:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN: PHÒNG CẤP CỨU BỆNH VIỆN\n- **Queue thông thường (FIFO - Vào trước ra trước)**: Giống như xếp hàng mua vé xem phim. Ai đến trước mua trước.\n- **PriorityQueue (Hàng đợi ưu tiên)**: Giống như phòng cấp cứu bệnh viện! Dù một bệnh nhân bị cảm cúm đến trước 1 tiếng, nhưng khi có ca tai nạn nguy kịch (Độ ưu tiên cao nhất) vừa đến cửa, ca tai nạn sẽ được đẩy lên bàn mổ xử lý ngay lập tức!\n:::\n\n---\n\n## 1. Cái này là gì? (Kiến Trúc Min-Heap Trong PriorityQueue)\n\n```mermaid\nflowchart TD\n    subgraph HEAP [\"PriorityQueue: Cấu Trúc Binary Heap (Mảng Phẳng)\"]\n        H0[\"[0] VIP Khẩn Cấp (Ưu tiên 1)\"]\n        H1[\"[1] Khách VIP (Ưu tiên 2)\"]\n        H2[\"[2] Đơn Thường (Ưu tiên 3)\"]\n        H0 --- H1\n        H0 --- H2\n    end\n    style HEAP fill:#064e3b,stroke:#10b981,color:#fff\n```\n\n---\n\n## 2. Dùng khi nào & Tại sao? (Ma Trận So Sánh Các Cấu Trúc Hàng Đợi)\n\n| Cấu trúc dữ liệu | Cơ chế hoạt động | Độ phức tạp `poll()` | An toàn đa luồng? | Trường hợp sử dụng |\n|---|---|---|---|---|\n| **`ArrayDeque`** | FIFO hoặc LIFO (Circular Array) | ⭐ $O(1)$ | ❌ Không | Thay thế hoàn toàn class `Stack` cũ kỹ |\n| **`PriorityQueue`** | Min-Heap / Max-Heap | $O(\\log N)$ | ❌ Không | Sắp xếp lịch chạy tác vụ, Dijkstra, Flash Sale |\n| **`ConcurrentLinkedQueue`** | Non-blocking Lock-Free (CAS) | $O(1)$ | ✅ **Thread-safe** | Hệ thống đa luồng chịu tải cao |\n| **`ArrayBlockingQueue`** | Bounded Blocking Queue (ReentrantLock) | $O(1)$ | ✅ **Thread-safe** | Làm Buffer điều phối Producer - Consumer |\n\n---\n\n## 3. Dùng như thế nào & Phân tích từng dòng code (Điều Phối Đơn Hàng VIP Flash Sale)\n\n```java\npackage vn.mastery.ecommerce.queue;\n\nimport java.util.PriorityQueue;\nimport java.util.Queue;\n\npublic class FlashSaleDispatcher {\n\n    public record FlashOrder(String orderId, int priorityTier, long amount) implements Comparable<FlashOrder> {\n        // Số tier càng nhỏ độ ưu tiên càng cao (Tier 1 = Kim cương, Tier 3 = Thường)\n        @Override\n        public int compareTo(FlashOrder o) {\n            return Integer.compare(this.priorityTier, o.priorityTier);\n        }\n    }\n\n    public static void main(String[] args) {\n        Queue<FlashOrder> orderQueue = new PriorityQueue<>();\n\n        // Nạp đơn hàng lộn xộn\n        orderQueue.offer(new FlashOrder(\"ORD-NORMAL-1\", 3, 200_000L));\n        orderQueue.offer(new FlashOrder(\"ORD-VIP-DIAMOND\", 1, 50_000_000L));\n        orderQueue.offer(new FlashOrder(\"ORD-VIP-GOLD\", 2, 5_000_000L));\n\n        // Rút đơn hàng ra xử lý: Luôn lấy đơn quan trọng nhất trước!\n        while (!orderQueue.isEmpty()) {\n            FlashOrder next = orderQueue.poll();\n            System.out.println(\"Đang xử lý: \" + next.orderId() + \" (Tier: \" + next.priorityTier() + \")\");\n        }\n    }\n}\n```\n\n### Bảng Phân Tích Thao Tác Binary Heap:\n\n| Phương thức | Chi phí thời gian | Cơ chế thực thi |\n|---|---|---|\n| `offer(e)` | $O(\\log N)$ | Thêm phần tử vào cuối mảng rồi sàng lên (Sift-Up) để giữ tính chất Heap |\n| `poll()` | $O(\\log N)$ | Lấy phần tử gốc (Root), lấy lá cuối mảng đưa lên đầu rồi sàng xuống (Sift-Down) |\n| `peek()` | $O(1)$ | Chỉ đọc giá trị tại `elementData[0]` mà không làm thay đổi mảng |\n\n---\n\n## 4. Cạm bẫy thực tế & Best Practices (Production Pitfalls & Actionable Checklist)\n\n### Cạm bẫy 1: Sửa đổi thuộc tính của phần tử khi nó đang nằm trong PriorityQueue\n- **Vấn đề**: Sau khi `orderQueue.offer(order)`, bạn sửa `order.setPriority(1)`. `PriorityQueue` **không tự sắp xếp lại**! Thứ tự heap bị sai lệch hoàn toàn.\n- **Giải pháp**: Nếu cần đổi độ ưu tiên, bắt buộc phải `remove(order)`, sửa thuộc tính, rồi `offer()` lại.\n\n### Checklist Bài 3.4\n- [ ] Tuyệt đối không dùng class cổ điển `Vector` và `Stack` (Đã lỗi thời từ Java 1.2).\n- [ ] Dùng `ArrayDeque` khi cần cấu trúc Ngăn xếp (Stack) hoặc Hàng đợi (Queue) đơn luồng.\n- [ ] Dùng `PriorityQueue` khi cần liên tục lấy ra phần tử có độ ưu tiên cao nhất.\n"
+        },
+        {
+          "id": "j0-3-quiz",
+          "type": "quiz",
+          "title": "Sát Hạch Năng Lực Module 3: Java Collections Framework & Cấu Trúc Dữ Liệu Chuyên Sâu",
+          "minutes": 15,
+          "questions": [
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-2",
+              "scenario": "Một class CustomerKey chỉ override phương thức equals(Object o) để so sánh mã khách hàng, nhưng quên không override phương thức hashCode(). Lập trình viên đưa CustomerKey vào HashMap: map.put(key1, \"VIP_DATA\"); Sau đó gọi: map.get(key2); với key1.equals(key2) == true.",
+              "q": "Hiện tượng gì sẽ xảy ra và nguyên nhân kỹ thuật bên dưới là gì?",
+              "options": [
+                "map.get(key2) trả về null — Vì key1 và key2 có mã hashCode() mặc định khác nhau (do địa chỉ ô nhớ khác nhau), dẫn đến tra cứu nhầm bucket trong HashMap.",
+                "map.get(key2) vẫn lấy được đúng \"VIP_DATA\" vì HashMap chỉ quan tâm hàm equals().",
+                "HashMap tự động ném ra ngoại lệ IllegalStateException.",
+                "Toàn bộ HashMap bị xóa sạch dữ liệu."
+              ],
+              "answer": 0,
+              "explain": "Đây là lỗi vi phạm Hợp đồng equals() và hashCode() kinh điển: Hai đối tượng equals bằng true BẮT BUỘC phải có cùng hashCode(). HashMap dựa vào hashCode() để tính chỉ số bucket index: index = (n - 1) & hash. Nếu hashCode khác nhau, JVM sẽ tìm kiếm ở một bucket hoàn toàn khác và trả về null dù equals() là true!"
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-2",
+              "scenario": "Lập trình viên sử dụng một đối tượng khả biến (Mutable Object) làm Key trong HashMap: CustomerKey key = new CustomerKey(\"C01\"); map.put(key, order); Sau đó, thuộc tính của key bị thay đổi: key.setId(\"C02\");",
+              "q": "Hậu quả thực tế xảy ra trên môi trường Production là gì?",
+              "options": [
+                "Dữ liệu của order bị 'mất tích' vĩnh viễn trong Map; gọi map.get(key) trả về null và gây rò rỉ ô nhớ (Memory Leak) vì không thể xóa được phần tử này.",
+                "HashMap tự động phát hiện và tính toán lại vị trí bucket cho key mới.",
+                "Chương trình ném ra ConcurrentModificationException.",
+                "Key tự động khôi phục lại giá trị ban đầu là 'C01'."
+              ],
+              "answer": 0,
+              "explain": "Khi put, vị trí bucket được tính dựa trên hashCode của 'C01'. Khi sửa thành 'C02', hashCode của key thay đổi. Khi get(key), HashMap tính chỉ số bucket dựa trên hashCode mới và tìm ở bucket khác -> trả về null. Node cũ vẫn nằm ở bucket cũ nhưng không thể truy xuất hay remove được, gây Memory Leak nghiêm trọng."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-3-1",
+              "scenario": "So sánh hiệu năng giữa ArrayList và LinkedList trong Java.",
+              "q": "Tại sao trong thực tế phát triển phần mềm doanh nghiệp hiện đại, ArrayList hầu như luôn được ưu tiên hơn LinkedList ngay cả khi có nhiều thao tác chèn/xóa?",
+              "options": [
+                "ArrayList lưu trữ mảng liên tục trên ô nhớ nên tận dụng tối đa CPU L1/L2 Cache Locality và không tốn chi phí con trỏ Node như LinkedList.",
+                "LinkedList không hỗ trợ đa luồng còn ArrayList hỗ trợ đa luồng an toàn.",
+                "ArrayList có dung lượng không giới hạn còn LinkedList bị giới hạn tối đa 65,536 phần tử.",
+                "Vì LinkedList đã bị Java 21 đánh dấu là deprecated."
+              ],
+              "answer": 0,
+              "explain": "LinkedList phân mảnh bộ nhớ vì mỗi Node là một object riêng biệt (tốn thêm 24 byte con trỏ next/prev trên 64-bit JVM). Khi duyệt LinkedList, CPU liên tục bị Cache Miss vì các Node nằm rải rác trên Heap. ArrayList lưu các phần tử kế tiếp nhau trong mảng, CPU tải trước toàn bộ Cache Line vào L1/L2 Cache giúp tốc độ duyệt nhanh hơn từ 5-10 lần."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-2",
+              "scenario": "Trong Java 8 trở lên, khi một bucket trong HashMap xảy ra quá nhiều xung đột băm (Hash Collision), JVM sẽ thực hiện tối ưu hóa cấu trúc dữ liệu.",
+              "q": "Điều kiện và cấu trúc dữ liệu chuyển đổi của bucket trong HashMap là gì?",
+              "options": [
+                "Khi số phần tử trong 1 bucket vượt quá 8 (TREEIFY_THRESHOLD) và tổng capacity >= 64, danh sách liên kết đơn sẽ chuyển hóa thành Cây Đỏ Đen (Red-Black Tree) với độ phức tạp O(log N).",
+                "Chuyển hóa toàn bộ HashMap thành HashTable để đảm bảo đồng bộ.",
+                "Chuyển bucket thành mảng hai chiều với độ phức tạp O(1).",
+                "Tự động xóa bớt các phần tử trùng lặp để giảm kích thước."
+              ],
+              "answer": 0,
+              "explain": "Để chống lại các cuộc tấn công DoS Hash Collision (kẻ xấu cố tình gửi các key có cùng hashCode để biến HashMap thành Linked List O(N)), Java chuyển bucket thành Cây Đỏ Đen khi bucket có >= 8 node, đảm bảo hiệu năng tra cứu xấu nhất chỉ là O(log N)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-3-3",
+              "scenario": "Một hệ thống cần lưu trữ danh sách đơn hàng được sắp xếp theo thời gian tạo và tự động loại bỏ các đơn hàng trùng mã ID.",
+              "q": "Collection nào sau đây là lựa chọn phù hợp nhất?",
+              "options": [
+                "TreeSet kết hợp với Comparator theo thời gian tạo.",
+                "ArrayList kết hợp Collections.sort().",
+                "HashSet thông thường.",
+                "LinkedList."
+              ],
+              "answer": 0,
+              "explain": "TreeSet triển khai NavigableSet dựa trên cấu trúc Cây Đỏ Đen (Red-Black Tree). Nó đảm bảo 2 tính chất: Không chứa phần tử trùng lặp (Set) và các phần tử luôn được duy trì ở trạng thái có thứ tự theo Comparator hoặc Comparable."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-4",
+              "scenario": "Một lập trình viên duyệt danh sách đơn hàng và xóa các đơn đã hủy: for (Order o : orderList) { if (o.isCancelled()) orderList.remove(o); }",
+              "q": "Ngoại lệ nào sẽ bị ném ra tại thời điểm thực thi và nguyên nhân là gì?",
+              "options": [
+                "ConcurrentModificationException — Do cơ chế Fail-Fast của Iterator phát hiện modCount bị thay đổi mà không thông qua Iterator.remove().",
+                "NullPointerException — Do phần tử bị gán thành null.",
+                "IndexOutOfBoundsException — Do chỉ số mảng vượt quá độ dài.",
+                "Không có lỗi nào phát sinh, code chạy hoàn hảo."
+              ],
+              "answer": 0,
+              "explain": "Vòng lặp for-each bản chất sử dụng Iterator bên dưới. ArrayList duy trì biến modCount đếm số lần sửa đổi cấu trúc. Khi gọi orderList.remove(o) trực tiếp, modCount tăng lên nhưng expectedModCount của Iterator không đổi, dẫn đến cơ chế Fail-Fast kích hoạt và ném ConcurrentModificationException. Giải pháp là dùng iterator.remove() hoặc orderList.removeIf()."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-3-4",
+              "scenario": "Trong hệ thống xử lý tác vụ nền (Background Job), các tác vụ cần được xử lý theo mức độ khẩn cấp (Priority High xử lý trước Priority Low).",
+              "q": "Cấu trúc dữ liệu nào trong Java Collections được thiết kế tối ưu nhất cho kịch bản này?",
+              "options": [
+                "PriorityQueue — Cấu trúc Hàng đợi ưu tiên dựa trên cây nhị phân Min/Max Heap.",
+                "ArrayDeque — Hàng đợi hai đầu LIFO/FIFO thông thường.",
+                "LinkedList — Danh sách liên kết hai chiều.",
+                "Stack — Ngăn xếp truyền thống."
+              ],
+              "answer": 0,
+              "explain": "PriorityQueue sắp xếp các phần tử dựa trên thứ tự tự nhiên (Comparable) hoặc Comparator thông qua cấu trúc Min/Max Heap. Thao tác poll() luôn lấy ra phần tử có độ ưu tiên cao nhất với thời gian O(log N)."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-4",
+              "scenario": "Một ứng dụng đa luồng có 95% thao tác là đọc danh sách cấu hình và chỉ 5% là ghi (thêm/sửa cấu hình).",
+              "q": "Collection nào sau đây mang lại hiệu năng đọc đồng thời cao nhất mà không cần lock đồng bộ?",
+              "options": [
+                "CopyOnWriteArrayList — Cho phép thao tác đọc không cần khóa (lock-free), mỗi lần ghi sẽ sao chép toàn bộ mảng ngầm định.",
+                "Collections.synchronizedList(new ArrayList<>()) — Khóa toàn bộ danh sách ở mọi thao tác đọc và ghi.",
+                "Vector — Class đồng bộ truyền thống từ Java 1.0.",
+                "ArrayList thông thường không đồng bộ."
+              ],
+              "answer": 0,
+              "explain": "CopyOnWriteArrayList cực kỳ phù hợp cho mô hình Read-Heavy, Write-Rare. Thao tác đọc truy cập trực tiếp vào mảng snapshot hiện tại mà không tốn chi phí khóa. Khi ghi, nó tạo bản sao mảng mới nên thao tác ghi tốn chi phí, nhưng đảm bảo tính nhất quán tuyệt đối cho hàng triệu luồng đọc đồng thời."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-3-1",
+              "scenario": "Hệ số tải mặc định (Default Load Factor) của HashMap trong Java là 0.75.",
+              "q": "Ý nghĩa của hệ số tải 0.75 là gì?",
+              "options": [
+                "Khi số lượng phần tử vượt quá 75% sức chứa hiện tại (capacity), HashMap sẽ tự động mở rộng gấp đôi (resize) và rehash lại toàn bộ dữ liệu.",
+                "Mỗi bucket chỉ được phép chứa tối đa 75 phần tử.",
+                "HashMap chỉ sử dụng 75% dung lượng RAM của JVM.",
+                "Hiệu suất tra cứu của HashMap đạt 75% so với mảng nguyên thủy."
+              ],
+              "answer": 0,
+              "explain": "Hệ số tải (Load Factor) là tỷ lệ ngưỡng để kích hoạt việc tăng dung lượng bảng băm. Giá trị 0.75 là mức cân bằng hoàn hảo giữa chi phí không gian (bộ nhớ RAM) và chi phí thời gian (xác suất xảy ra collision trong các phép toán get/put)."
+            },
+            {
+              "level": "easy",
+              "targetLessonId": "j0-3-1",
+              "scenario": "Lập trình viên tạo danh sách: List<String> list = Arrays.asList(\"A\", \"B\"); Sau đó gọi list.add(\"C\");",
+              "q": "Kết quả thực thi dòng lệnh trên là gì?",
+              "options": [
+                "Ném ra UnsupportedOperationException — Vì Arrays.asList() trả về danh sách có kích thước cố định (fixed-size wrapper) bọc lấy mảng ban đầu.",
+                "Phần tử \"C\" được thêm thành công vào danh sách.",
+                "Mảng tự động tăng kích thước thành 3 phần tử.",
+                "Chương trình bị lỗi biên dịch Compile Error."
+              ],
+              "answer": 0,
+              "explain": "Arrays.asList() tạo ra một wrapper kiểu java.util.Arrays$ArrayList bao bọc lấy mảng nguyên thủy, có kích thước cố định. Bạn có thể sửa phần tử cũ (.set()), nhưng không thể gọi .add() hay .remove(), nếu gọi sẽ ném UnsupportedOperationException. Trong Java 21, List.of() thậm chí còn bất biến hoàn toàn (immutable)."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-3-3",
+              "scenario": "Hai interface Comparable và Comparator được dùng để sắp xếp đối tượng trong Java.",
+              "q": "Điểm khác biệt kiến trúc mấu chốt giữa Comparable và Comparator là gì?",
+              "options": [
+                "Comparable định nghĩa thứ tự tự nhiên (Natural ordering) bên trong chính class (hàm compareTo); Comparator định nghĩa chiến lược sắp xếp tùy biến bên ngoài class (hàm compare).",
+                "Comparable chỉ áp dụng cho số nguyên, Comparator chỉ áp dụng cho chuỗi ký tự.",
+                "Comparable chạy chậm hơn Comparator vì dùng Reflection.",
+                "Comparable là class cha của Comparator."
+              ],
+              "answer": 0,
+              "explain": "Comparable<T> (phương thức compareTo) định nghĩa thứ tự mặc định của chính đối tượng đó. Comparator<T> (phương thức compare) là một Strategy Pattern độc lập cho phép định nghĩa nhiều cách sắp xếp khác nhau (sắp xếp theo giá, theo tên, theo ngày) mà không cần can thiệp sửa đổi mã nguồn của Entity."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-3-2",
+              "scenario": "Một bảng băm HashMap có kích thước capacity ban đầu là 16.",
+              "q": "Tại sao kích thước capacity của HashMap luôn bắt buộc phải là lũy thừa của 2 (2^N)?",
+              "options": [
+                "Để phép toán chia lấy dư tính chỉ số bucket index = hash % capacity có thể tối ưu thành phép toán bitwise siêu tốc: index = (capacity - 1) & hash.",
+                "Vì hệ điều hành 64-bit chỉ hỗ trợ mảng có kích thước chẵn.",
+                "Để ngăn cản việc rò rỉ bộ nhớ Heap.",
+                "Vì thuật toán băm MurmurHash yêu cầu độ dài chẵn."
+              ],
+              "answer": 0,
+              "explain": "Phép toán chia lấy dư (%) trong CPU rất tốn clock cycles. Khi capacity là lũy thừa của 2 (ví dụ 16 = 00010000_b), (capacity - 1) sẽ là chuỗi toàn bit 1 (15 = 00001111_b). Phép toán bitwise AND '&' trên thanh ghi CPU chỉ tốn 1 clock cycle và phân bổ đều các bit băm vào mảng."
+            }
+          ]
         }
       ],
       "quiz": {
-        "id": "j0-quiz-3",
-        "type": "quiz",
-        "title": "Sát Hạch Module J0.3: Java Collections Framework",
+        "id": "j0-3-quiz",
+        "title": "Sát Hạch Năng Lực Module 3: Java Collections Framework & Cấu Trúc Dữ Liệu Chuyên Sâu",
+        "poolSize": 12,
+        "pullCount": 12,
+        "passThresholdPct": 80,
         "questions": [
           {
-            "level": "medium",
-            "scenario": "Hai đối tượng Order a và Order b có method equals() trả về true. Nhưng lập trình viên quên override method hashCode(), dẫn đến a và b có 2 giá trị hashCode khác nhau.",
-            "q": "Hiện tượng gì sẽ xảy ra khi thực hiện: map.put(a, 'DATA'); map.get(b);?",
+            "level": "hard",
+            "targetLessonId": "j0-3-2",
+            "scenario": "Một class CustomerKey chỉ override phương thức equals(Object o) để so sánh mã khách hàng, nhưng quên không override phương thức hashCode(). Lập trình viên đưa CustomerKey vào HashMap: map.put(key1, \"VIP_DATA\"); Sau đó gọi: map.get(key2); với key1.equals(key2) == true.",
+            "q": "Hiện tượng gì sẽ xảy ra và nguyên nhân kỹ thuật bên dưới là gì?",
             "options": [
-              "map.get(b) trả về null dù về mặt nghiệp vụ 2 đối tượng là tương đương.",
-              "map.get(b) vẫn trả về 'DATA' vì HashMap tự động kiểm tra equals().",
-              "Chương trình ném ngoại lệ DuplicateKeyException.",
-              "HashMap bị treo trong vòng lặp vô tận."
+              "map.get(key2) trả về null — Vì key1 và key2 có mã hashCode() mặc định khác nhau (do địa chỉ ô nhớ khác nhau), dẫn đến tra cứu nhầm bucket trong HashMap.",
+              "map.get(key2) vẫn lấy được đúng \"VIP_DATA\" vì HashMap chỉ quan tâm hàm equals().",
+              "HashMap tự động ném ra ngoại lệ IllegalStateException.",
+              "Toàn bộ HashMap bị xóa sạch dữ liệu."
             ],
             "answer": 0,
-            "explanation": "HashMap dùng hashCode để tìm chỉ số thùng (bucket index). Vì a và b có hashCode khác nhau, HashMap sẽ tìm vào 2 bucket khác nhau trên mảng table. Khi tìm ở bucket của b, nó không thấy dữ liệu và trả về null."
+            "explain": "Đây là lỗi vi phạm Hợp đồng equals() và hashCode() kinh điển: Hai đối tượng equals bằng true BẮT BUỘC phải có cùng hashCode(). HashMap dựa vào hashCode() để tính chỉ số bucket index: index = (n - 1) & hash. Nếu hashCode khác nhau, JVM sẽ tìm kiếm ở một bucket hoàn toàn khác và trả về null dù equals() là true!"
           },
           {
             "level": "hard",
-            "scenario": "Lập trình viên muốn tạo một hàng đợi điều phối cho 50 thread đồng thời ghi đơn hàng và 10 thread đồng thời rút đơn hàng. Lập trình viên lựa chọn cấu trúc new PriorityQueue<Order>().",
+            "targetLessonId": "j0-3-2",
+            "scenario": "Lập trình viên sử dụng một đối tượng khả biến (Mutable Object) làm Key trong HashMap: CustomerKey key = new CustomerKey(\"C01\"); map.put(key, order); Sau đó, thuộc tính của key bị thay đổi: key.setId(\"C02\");",
             "q": "Hậu quả thực tế xảy ra trên môi trường Production là gì?",
             "options": [
-              "Phát sinh Race Condition, mảng nội bộ bị ghi đè làm mất đơn hàng hoặc ném ngoại lệ ArrayIndexOutOfBoundsException vì PriorityQueue không Thread-safe.",
-              "Hệ thống tự động lock an toàn vì Java Collection đều có cơ chế đồng bộ ngầm.",
-              "Các thread tự động chuyển sang cơ chế Virtual Threads.",
-              "Không có vấn đề gì xảy ra."
+              "Dữ liệu của order bị 'mất tích' vĩnh viễn trong Map; gọi map.get(key) trả về null và gây rò rỉ ô nhớ (Memory Leak) vì không thể xóa được phần tử này.",
+              "HashMap tự động phát hiện và tính toán lại vị trí bucket cho key mới.",
+              "Chương trình ném ra ConcurrentModificationException.",
+              "Key tự động khôi phục lại giá trị ban đầu là 'C01'."
             ],
             "answer": 0,
-            "explanation": "PriorityQueue không có bất kỳ cơ chế đồng bộ (Lock) nào. Khi nhiều thread cùng gọi offer() hoặc poll(), biến size và con trỏ mảng bị phá hủy dẫn đến mất dữ liệu hoặc crash app. Trong môi trường đa luồng, bắt buộc phải dùng PriorityBlockingQueue."
+            "explain": "Khi put, vị trí bucket được tính dựa trên hashCode của 'C01'. Khi sửa thành 'C02', hashCode của key thay đổi. Khi get(key), HashMap tính chỉ số bucket dựa trên hashCode mới và tìm ở bucket khác -> trả về null. Node cũ vẫn nằm ở bucket cũ nhưng không thể truy xuất hay remove được, gây Memory Leak nghiêm trọng."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-3-1",
+            "scenario": "So sánh hiệu năng giữa ArrayList và LinkedList trong Java.",
+            "q": "Tại sao trong thực tế phát triển phần mềm doanh nghiệp hiện đại, ArrayList hầu như luôn được ưu tiên hơn LinkedList ngay cả khi có nhiều thao tác chèn/xóa?",
+            "options": [
+              "ArrayList lưu trữ mảng liên tục trên ô nhớ nên tận dụng tối đa CPU L1/L2 Cache Locality và không tốn chi phí con trỏ Node như LinkedList.",
+              "LinkedList không hỗ trợ đa luồng còn ArrayList hỗ trợ đa luồng an toàn.",
+              "ArrayList có dung lượng không giới hạn còn LinkedList bị giới hạn tối đa 65,536 phần tử.",
+              "Vì LinkedList đã bị Java 21 đánh dấu là deprecated."
+            ],
+            "answer": 0,
+            "explain": "LinkedList phân mảnh bộ nhớ vì mỗi Node là một object riêng biệt (tốn thêm 24 byte con trỏ next/prev trên 64-bit JVM). Khi duyệt LinkedList, CPU liên tục bị Cache Miss vì các Node nằm rải rác trên Heap. ArrayList lưu các phần tử kế tiếp nhau trong mảng, CPU tải trước toàn bộ Cache Line vào L1/L2 Cache giúp tốc độ duyệt nhanh hơn từ 5-10 lần."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-3-2",
+            "scenario": "Trong Java 8 trở lên, khi một bucket trong HashMap xảy ra quá nhiều xung đột băm (Hash Collision), JVM sẽ thực hiện tối ưu hóa cấu trúc dữ liệu.",
+            "q": "Điều kiện và cấu trúc dữ liệu chuyển đổi của bucket trong HashMap là gì?",
+            "options": [
+              "Khi số phần tử trong 1 bucket vượt quá 8 (TREEIFY_THRESHOLD) và tổng capacity >= 64, danh sách liên kết đơn sẽ chuyển hóa thành Cây Đỏ Đen (Red-Black Tree) với độ phức tạp O(log N).",
+              "Chuyển hóa toàn bộ HashMap thành HashTable để đảm bảo đồng bộ.",
+              "Chuyển bucket thành mảng hai chiều với độ phức tạp O(1).",
+              "Tự động xóa bớt các phần tử trùng lặp để giảm kích thước."
+            ],
+            "answer": 0,
+            "explain": "Để chống lại các cuộc tấn công DoS Hash Collision (kẻ xấu cố tình gửi các key có cùng hashCode để biến HashMap thành Linked List O(N)), Java chuyển bucket thành Cây Đỏ Đen khi bucket có >= 8 node, đảm bảo hiệu năng tra cứu xấu nhất chỉ là O(log N)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-3-3",
+            "scenario": "Một hệ thống cần lưu trữ danh sách đơn hàng được sắp xếp theo thời gian tạo và tự động loại bỏ các đơn hàng trùng mã ID.",
+            "q": "Collection nào sau đây là lựa chọn phù hợp nhất?",
+            "options": [
+              "TreeSet kết hợp với Comparator theo thời gian tạo.",
+              "ArrayList kết hợp Collections.sort().",
+              "HashSet thông thường.",
+              "LinkedList."
+            ],
+            "answer": 0,
+            "explain": "TreeSet triển khai NavigableSet dựa trên cấu trúc Cây Đỏ Đen (Red-Black Tree). Nó đảm bảo 2 tính chất: Không chứa phần tử trùng lặp (Set) và các phần tử luôn được duy trì ở trạng thái có thứ tự theo Comparator hoặc Comparable."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-3-4",
+            "scenario": "Một lập trình viên duyệt danh sách đơn hàng và xóa các đơn đã hủy: for (Order o : orderList) { if (o.isCancelled()) orderList.remove(o); }",
+            "q": "Ngoại lệ nào sẽ bị ném ra tại thời điểm thực thi và nguyên nhân là gì?",
+            "options": [
+              "ConcurrentModificationException — Do cơ chế Fail-Fast của Iterator phát hiện modCount bị thay đổi mà không thông qua Iterator.remove().",
+              "NullPointerException — Do phần tử bị gán thành null.",
+              "IndexOutOfBoundsException — Do chỉ số mảng vượt quá độ dài.",
+              "Không có lỗi nào phát sinh, code chạy hoàn hảo."
+            ],
+            "answer": 0,
+            "explain": "Vòng lặp for-each bản chất sử dụng Iterator bên dưới. ArrayList duy trì biến modCount đếm số lần sửa đổi cấu trúc. Khi gọi orderList.remove(o) trực tiếp, modCount tăng lên nhưng expectedModCount của Iterator không đổi, dẫn đến cơ chế Fail-Fast kích hoạt và ném ConcurrentModificationException. Giải pháp là dùng iterator.remove() hoặc orderList.removeIf()."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-3-4",
+            "scenario": "Trong hệ thống xử lý tác vụ nền (Background Job), các tác vụ cần được xử lý theo mức độ khẩn cấp (Priority High xử lý trước Priority Low).",
+            "q": "Cấu trúc dữ liệu nào trong Java Collections được thiết kế tối ưu nhất cho kịch bản này?",
+            "options": [
+              "PriorityQueue — Cấu trúc Hàng đợi ưu tiên dựa trên cây nhị phân Min/Max Heap.",
+              "ArrayDeque — Hàng đợi hai đầu LIFO/FIFO thông thường.",
+              "LinkedList — Danh sách liên kết hai chiều.",
+              "Stack — Ngăn xếp truyền thống."
+            ],
+            "answer": 0,
+            "explain": "PriorityQueue sắp xếp các phần tử dựa trên thứ tự tự nhiên (Comparable) hoặc Comparator thông qua cấu trúc Min/Max Heap. Thao tác poll() luôn lấy ra phần tử có độ ưu tiên cao nhất với thời gian O(log N)."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-3-4",
+            "scenario": "Một ứng dụng đa luồng có 95% thao tác là đọc danh sách cấu hình và chỉ 5% là ghi (thêm/sửa cấu hình).",
+            "q": "Collection nào sau đây mang lại hiệu năng đọc đồng thời cao nhất mà không cần lock đồng bộ?",
+            "options": [
+              "CopyOnWriteArrayList — Cho phép thao tác đọc không cần khóa (lock-free), mỗi lần ghi sẽ sao chép toàn bộ mảng ngầm định.",
+              "Collections.synchronizedList(new ArrayList<>()) — Khóa toàn bộ danh sách ở mọi thao tác đọc và ghi.",
+              "Vector — Class đồng bộ truyền thống từ Java 1.0.",
+              "ArrayList thông thường không đồng bộ."
+            ],
+            "answer": 0,
+            "explain": "CopyOnWriteArrayList cực kỳ phù hợp cho mô hình Read-Heavy, Write-Rare. Thao tác đọc truy cập trực tiếp vào mảng snapshot hiện tại mà không tốn chi phí khóa. Khi ghi, nó tạo bản sao mảng mới nên thao tác ghi tốn chi phí, nhưng đảm bảo tính nhất quán tuyệt đối cho hàng triệu luồng đọc đồng thời."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-3-1",
+            "scenario": "Hệ số tải mặc định (Default Load Factor) của HashMap trong Java là 0.75.",
+            "q": "Ý nghĩa của hệ số tải 0.75 là gì?",
+            "options": [
+              "Khi số lượng phần tử vượt quá 75% sức chứa hiện tại (capacity), HashMap sẽ tự động mở rộng gấp đôi (resize) và rehash lại toàn bộ dữ liệu.",
+              "Mỗi bucket chỉ được phép chứa tối đa 75 phần tử.",
+              "HashMap chỉ sử dụng 75% dung lượng RAM của JVM.",
+              "Hiệu suất tra cứu của HashMap đạt 75% so với mảng nguyên thủy."
+            ],
+            "answer": 0,
+            "explain": "Hệ số tải (Load Factor) là tỷ lệ ngưỡng để kích hoạt việc tăng dung lượng bảng băm. Giá trị 0.75 là mức cân bằng hoàn hảo giữa chi phí không gian (bộ nhớ RAM) và chi phí thời gian (xác suất xảy ra collision trong các phép toán get/put)."
+          },
+          {
+            "level": "easy",
+            "targetLessonId": "j0-3-1",
+            "scenario": "Lập trình viên tạo danh sách: List<String> list = Arrays.asList(\"A\", \"B\"); Sau đó gọi list.add(\"C\");",
+            "q": "Kết quả thực thi dòng lệnh trên là gì?",
+            "options": [
+              "Ném ra UnsupportedOperationException — Vì Arrays.asList() trả về danh sách có kích thước cố định (fixed-size wrapper) bọc lấy mảng ban đầu.",
+              "Phần tử \"C\" được thêm thành công vào danh sách.",
+              "Mảng tự động tăng kích thước thành 3 phần tử.",
+              "Chương trình bị lỗi biên dịch Compile Error."
+            ],
+            "answer": 0,
+            "explain": "Arrays.asList() tạo ra một wrapper kiểu java.util.Arrays$ArrayList bao bọc lấy mảng nguyên thủy, có kích thước cố định. Bạn có thể sửa phần tử cũ (.set()), nhưng không thể gọi .add() hay .remove(), nếu gọi sẽ ném UnsupportedOperationException. Trong Java 21, List.of() thậm chí còn bất biến hoàn toàn (immutable)."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-3-3",
+            "scenario": "Hai interface Comparable và Comparator được dùng để sắp xếp đối tượng trong Java.",
+            "q": "Điểm khác biệt kiến trúc mấu chốt giữa Comparable và Comparator là gì?",
+            "options": [
+              "Comparable định nghĩa thứ tự tự nhiên (Natural ordering) bên trong chính class (hàm compareTo); Comparator định nghĩa chiến lược sắp xếp tùy biến bên ngoài class (hàm compare).",
+              "Comparable chỉ áp dụng cho số nguyên, Comparator chỉ áp dụng cho chuỗi ký tự.",
+              "Comparable chạy chậm hơn Comparator vì dùng Reflection.",
+              "Comparable là class cha của Comparator."
+            ],
+            "answer": 0,
+            "explain": "Comparable<T> (phương thức compareTo) định nghĩa thứ tự mặc định của chính đối tượng đó. Comparator<T> (phương thức compare) là một Strategy Pattern độc lập cho phép định nghĩa nhiều cách sắp xếp khác nhau (sắp xếp theo giá, theo tên, theo ngày) mà không cần can thiệp sửa đổi mã nguồn của Entity."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-3-2",
+            "scenario": "Một bảng băm HashMap có kích thước capacity ban đầu là 16.",
+            "q": "Tại sao kích thước capacity của HashMap luôn bắt buộc phải là lũy thừa của 2 (2^N)?",
+            "options": [
+              "Để phép toán chia lấy dư tính chỉ số bucket index = hash % capacity có thể tối ưu thành phép toán bitwise siêu tốc: index = (capacity - 1) & hash.",
+              "Vì hệ điều hành 64-bit chỉ hỗ trợ mảng có kích thước chẵn.",
+              "Để ngăn cản việc rò rỉ bộ nhớ Heap.",
+              "Vì thuật toán băm MurmurHash yêu cầu độ dài chẵn."
+            ],
+            "answer": 0,
+            "explain": "Phép toán chia lấy dư (%) trong CPU rất tốn clock cycles. Khi capacity là lũy thừa của 2 (ví dụ 16 = 00010000_b), (capacity - 1) sẽ là chuỗi toàn bit 1 (15 = 00001111_b). Phép toán bitwise AND '&' trên thanh ghi CPU chỉ tốn 1 clock cycle và phân bổ đều các bit băm vào mảng."
           }
         ]
-      }
+      },
+      "subtitle": "List Internals, Hashing & Bucket Collision, Tree Structures & Thread-Safe Collections",
+      "outcomes": [
+        "Hiểu rõ bản chất cơ chế tăng kích thước của ArrayList và chi phí con trỏ của LinkedList",
+        "Làm chủ thuật toán băm (Hashing), Bucket Collision và giải mã chuyển đổi Red-Black Tree trong HashMap",
+        "Thực thi nghiêm ngặt hợp đồng equals() và hashCode() để tránh rò rỉ ô nhớ và mất dữ liệu trong Map/Set",
+        "Vận dụng đúng đắn cấu trúc Cây đỏ đen (TreeSet), Hàng đợi ưu tiên (PriorityQueue) và Thread-safe Collections"
+      ],
+      "topics": [
+        {
+          "id": 1,
+          "title": "List & Hashing Internals"
+        },
+        {
+          "id": 2,
+          "title": "Tree, Queue & Thread-Safe Collections"
+        }
+      ],
+      "retrievalWarmup": [
+        {
+          "q": "Tại sao Anemic Domain Model lại bị xem là anti-pattern trong thiết kế hướng đối tượng?",
+          "options": [
+            "Vì nó biến Entity thành cấu trúc dữ liệu thụ động, đẩy toàn bộ logic ra ngoài Service làm mất tính đóng gói.",
+            "Vì nó chiếm quá nhiều dung lượng bộ nhớ Heap.",
+            "Vì nó không thể tương thích với Spring Data JPA.",
+            "Vì nó bắt buộc phải sử dụng con trỏ pointer."
+          ],
+          "answer": 0,
+          "explain": "Anemic Domain Model biến OOP thành lập trình thủ tục (Procedural Programming), làm logic nghiệp vụ bị phân tán rải rác và các ràng buộc toàn vẹn của Entity không được bảo vệ."
+        },
+        {
+          "q": "Khi một class con ghi đè (override) phương thức của class cha, JVM dùng lệnh bytecode nào để gọi phương thức tại Runtime?",
+          "options": [
+            "invokevirtual",
+            "invokestatic",
+            "invokespecial",
+            "invokedynamic"
+          ],
+          "answer": 0,
+          "explain": "invokevirtual được JVM sử dụng để thực hiện Dynamic Method Dispatch tra cứu qua bảng vtable của đối tượng thực tế tại Runtime."
+        },
+        {
+          "q": "Lợi ích cốt lõi của việc áp dụng Defensive Copying trong Getter trả về Collection là gì?",
+          "options": [
+            "Ngăn chặn client bên ngoài tự ý thêm, sửa, xóa dữ liệu làm sai lệch trạng thái nội tại của đối tượng.",
+            "Giúp tăng tốc độ truy vấn cơ sở dữ liệu lên 50%.",
+            "Tự động chuyển đổi List thành mảng nhị phân.",
+            "Khóa luồng ngăn chặn hoàn toàn hiện tượng deadlock."
+          ],
+          "answer": 0,
+          "explain": "Defensive Copying (trả về bản sao bất biến) ngăn chặn hiện tượng Mutable Reference Leak, bảo vệ tuyệt đối tính đóng gói của Entity."
+        }
+      ]
     },
     {
       "id": 104,
@@ -297,41 +1379,413 @@
           "title": "Bài 4.4: Tổng Kết & Đồ Án Tốt Nghiệp Capstone: Console E-Commerce Order Manager",
           "minutes": 8,
           "content": "\n:::target 🎯 MỤC TIÊU BÀI HỌC (10 PHÚT)\n- Tổng hợp toàn bộ kiến thức 4 Module: Cú pháp Java 21, Bản chất bộ nhớ, SOLID, Collections và JUnit 5.\n- Hoàn thành đồ án tốt nghiệp Capstone: **Console E-Commerce Order Management Engine**.\n- Đạt tiêu chuẩn nghiệm thu kỹ thuật: Phân tầng sạch (Layered Architecture), 0 memory leak, test coverage $ge 85\\%$.\n- Nhận chứng chỉ xác thực **DevMastery Verified — Java 21 Foundation**.\n:::\n\n:::beginner 💡 GÓC GIẢI THÍCH TRỰC QUAN: CHÚC MỪNG BẠN TỐT NGHIỆP CỘT MỐC ĐẦU TIÊN!\nBạn đã chính thức bước qua chặng khởi đầu quan trọng nhất của một kỹ sư Java:\n- Bạn không còn viết code theo bản năng \"chạy được là được\".\n- Giờ đây trong đầu bạn luôn hiện diện hình ảnh của **Stack frame**, **Heap memory**, các con trỏ tham chiếu và thuật toán phân giải **vtable**.\n- Bạn hiểu tại sao `HashMap` chạy nhanh, tại sao cần `equals/hashCode`, và làm thế nào để thiết kế một hệ thống hướng đối tượng bền vững với SOLID!\n:::\n\n---\n\n## 1. Cái này là gì? (Kiến Trúc Tổng Thể Đồ Án Capstone Foundation)\n\n```mermaid\nflowchart TD\n    CLI[\"CLI Main Application<br/>(Giao diện điều khiển Console)\"] --> SVC[\"OrderService<br/>(Xử lý nghiệp vụ, tính tiền, áp mã)\"]\n    SVC --> REPO[\"OrderRepository<br/>(Lưu trữ in-memory dùng HashMap & TreeSet)\"]\n    SVC --> AUDIT[\"AuditLogService<br/>(Ghi log giao dịch qua NIO.2 Files)\"]\n    SVC --> DOMAIN[\"Domain Entities<br/>(Order, OrderItem, Customer - Rich Domain Model)\"]\n    \n    style SVC fill:#064e3b,stroke:#10b981,color:#fff\n    style DOMAIN fill:#1e3a8a,stroke:#3b82f6,color:#fff\n```\n\n---\n\n## 2. Dùng khi nào & Tại sao? (Tiêu Chuẩn Đánh Giá Đồ Án Tốt Nghiệp Capstone Rubric)\n\n### Bảng Đánh Giá Tiêu Chuẩn Kỹ Thuật Đồ Án:\n\n| Hạng mục đánh giá | Yêu cầu kỹ thuật bắt buộc | Trọng số điểm |\n|---|---|---|\n| **Clean Architecture & OOP** | Áp dụng 5 nguyên lý SOLID, Rich Domain Model, không leak mutable state | 30% |\n| **Collections & Thuật toán** | Dùng đúng HashMap, PriorityQueue và TreeSet theo đặc tả bài toán | 25% |\n| **Quản trị lỗi & An toàn bộ nhớ** | Try-with-resources, không nuốt lỗi, dùng long cents cho tiền tệ | 20% |\n| **Độ phủ kiểm thử tự động** | Bộ test JUnit 5 độc lập đạt Branch Coverage $ge 85\\%$ | 25% |\n\n---\n\n## 3. Dùng như thế nào & Phân tích từng dòng code (Khung Sườn OrderRepository In-Memory)\n\n```java\npackage vn.mastery.ecommerce.repository;\n\nimport vn.mastery.ecommerce.domain.Order;\nimport java.util.*;\nimport java.util.concurrent.ConcurrentHashMap;\n\npublic class InMemoryOrderRepository {\n\n    // Sử dụng ConcurrentHashMap để an toàn trong đa luồng\n    private final Map<String, Order> storage = new ConcurrentHashMap<>();\n\n    public void save(Order order) {\n        Objects.requireNonNull(order, \"Order không được null\");\n        storage.put(order.getOrderId(), order);\n    }\n\n    public Optional<Order> findById(String orderId) {\n        return Optional.ofNullable(storage.get(orderId));\n    }\n\n    public List<Order> findAllSortedByTotalAmount() {\n        List<Order> list = new ArrayList<>(storage.values());\n        // Sắp xếp đơn hàng có giá trị cao nhất lên đầu\n        list.sort(Comparator.comparingLong(Order::getTotalAmount).reversed());\n        return Collections.unmodifiableList(list);\n    }\n}\n```\n\n### Bảng Bóc Tách Kỹ Thuật:\n\n| Dòng lệnh | Giá trị kỹ thuật | Ngăn chặn lỗi |\n|---|---|---|\n| `ConcurrentHashMap<>()` | Khóa phân đoạn (Segment Locking) an toàn | Chống hỏng cấu trúc dữ liệu khi nhiều lệnh ghi đồng thời |\n| `Optional.ofNullable(...)` | Xử lý giá trị có thể vắng mặt một cách rõ ràng | Triệt tiêu hoàn toàn `NullPointerException` ở tầng Service |\n| `Collections.unmodifiableList(...)` | Trả về danh sách bất biến | Bảo vệ dữ liệu gốc trong repository không bị bên ngoài sửa đổi |\n\n---\n\n## 4. Cạm bẫy thực tế & Best Practices (Production Pitfalls & Actionable Checklist)\n\n### Cạm bẫy 1: Để lộ tham chiếu bộ nhớ nội bộ của Repository\n- **Vấn đề**: Trả về trực tiếp `return storage.values()` khiến bên ngoài có thể gọi `.clear()` xóa sạch dữ liệu của repository!\n- **Giải pháp**: Luôn tạo bản sao phòng vệ `new ArrayList<>()` và bọc `Collections.unmodifiableList()`.\n\n### Checklist Tốt Nghiệp Khóa 1 (Java 21 Foundation)\n- [ ] Hoàn thành 100% 16 bài học vi mô chuẩn cấu trúc 6 phần CES-2026 v2.5.\n- [ ] Vượt qua 4 bài thi trắc nghiệm tình huống kịch bản với điểm số $ge 80\\%$.\n- [ ] Đồ án Capstone có đầy đủ kiểm thử JUnit 5 với độ phủ branch $ge 85\\%$.\n- [ ] Tự tin bước tiếp lên Khóa 2: **Modern Java 21 Professional (Generics, Streams & Concurrency)**!\n"
+        },
+        {
+          "id": "j0-4-quiz",
+          "type": "quiz",
+          "title": "Sát Hạch Năng Lực Module 4: Ngoại Lệ, Java I/O, JUnit 5 & Đồ Án Capstone",
+          "minutes": 15,
+          "questions": [
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-1",
+              "scenario": "Một lập trình viên viết code đọc file: try (BufferedReader br = new BufferedReader(new FileReader(\"orders.csv\"))) { return br.readLine(); }",
+              "q": "Cơ chế Try-With-Resources (từ Java 7+) hoạt động dựa trên interface bắt buộc nào?",
+              "options": [
+                "java.lang.AutoCloseable (hoặc java.io.Closeable).",
+                "java.io.Serializable.",
+                "java.lang.Cloneable.",
+                "java.util.concurrent.Callable."
+              ],
+              "answer": 0,
+              "explain": "Bất kỳ class nào triển khai interface java.lang.AutoCloseable (chứa method void close()) đều có thể được khai báo trong mệnh đề try (...) của Try-With-Resources. JVM đảm bảo phương thức close() luôn được gọi tự động kể cả khi có ngoại lệ xảy ra."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-4-1",
+              "scenario": "Trong khối try-with-resources, cả code bên trong khối try và phương thức close() của resource đều ném ra ngoại lệ Exception.",
+              "q": "Java xử lý ngoại lệ ném ra từ close() như thế nào để không làm lu mờ ngoại lệ chính trong try?",
+              "options": [
+                "Ngoại lệ trong try được ném ra chính thức; ngoại lệ trong close() được đính kèm vào như một ngoại lệ bị triệt tiêu (Suppressed Exception) lấy qua getSuppressed().",
+                "Ngoại lệ trong close() ghi đè hoàn toàn ngoại lệ trong try.",
+                "JVM bị crash ngay lập tức vì không thể ném 2 lỗi cùng lúc.",
+                "Ngoại lệ trong close() tự động bị bỏ qua và không lưu lại bất kỳ dấu vết nào."
+              ],
+              "answer": 0,
+              "explain": "Trước Java 7, ngoại lệ trong khối finally sẽ nuốt chửng ngoại lệ gốc trong try. Try-with-resources giải quyết dứt điểm bằng cơ chế Suppressed Exceptions: Ngoại lệ gốc trong try được ưu tiên ném ra, còn các lỗi xảy ra khi đóng tài nguyên được gắn vào mảng suppressed exceptions có thể đọc bằng hàm e.getSuppressed()."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-1",
+              "scenario": "Một lập trình viên viết code: try { doPayment(); } catch (Exception e) { // Không làm gì cả }",
+              "q": "Anti-pattern này được gọi là gì và gây ra hậu quả tai hại nào?",
+              "options": [
+                "Swallowing Exceptions (Nuốt ngoại lệ) — Khiến lỗi bị chôn vùi trong im lặng, lập trình viên và hệ thống giám sát hoàn toàn mất dấu vết nguyên nhân lỗi khi xảy ra sự cố.",
+                "Deadlock Exception.",
+                "Fail-Fast Pattern.",
+                "Circuit Breaker Pattern."
+              ],
+              "answer": 0,
+              "explain": "Bắt ngoại lệ mà để trống khối catch (hoặc chỉ in e.printStackTrace() mà không log có ngữ cảnh hoặc rethrow) là một trong những lỗi tồi tệ nhất. Nó làm hệ thống tiếp tục chạy trong trạng thái dữ liệu đã bị sai lệch mà không ai hay biết."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-2",
+              "scenario": "Một hệ thống xử lý file log lớn 5GB. Lập trình viên sử dụng Files.readAllLines(Path.of(\"app.log\")).",
+              "q": "Hiện tượng gì sẽ xảy ra và giải pháp tối ưu bằng Java NIO.2 là gì?",
+              "options": [
+                "Ném ra java.lang.OutOfMemoryError: Java heap space; giải pháp chuẩn là dùng Files.lines(path) để đọc dữ liệu dạng Stream từng dòng theo cơ chế lười (Lazy Evaluation).",
+                "Chương trình chạy hoàn hảo vì Java tự động nén file 5GB.",
+                "Hệ điều hành khóa file không cho đọc.",
+                "File bị tự động chia nhỏ thành 100 file con."
+              ],
+              "answer": 0,
+              "explain": "Files.readAllLines() nạp toàn bộ nội dung file vào một List<String> trên RAM cùng một lúc. Với file 5GB, Heap sẽ nổ tung ngay lập tức. Files.lines() trả về một Stream<String> đọc từng dòng từ đĩa vào RAM rồi giải phóng ngay, tiêu tốn rất ít bộ nhớ."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-4-2",
+              "scenario": "Khi sử dụng Files.lines(Path path) trong Java NIO.2 để xử lý dữ liệu file.",
+              "q": "Lưu ý sống còn nào bắt buộc phải thực hiện để tránh rò rỉ tài nguyên hệ thống (File Descriptor Leak)?",
+              "options": [
+                "Stream trả về từ Files.lines() phải được bọc trong khối Try-With-Resources vì Stream này cài đặt AutoCloseable để đóng file descriptor bên dưới.",
+                "Bắt buộc phải gọi hàm System.gc() sau khi xử lý xong Stream.",
+                "Chỉ được phép đọc file có đuôi .txt.",
+                "Phải đổi tên file thành temp trước khi đọc."
+              ],
+              "answer": 0,
+              "explain": "Khác với các Stream thông thường trên Collections, Stream do Files.lines() tạo ra nắm giữ một tài nguyên I/O của hệ điều hành (File Handle/Descriptor). Nếu không đóng Stream (qua Try-With-Resources), file descriptor sẽ bị rò rỉ, dẫn đến lỗi 'Too many open files' làm sập server."
+            },
+            {
+              "level": "easy",
+              "targetLessonId": "j0-4-3",
+              "scenario": "Trong framework kiểm thử JUnit 5, một phương thức cần được chạy trước MỖI test case để thiết lập dữ liệu mẫu.",
+              "q": "Annotation nào được sử dụng?",
+              "options": [
+                "@BeforeEach",
+                "@BeforeAll",
+                "@SetUp",
+                "@TestInit"
+              ],
+              "answer": 0,
+              "explain": "Trong JUnit 5, @BeforeEach được thực thi trước mỗi phương thức @Test. @BeforeAll chỉ chạy đúng 1 lần duy nhất trước toàn bộ các test trong class (phải là static method theo mặc định)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-3",
+              "scenario": "Bạn muốn kiểm tra xem phương thức order.checkout() có ném ra ngoại lệ OrderEmptyException khi giỏ hàng rỗng hay không.",
+              "q": "Cú pháp kiểm thử chuẩn mực trong JUnit 5 là gì?",
+              "options": [
+                "assertThrows(OrderEmptyException.class, () -> order.checkout());",
+                "try { order.checkout(); } catch(OrderEmptyException e) {}",
+                "@Test(expected = OrderEmptyException.class) trên đầu hàm test.",
+                "assertTrue(order.checkout() instanceof OrderEmptyException);"
+              ],
+              "answer": 0,
+              "explain": "JUnit 5 sử dụng assertion hàm chức năng: assertThrows(ExpectedException.class, Executable executable). Nó không chỉ kiểm tra ngoại lệ có được ném ra không mà còn trả về chính đối tượng Exception đó để bạn kiểm tra tiếp message hoặc error code."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-4-3",
+              "scenario": "Trong kiểm thử tự động với JUnit 5, kiểm thử tham số hóa (Parameterized Tests) cho phép chạy cùng một test case với nhiều bộ dữ liệu đầu vào khác nhau.",
+              "q": "Tổ hợp annotation nào được sử dụng để nạp dữ liệu kiểm thử từ danh sách giá trị?",
+              "options": [
+                "@ParameterizedTest kết hợp với @ValueSource (hoặc @CsvSource, @MethodSource).",
+                "@RepeatTest kết hợp @DataDriven.",
+                "@TestSuite kết hợp @Inputs.",
+                "@BatchTest kết hợp @Parameters."
+              ],
+              "answer": 0,
+              "explain": "@ParameterizedTest cho phép thực thi một test case nhiều lần với các tham số khác nhau. Nguồn cấp dữ liệu có thể là @ValueSource (mảng số/chuỗi đơn giản), @CsvSource (chuỗi định dạng CSV), hoặc @MethodSource (Stream các đối tượng phức tạp)."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-4",
+              "scenario": "Trong đồ án tốt nghiệp Console E-Commerce Order Manager, nguyên tắc phân tách tầng (Separation of Concerns) được áp dụng.",
+              "q": "Luồng dữ liệu chuẩn mực giữa các tầng kiến trúc trong đồ án là gì?",
+              "options": [
+                "UI Console View -> Controller -> Service (Business Logic) -> Repository (Data Access) -> Model (Entities).",
+                "UI Console View truy cập trực tiếp và sửa đổi dữ liệu trong Repository.",
+                "Repository gọi ngược lại UI để in kết quả ra màn hình.",
+                "Model chịu trách nhiệm gửi tin nhắn SMS cho khách hàng."
+              ],
+              "answer": 0,
+              "explain": "Kiến trúc phân tầng chuẩn mực đảm bảo tính độc lập: UI chỉ nhận input và hiển thị; Service xử lý toàn bộ logic nghiệp vụ và ràng buộc; Repository chỉ lo việc lưu trữ và truy vấn dữ liệu. Không tầng nào được phép nhảy cóc hoặc đảo ngược quyền phụ thuộc."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-4-1",
+              "scenario": "Triết lý thiết kế Exception trong Java hiện đại (Java 17, 21 và Spring Framework).",
+              "q": "Xu hướng kiến trúc nào được các chuyên gia kiến trúc phần mềm Java khuyến nghị đối với Business Exceptions?",
+              "options": [
+                "Ưu tiên sử dụng Unchecked Exceptions (kế thừa RuntimeException) kết hợp với Global Error Handler thay vì lạm dụng Checked Exceptions.",
+                "100% mọi ngoại lệ nghiệp vụ bắt buộc phải là Checked Exception kế thừa Throwable.",
+                "Không bao giờ sử dụng Exception mà luôn trả về mã lỗi int kiểu mã C.",
+                "Mọi lỗi nghiệp vụ đều phải kế thừa trực tiếp từ java.lang.Error."
+              ],
+              "answer": 0,
+              "explain": "Checked Exception gây ô nhiễm chữ ký phương thức (throws clause) qua hàng loạt các tầng kiến trúc và làm rối mã nguồn với các khối try-catch boilerplate vô ích. Kiến trúc hiện đại (như Spring Framework) đóng gói lỗi nghiệp vụ vào Unchecked Exceptions (RuntimeException) và xử lý tập trung tại Global Exception Handler."
+            },
+            {
+              "level": "medium",
+              "targetLessonId": "j0-4-2",
+              "scenario": "Đọc và ghi file văn bản chứa ký tự tiếng Việt có dấu trong Java.",
+              "q": "Lập trình viên bắt buộc phải chỉ định thành phần nào để tránh lỗi vỡ font ký tự (Mojibake)?",
+              "options": [
+                "Bảng mã ký tự chuẩn StandardCharsets.UTF_8 trong FileReader/FileWriter hoặc Files.readString().",
+                "Ép kiểu toàn bộ chuỗi sang kiểu nhị phân byte.",
+                "Sử dụng bảng mã mặc định US-ASCII.",
+                "Tắt tính năng mã hóa của hệ điều hành."
+              ],
+              "answer": 0,
+              "explain": "Nếu không chỉ định rõ Charset, Java sẽ sử dụng bảng mã mặc định của hệ điều hành (trên Windows có thể là Windows-1252), gây vỡ toàn bộ ký tự tiếng Việt có dấu. Luôn luôn truyền StandardCharsets.UTF_8 vào các phương thức I/O."
+            },
+            {
+              "level": "hard",
+              "targetLessonId": "j0-4-4",
+              "scenario": "Chỉ số Code Coverage (Độ bao phủ mã nguồn kiểm thử) của đồ án tốt nghiệp Foundation.",
+              "q": "Ý nghĩa của việc đạt 85% Line & Branch Coverage trong kiểm thử đơn vị (Unit Test) là gì?",
+              "options": [
+                "Ít nhất 85% số dòng lệnh và 85% các nhánh rẽ logic (if/else/switch) trong mã nguồn nghiệp vụ đã được thực thi và xác nhận tính đúng đắn bởi bộ test JUnit 5.",
+                "Chương trình chạy nhanh hơn 85% so với phiên bản không có test.",
+                "Bộ test chiếm 85% tổng số file trong dự án.",
+                "85% các class trong dự án là interface."
+              ],
+              "answer": 0,
+              "explain": "Branch Coverage đảm bảo rằng cả nhánh đúng (true) và nhánh sai (false) của mọi câu lệnh điều kiện đều có test case kiểm thử. Đạt 85% Line & Branch Coverage là tiêu chuẩn vàng của các dự án phần mềm doanh nghiệp, loại bỏ gần như toàn bộ các lỗi tiềm ẩn khi triển khai lên Production."
+            }
+          ]
         }
       ],
       "quiz": {
-        "id": "j0-quiz-4",
-        "type": "quiz",
-        "title": "Sát Hạch Module J0.4: Quản Trị Lỗi, Java I/O & Capstone",
+        "id": "j0-4-quiz",
+        "title": "Sát Hạch Năng Lực Module 4: Ngoại Lệ, Java I/O, JUnit 5 & Đồ Án Capstone",
+        "poolSize": 12,
+        "pullCount": 12,
+        "passThresholdPct": 80,
         "questions": [
           {
             "level": "medium",
-            "scenario": "Một chương trình Java đọc file báo cáo giao dịch 5GB bằng lệnh Files.readAllLines(Path.of('report.csv')). Khi chạy trên máy chủ có 2GB RAM Heap, lỗi gì sẽ xảy ra?",
-            "q": "Xác định nguyên nhân và lỗi phát sinh:",
+            "targetLessonId": "j0-4-1",
+            "scenario": "Một lập trình viên viết code đọc file: try (BufferedReader br = new BufferedReader(new FileReader(\"orders.csv\"))) { return br.readLine(); }",
+            "q": "Cơ chế Try-With-Resources (từ Java 7+) hoạt động dựa trên interface bắt buộc nào?",
             "options": [
-              "Ném ra ngoại lệ java.lang.OutOfMemoryError: Java heap space vì hàm này cố gắng nạp toàn bộ 5GB file vào mảng danh sách trên Heap cùng một lúc.",
-              "Không có lỗi vì Java tự động phân trang (Paging) ngầm định.",
-              "Ném ra ngoại lệ FileNotFoundException.",
-              "Hệ điều hành tự động tăng kích thước RAM ảo."
+              "java.lang.AutoCloseable (hoặc java.io.Closeable).",
+              "java.io.Serializable.",
+              "java.lang.Cloneable.",
+              "java.util.concurrent.Callable."
             ],
             "answer": 0,
-            "explanation": "Files.readAllLines đọc toàn bộ các dòng của file và lưu vào List<String> trong bộ nhớ Heap. Với file 5GB trên máy 2GB Heap, bộ nhớ sẽ cạn kiệt ngay lập tức và JVM crash với OutOfMemoryError. Cần thay thế bằng BufferedReader hoặc Files.lines()."
+            "explain": "Bất kỳ class nào triển khai interface java.lang.AutoCloseable (chứa method void close()) đều có thể được khai báo trong mệnh đề try (...) của Try-With-Resources. JVM đảm bảo phương thức close() luôn được gọi tự động kể cả khi có ngoại lệ xảy ra."
           },
           {
             "level": "hard",
-            "scenario": "Trong cú pháp Try-with-resources: try (MyResource r = new MyResource()) { r.doWork(); }. Điều kiện tiên quyết để class MyResource có thể đặt được vào trong cặp ngoặc tròn của try là gì?",
-            "q": "Yêu cầu kỹ thuật đối với class MyResource:",
+            "targetLessonId": "j0-4-1",
+            "scenario": "Trong khối try-with-resources, cả code bên trong khối try và phương thức close() của resource đều ném ra ngoại lệ Exception.",
+            "q": "Java xử lý ngoại lệ ném ra từ close() như thế nào để không làm lu mờ ngoại lệ chính trong try?",
             "options": [
-              "Class MyResource bắt buộc phải implements interface java.lang.AutoCloseable hoặc java.io.Closeable.",
-              "Class MyResource bắt buộc phải kế thừa từ java.io.InputStream.",
-              "Class MyResource phải được đánh dấu bằng annotation @Resource.",
-              "Class MyResource phải có method close() được khai báo là static."
+              "Ngoại lệ trong try được ném ra chính thức; ngoại lệ trong close() được đính kèm vào như một ngoại lệ bị triệt tiêu (Suppressed Exception) lấy qua getSuppressed().",
+              "Ngoại lệ trong close() ghi đè hoàn toàn ngoại lệ trong try.",
+              "JVM bị crash ngay lập tức vì không thể ném 2 lỗi cùng lúc.",
+              "Ngoại lệ trong close() tự động bị bỏ qua và không lưu lại bất kỳ dấu vết nào."
             ],
             "answer": 0,
-            "explanation": "Cú pháp Try-with-resources của Java 7+ yêu cầu mọi tài nguyên khai báo trong ngoặc tròn phải implements interface java.lang.AutoCloseable (hoặc con của nó là Closeable) để trình biên dịch có thể gọi phương thức close() hợp lệ."
+            "explain": "Trước Java 7, ngoại lệ trong khối finally sẽ nuốt chửng ngoại lệ gốc trong try. Try-with-resources giải quyết dứt điểm bằng cơ chế Suppressed Exceptions: Ngoại lệ gốc trong try được ưu tiên ném ra, còn các lỗi xảy ra khi đóng tài nguyên được gắn vào mảng suppressed exceptions có thể đọc bằng hàm e.getSuppressed()."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-4-1",
+            "scenario": "Một lập trình viên viết code: try { doPayment(); } catch (Exception e) { // Không làm gì cả }",
+            "q": "Anti-pattern này được gọi là gì và gây ra hậu quả tai hại nào?",
+            "options": [
+              "Swallowing Exceptions (Nuốt ngoại lệ) — Khiến lỗi bị chôn vùi trong im lặng, lập trình viên và hệ thống giám sát hoàn toàn mất dấu vết nguyên nhân lỗi khi xảy ra sự cố.",
+              "Deadlock Exception.",
+              "Fail-Fast Pattern.",
+              "Circuit Breaker Pattern."
+            ],
+            "answer": 0,
+            "explain": "Bắt ngoại lệ mà để trống khối catch (hoặc chỉ in e.printStackTrace() mà không log có ngữ cảnh hoặc rethrow) là một trong những lỗi tồi tệ nhất. Nó làm hệ thống tiếp tục chạy trong trạng thái dữ liệu đã bị sai lệch mà không ai hay biết."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-4-2",
+            "scenario": "Một hệ thống xử lý file log lớn 5GB. Lập trình viên sử dụng Files.readAllLines(Path.of(\"app.log\")).",
+            "q": "Hiện tượng gì sẽ xảy ra và giải pháp tối ưu bằng Java NIO.2 là gì?",
+            "options": [
+              "Ném ra java.lang.OutOfMemoryError: Java heap space; giải pháp chuẩn là dùng Files.lines(path) để đọc dữ liệu dạng Stream từng dòng theo cơ chế lười (Lazy Evaluation).",
+              "Chương trình chạy hoàn hảo vì Java tự động nén file 5GB.",
+              "Hệ điều hành khóa file không cho đọc.",
+              "File bị tự động chia nhỏ thành 100 file con."
+            ],
+            "answer": 0,
+            "explain": "Files.readAllLines() nạp toàn bộ nội dung file vào một List<String> trên RAM cùng một lúc. Với file 5GB, Heap sẽ nổ tung ngay lập tức. Files.lines() trả về một Stream<String> đọc từng dòng từ đĩa vào RAM rồi giải phóng ngay, tiêu tốn rất ít bộ nhớ."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-4-2",
+            "scenario": "Khi sử dụng Files.lines(Path path) trong Java NIO.2 để xử lý dữ liệu file.",
+            "q": "Lưu ý sống còn nào bắt buộc phải thực hiện để tránh rò rỉ tài nguyên hệ thống (File Descriptor Leak)?",
+            "options": [
+              "Stream trả về từ Files.lines() phải được bọc trong khối Try-With-Resources vì Stream này cài đặt AutoCloseable để đóng file descriptor bên dưới.",
+              "Bắt buộc phải gọi hàm System.gc() sau khi xử lý xong Stream.",
+              "Chỉ được phép đọc file có đuôi .txt.",
+              "Phải đổi tên file thành temp trước khi đọc."
+            ],
+            "answer": 0,
+            "explain": "Khác với các Stream thông thường trên Collections, Stream do Files.lines() tạo ra nắm giữ một tài nguyên I/O của hệ điều hành (File Handle/Descriptor). Nếu không đóng Stream (qua Try-With-Resources), file descriptor sẽ bị rò rỉ, dẫn đến lỗi 'Too many open files' làm sập server."
+          },
+          {
+            "level": "easy",
+            "targetLessonId": "j0-4-3",
+            "scenario": "Trong framework kiểm thử JUnit 5, một phương thức cần được chạy trước MỖI test case để thiết lập dữ liệu mẫu.",
+            "q": "Annotation nào được sử dụng?",
+            "options": [
+              "@BeforeEach",
+              "@BeforeAll",
+              "@SetUp",
+              "@TestInit"
+            ],
+            "answer": 0,
+            "explain": "Trong JUnit 5, @BeforeEach được thực thi trước mỗi phương thức @Test. @BeforeAll chỉ chạy đúng 1 lần duy nhất trước toàn bộ các test trong class (phải là static method theo mặc định)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-4-3",
+            "scenario": "Bạn muốn kiểm tra xem phương thức order.checkout() có ném ra ngoại lệ OrderEmptyException khi giỏ hàng rỗng hay không.",
+            "q": "Cú pháp kiểm thử chuẩn mực trong JUnit 5 là gì?",
+            "options": [
+              "assertThrows(OrderEmptyException.class, () -> order.checkout());",
+              "try { order.checkout(); } catch(OrderEmptyException e) {}",
+              "@Test(expected = OrderEmptyException.class) trên đầu hàm test.",
+              "assertTrue(order.checkout() instanceof OrderEmptyException);"
+            ],
+            "answer": 0,
+            "explain": "JUnit 5 sử dụng assertion hàm chức năng: assertThrows(ExpectedException.class, Executable executable). Nó không chỉ kiểm tra ngoại lệ có được ném ra không mà còn trả về chính đối tượng Exception đó để bạn kiểm tra tiếp message hoặc error code."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-4-3",
+            "scenario": "Trong kiểm thử tự động với JUnit 5, kiểm thử tham số hóa (Parameterized Tests) cho phép chạy cùng một test case với nhiều bộ dữ liệu đầu vào khác nhau.",
+            "q": "Tổ hợp annotation nào được sử dụng để nạp dữ liệu kiểm thử từ danh sách giá trị?",
+            "options": [
+              "@ParameterizedTest kết hợp với @ValueSource (hoặc @CsvSource, @MethodSource).",
+              "@RepeatTest kết hợp @DataDriven.",
+              "@TestSuite kết hợp @Inputs.",
+              "@BatchTest kết hợp @Parameters."
+            ],
+            "answer": 0,
+            "explain": "@ParameterizedTest cho phép thực thi một test case nhiều lần với các tham số khác nhau. Nguồn cấp dữ liệu có thể là @ValueSource (mảng số/chuỗi đơn giản), @CsvSource (chuỗi định dạng CSV), hoặc @MethodSource (Stream các đối tượng phức tạp)."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-4-4",
+            "scenario": "Trong đồ án tốt nghiệp Console E-Commerce Order Manager, nguyên tắc phân tách tầng (Separation of Concerns) được áp dụng.",
+            "q": "Luồng dữ liệu chuẩn mực giữa các tầng kiến trúc trong đồ án là gì?",
+            "options": [
+              "UI Console View -> Controller -> Service (Business Logic) -> Repository (Data Access) -> Model (Entities).",
+              "UI Console View truy cập trực tiếp và sửa đổi dữ liệu trong Repository.",
+              "Repository gọi ngược lại UI để in kết quả ra màn hình.",
+              "Model chịu trách nhiệm gửi tin nhắn SMS cho khách hàng."
+            ],
+            "answer": 0,
+            "explain": "Kiến trúc phân tầng chuẩn mực đảm bảo tính độc lập: UI chỉ nhận input và hiển thị; Service xử lý toàn bộ logic nghiệp vụ và ràng buộc; Repository chỉ lo việc lưu trữ và truy vấn dữ liệu. Không tầng nào được phép nhảy cóc hoặc đảo ngược quyền phụ thuộc."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-4-1",
+            "scenario": "Triết lý thiết kế Exception trong Java hiện đại (Java 17, 21 và Spring Framework).",
+            "q": "Xu hướng kiến trúc nào được các chuyên gia kiến trúc phần mềm Java khuyến nghị đối với Business Exceptions?",
+            "options": [
+              "Ưu tiên sử dụng Unchecked Exceptions (kế thừa RuntimeException) kết hợp với Global Error Handler thay vì lạm dụng Checked Exceptions.",
+              "100% mọi ngoại lệ nghiệp vụ bắt buộc phải là Checked Exception kế thừa Throwable.",
+              "Không bao giờ sử dụng Exception mà luôn trả về mã lỗi int kiểu mã C.",
+              "Mọi lỗi nghiệp vụ đều phải kế thừa trực tiếp từ java.lang.Error."
+            ],
+            "answer": 0,
+            "explain": "Checked Exception gây ô nhiễm chữ ký phương thức (throws clause) qua hàng loạt các tầng kiến trúc và làm rối mã nguồn với các khối try-catch boilerplate vô ích. Kiến trúc hiện đại (như Spring Framework) đóng gói lỗi nghiệp vụ vào Unchecked Exceptions (RuntimeException) và xử lý tập trung tại Global Exception Handler."
+          },
+          {
+            "level": "medium",
+            "targetLessonId": "j0-4-2",
+            "scenario": "Đọc và ghi file văn bản chứa ký tự tiếng Việt có dấu trong Java.",
+            "q": "Lập trình viên bắt buộc phải chỉ định thành phần nào để tránh lỗi vỡ font ký tự (Mojibake)?",
+            "options": [
+              "Bảng mã ký tự chuẩn StandardCharsets.UTF_8 trong FileReader/FileWriter hoặc Files.readString().",
+              "Ép kiểu toàn bộ chuỗi sang kiểu nhị phân byte.",
+              "Sử dụng bảng mã mặc định US-ASCII.",
+              "Tắt tính năng mã hóa của hệ điều hành."
+            ],
+            "answer": 0,
+            "explain": "Nếu không chỉ định rõ Charset, Java sẽ sử dụng bảng mã mặc định của hệ điều hành (trên Windows có thể là Windows-1252), gây vỡ toàn bộ ký tự tiếng Việt có dấu. Luôn luôn truyền StandardCharsets.UTF_8 vào các phương thức I/O."
+          },
+          {
+            "level": "hard",
+            "targetLessonId": "j0-4-4",
+            "scenario": "Chỉ số Code Coverage (Độ bao phủ mã nguồn kiểm thử) của đồ án tốt nghiệp Foundation.",
+            "q": "Ý nghĩa của việc đạt 85% Line & Branch Coverage trong kiểm thử đơn vị (Unit Test) là gì?",
+            "options": [
+              "Ít nhất 85% số dòng lệnh và 85% các nhánh rẽ logic (if/else/switch) trong mã nguồn nghiệp vụ đã được thực thi và xác nhận tính đúng đắn bởi bộ test JUnit 5.",
+              "Chương trình chạy nhanh hơn 85% so với phiên bản không có test.",
+              "Bộ test chiếm 85% tổng số file trong dự án.",
+              "85% các class trong dự án là interface."
+            ],
+            "answer": 0,
+            "explain": "Branch Coverage đảm bảo rằng cả nhánh đúng (true) và nhánh sai (false) của mọi câu lệnh điều kiện đều có test case kiểm thử. Đạt 85% Line & Branch Coverage là tiêu chuẩn vàng của các dự án phần mềm doanh nghiệp, loại bỏ gần như toàn bộ các lỗi tiềm ẩn khi triển khai lên Production."
           }
         ]
-      }
+      },
+      "subtitle": "Exception Hierarchy, Modern Java I/O & NIO.2, Unit Testing with JUnit 5 & Capstone",
+      "outcomes": [
+        "Phân biệt triệt để Checked vs Unchecked Exceptions và áp dụng Try-With-Resources chuẩn mực",
+        "Làm chủ Java NIO.2 Files API, Buffering Channels và quản lý luồng dữ liệu an toàn",
+        "Xây dựng bộ kiểm thử tự động toàn diện với JUnit 5 (Assertions, Lifecycle, Parameterized Tests)",
+        "Hoàn thành Đồ án Tốt nghiệp Capstone: Console E-Commerce Order Management Engine đạt chuẩn 85% coverage"
+      ],
+      "topics": [
+        {
+          "id": 1,
+          "title": "Quản Trị Ngoại Lệ & Java I/O NIO.2"
+        },
+        {
+          "id": 2,
+          "title": "Kiểm Thử Tự Động JUnit 5 & Đồ Án Tốt Nghiệp"
+        }
+      ],
+      "retrievalWarmup": [
+        {
+          "q": "Điều gì xảy ra khi hai đối tượng trong Java có equals() == true nhưng hashCode() khác nhau và được đưa vào HashMap?",
+          "options": [
+            "map.get() sẽ trả về null vì đối tượng bị tra cứu ở sai vị trí bucket băm.",
+            "HashMap tự động phát hiện và gộp chung dữ liệu.",
+            "Chương trình ném ngoại lệ IllegalStateException.",
+            "Bộ nhớ Heap tự động tăng dung lượng gấp đôi."
+          ],
+          "answer": 0,
+          "explain": "Vi phạm hợp đồng equals/hashCode khiến HashMap tính sai chỉ số bucket, làm mất dấu phần tử và gây rò rỉ bộ nhớ."
+        },
+        {
+          "q": "Cấu trúc dữ liệu nào trong Java Collections Framework sử dụng thuật toán Cây Đỏ Đen (Red-Black Tree)?",
+          "options": [
+            "TreeSet và TreeMap (cũng như bucket của HashMap khi bị collision vượt ngưỡng 8).",
+            "ArrayList và Vector.",
+            "PriorityQueue.",
+            "ArrayDeque."
+          ],
+          "answer": 0,
+          "explain": "TreeMap, TreeSet và các bucket bị collision của HashMap sử dụng Cây Đỏ Đen (Red-Black Tree) để đảm bảo thời gian tìm kiếm luôn là O(log N)."
+        },
+        {
+          "q": "Tại sao không nên sử dụng đối tượng có thể thay đổi (Mutable Object) làm Key trong HashMap?",
+          "options": [
+            "Vì khi thuộc tính của key thay đổi, hashCode thay đổi theo khiến không thể get() hay remove() phần tử đó ra khỏi Map.",
+            "Vì Java compiler sẽ báo lỗi không cho phép biên dịch.",
+            "Vì Map tự động chuyển thành LinkedList làm giảm hiệu năng.",
+            "Vì dữ liệu của key sẽ bị ghi đè thành chuỗi rỗng."
+          ],
+          "answer": 0,
+          "explain": "Key bị thay đổi trạng thái sẽ làm lệch vị trí bucket băm, biến entry đó thành 'hồn ma' vĩnh viễn không thể tìm thấy trong Map."
+        }
+      ]
     }
   ]
 };

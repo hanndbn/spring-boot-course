@@ -2,12 +2,508 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Đang chuyển hướng...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevMastery Academy — Nền tảng Đào tạo Lập trình Enterprise Thực chiến</title>
+  <meta name="description" content="Nền tảng đào tạo công nghệ lập trình thực chiến: Java Core, Spring Boot 3 & Microservices, React 19 & Next.js 15, Cloud Native DevOps & Kubernetes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <link rel="stylesheet" href="css/style.css?v=20261005.03">
   <script>
-    window.location.replace("../" + (window.location.hash || ""));
+    (function() {
+      try {
+        var theme = localStorage.getItem("sbmastery-theme") || "light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch(e) {}
+    })();
   </script>
 </head>
-<body style="background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;">
-  <p>Đang tải khóa học...</p>
+<body>
+  <div class="app" id="app">
+
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+      <button class="menu-toggle" id="menuToggle" aria-label="Mở menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <a class="brand" href="#" id="brandLogoLink" data-view="courses" title="Trang chủ — Tất cả khóa học">
+        <span class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#a435f0"/><path d="M7 6h3.2v7.2a1.6 1.6 0 0 0 3.2 0V6H17v7.2a4.8 4.8 0 1 1-9.6 0V6Z" fill="#ffffff"/></svg>
+        </span>
+        <span class="brand-text" id="brandText">DevMastery <span class="grad-text">Udemy</span></span>
+      </a>
+
+      <!-- Header Navigation (Udemy Style) -->
+      <nav class="header-nav" id="headerNav">
+        <button class="nav-catalog-btn active" id="btnHeaderCatalog" data-view="courses" title="Khám phá tất cả khóa học">
+          <span class="nc-icon">🌟</span>
+          <span class="nc-text">Khám phá</span>
+        </button>
+        <button class="nav-catalog-btn" id="btnHeaderMyLearning" data-view="user-dashboard" title="Khóa học của tôi">
+          <span class="nc-icon">📚</span>
+          <span class="nc-text">Học tập của tôi</span>
+        </button>
+      </nav>
+
+      <div class="search-box" id="searchBox">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="searchInput" placeholder="Tìm kiếm bất kỳ khóa học, bài học nào... (Ctrl+K)" autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+
+      <div class="header-right">
+        <!-- Theme Toggle (Light / Dark Mode) -->
+        <button class="btn-theme-toggle" id="btnThemeToggle" title="Chuyển chế độ Giao diện Sáng / Tối" aria-label="Toggle theme">
+          <span class="theme-icon theme-sun" id="themeSun">☀️</span>
+          <span class="theme-icon theme-moon" id="themeMoon">🌙</span>
+        </button>
+
+        <div class="header-progress" title="Tiến độ tổng">
+          <svg width="40" height="40" viewBox="0 0 40 40" class="ring">
+            <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="4"/>
+            <circle cx="20" cy="20" r="16" fill="none" stroke="url(#ringGrad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="100.5" stroke-dashoffset="100.5" id="headerRing" transform="rotate(-90 20 20)"/>
+            <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#a435f0"/><stop offset="1" stop-color="#7928ca"/></linearGradient></defs>
+          </svg>
+          <span id="headerProgressPct">0%</span>
+        </div>
+        <button class="btn-reset" id="resetProgress" title="Xóa tiến độ">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        </button>
+
+        <!-- User Account / Auth Widget -->
+        <div class="user-menu-wrapper" id="userMenuWrapper">
+          <button class="btn-auth" id="authBtn" title="Tài khoản học viên">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="auth-btn-text" id="authBtnText">Đăng nhập</span>
+          </button>
+          <div class="user-dropdown" id="userDropdown" style="display: none;">
+            <div class="user-dropdown-header">
+              <div class="user-avatar" id="dropdownAvatar">U</div>
+              <div class="user-details">
+                <div class="user-name" id="dropdownName">Học viên</div>
+                <div class="user-email" id="dropdownEmail">user@example.com</div>
+              </div>
+            </div>
+            <div class="user-dropdown-divider"></div>
+            <button class="user-dropdown-item" id="btnGoUserDashboard">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 12h10M7 8h10M7 16h6"/></svg>
+              <span>📊 Tiến độ học tập của tôi</span>
+            </button>
+            <button class="user-dropdown-item" id="btnSyncCloud">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Đồng bộ tiến độ ngay</span>
+            </button>
+            <button class="user-dropdown-item user-dropdown-danger" id="btnLogout">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- ===== SIDEBAR ===== -->
+      <aside class="sidebar" id="sidebar">
+        <nav class="sidebar-nav" id="sidebarNav"></nav>
+        <div class="sidebar-footer">
+          <div class="streak-card">
+            <div class="streak-label">🎯 Lộ trình Đào tạo</div>
+            <div class="streak-value">Spring Boot Career Track</div>
+            <div class="streak-sub" id="streakSub">132 bài chuẩn hóa · 3 khóa chứng chỉ · 288+ câu kịch bản</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ===== MAIN ===== -->
+      <main class="main" id="mainView">
+
+        <!-- Dashboard -->
+        <section class="view" id="view-dashboard" hidden>
+          <div class="hero">
+            <div class="hero-badge">📚 Khóa học tương tác · Tiếng Việt</div>
+            <h1>Spring Boot <span class="grad-text">Mastery</span></h1>
+            <p class="hero-sub">Từ nền tảng Java đến microservices &amp; DevOps — lộ trình 8 module được thiết kế theo chuẩn production, gắn với hệ thống thực tế (LAAS/OLS, Keycloak, Kafka, AWS).</p>
+            <div class="hero-actions">
+              <button class="btn btn-primary" id="continueBtn">▶ Tiếp tục học</button>
+              <button class="btn btn-ghost" data-view="user-dashboard">📊 Tiến độ của tôi</button>
+              <button class="btn btn-ghost" data-view="curriculum">Xem chương trình</button>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-ring-lg">
+                <svg width="90" height="90" viewBox="0 0 90 90">
+                  <circle cx="45" cy="45" r="36" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>
+                  <circle cx="45" cy="45" r="36" fill="none" stroke="url(#ringGrad2)" stroke-width="8" stroke-linecap="round" stroke-dasharray="226.2" stroke-dashoffset="226.2" id="dashRing" transform="rotate(-90 45 45)"/>
+                  <defs><linearGradient id="ringGrad2" x1="0" y1="0" x2="90" y2="90"><stop stop-color="#8BE36B"/><stop offset="1" stop-color="#2DD4A7"/></linearGradient></defs>
+                  <text x="45" y="50" text-anchor="middle" class="ring-text" id="dashRingText">0%</text>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <div class="stat-num" id="statLessonsDone">0/56</div>
+                <div class="stat-label">Bài đã hoàn thành</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🧩</div>
+              <div class="stat-info">
+                <div class="stat-num" id="statModulesDone">0/8</div>
+                <div class="stat-label">Module đã xong</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🏆</div>
+              <div class="stat-info">
+                <div class="stat-num" id="statQuizAvg">—</div>
+                <div class="stat-label">Điểm quiz trung bình</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">⏱️</div>
+              <div class="stat-info">
+                <div class="stat-num">~80h</div>
+                <div class="stat-label">Tổng thời lượng</div>
+              </div>
+            </div>
+          </div>
+
+          <h2 class="section-title">📚 Chương trình học</h2>
+          <div class="module-grid" id="moduleGrid"></div>
+        </section>
+
+        <!-- Lesson view -->
+        <section class="view" id="view-lesson" hidden></section>
+
+        <!-- Quiz view -->
+        <section class="view" id="view-quiz" hidden></section>
+
+        <!-- Curriculum overview -->
+        <section class="view" id="view-curriculum" hidden></section>
+
+        <!-- User Dashboard & Personal Progress -->
+        <section class="view" id="view-user-dashboard" hidden></section>
+
+        <!-- Course Catalog view (Default Home View) -->
+        <section class="view" id="view-courses"></section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="backdrop" id="backdrop"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#0d1117',
+          primaryColor: '#238636',
+          primaryTextColor: '#f0f6fc',
+          primaryBorderColor: '#30363d',
+          lineColor: '#58a6ff',
+          secondaryColor: '#161b22',
+          tertiaryColor: '#21262d'
+        }
+      });
+    }
+  </script>
+  <script src="js/content/module0.js"></script>
+  <script src="js/content/module1.js"></script>
+  <script src="js/content/module2.js"></script>
+  <script src="js/content/module3.js"></script>
+  <script src="js/content/module4.js"></script>
+  <script src="js/content/module5.js"></script>
+  <script src="js/content/module6.js"></script>
+  <script src="js/content/module7.js"></script>
+  <script src="js/content/course_java.js"></script>
+  <script src="js/content/course_java_foundation.js"></script>
+  <script src="js/content/course_java_professional.js"></script>
+  <script src="js/content/course_java_expert.js"></script>
+  <script src="js/content/course_react.js"></script>
+  <script src="js/content/course_devops.js"></script>
+  <script src="js/content/expanded_quizzes.js"></script>
+  <!-- ===== AUTH MODAL ===== -->
+  <div class="modal-backdrop" id="authModalBackdrop" style="display: none;">
+    <div class="auth-modal" id="authModal">
+      <button class="modal-close" id="modalClose" aria-label="Đóng">&times;</button>
+      <div class="auth-header">
+        <div class="auth-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2C8 2 4.5 4.5 4.5 8c0 2 1.2 3.6 3 4.6V16c0 .6.4 1 1 1h7c.6 0 1-.4 1-1v-3.4c1.8-1 3-2.6 3-4.6C19.5 4.5 16 2 12 2Z" fill="#22c55e"/><circle cx="10" cy="8" r="1.2" fill="#0f172a"/><circle cx="14" cy="8" r="1.2" fill="#0f172a"/></svg>
+        </div>
+        <h3 id="authModalTitle">Đăng Nhập Khóa Học</h3>
+        <p class="auth-subtitle">Đồng bộ tiến độ học tập và điểm thi xuyên suốt các thiết bị</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" type="button">Đăng Nhập</button>
+        <button class="auth-tab" id="tabRegister" type="button">Đăng Ký</button>
+      </div>
+
+      <div class="auth-alert" id="authAlert" style="display: none;"></div>
+
+      <!-- Login Form -->
+      <form class="auth-form" id="loginForm" style="display: flex;">
+        <div class="form-group">
+          <label for="loginUsername">Username hoặc Email</label>
+          <input type="text" id="loginUsername" placeholder="Nhập username hoặc email..." required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Mật khẩu</label>
+          <input type="password" id="loginPassword" placeholder="Nhập mật khẩu..." required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-submit-auth" id="btnLoginSubmit">
+          <span class="btn-text">Đăng Nhập</span>
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form class="auth-form" id="registerForm" style="display: none;">
+        <div class="form-group">
+          <label for="regFullName">Họ và tên</label>
+          <input type="text" id="regFullName" placeholder="Nguyễn Văn A" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label for="regUsername">Username</label>
+          <input type="text" id="regUsername" placeholder="Tên đăng nhập (3-50 ký tự)" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="regEmail">Email</label>
+          <input type="email" id="regEmail" placeholder="email@domain.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Mật khẩu</label>
+          <input type="password" id="regPassword" placeholder="Tối thiểu 6 ký tự" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn-submit-auth" id="btnRegisterSubmit">
+          <span class="btn-text">Tạo Tài Khoản</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== CERTIFICATE OF COMPLETION MODAL ===== -->
+  <div class="modal-backdrop" id="certModalBackdrop" style="display: none;">
+    <div class="cert-modal" id="certModal">
+      <button class="modal-close" id="certModalClose" aria-label="Đóng">&times;</button>
+      
+      <div class="cert-modal-header">
+        <div class="cert-modal-badge">🎓 UDEMY-STYLE VERIFIED CERTIFICATE</div>
+        <h3 id="certModalHeading">Chứng Chỉ Hoàn Thành Khóa Học</h3>
+        <p>Chứng nhận tốt nghiệp tiêu chuẩn kỹ sư chuyên nghiệp của DevMastery Academy</p>
+      </div>
+
+      <!-- Live customization controls -->
+      <div class="cert-modal-controls">
+        <div class="cert-control-item">
+          <label for="certStudentNameInput">Họ & Tên học viên in trên chứng chỉ:</label>
+          <div class="cert-input-row">
+            <input type="text" id="certStudentNameInput" placeholder="Nhập họ tên đầy đủ của bạn..." maxlength="45">
+            <button type="button" class="btn btn-primary btn-sm" id="btnUpdateCertName">Áp dụng tên</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Certificate Visual Container -->
+      <div class="cert-preview-wrapper" id="certPreviewWrapper">
+        <div class="cert-card" id="certCard">
+          <div class="cert-inner-frame">
+            <!-- Decorative corner brackets -->
+            <div class="cert-corner tl"></div>
+            <div class="cert-corner tr"></div>
+            <div class="cert-corner bl"></div>
+            <div class="cert-corner br"></div>
+
+            <!-- Header -->
+            <div class="cert-brand-row">
+              <div class="cert-brand">
+                <span class="cert-u-logo">U</span>
+                <span class="cert-brand-title">DevMastery <strong>Academy</strong></span>
+              </div>
+              <div class="cert-code-tag">MÃ XÁC THỰC: <strong id="certCodeDisplay">UC-DEVMASTERY-8921-SB</strong></div>
+            </div>
+
+            <div class="cert-heading-area">
+              <div class="cert-kicker">CHỨNG NHẬN TỐT NGHIỆP</div>
+              <h1 class="cert-main-title">CERTIFICATE OF COMPLETION</h1>
+              <div class="cert-divider-line"></div>
+            </div>
+
+            <!-- Recipient -->
+            <div class="cert-recipient-area">
+              <p class="cert-recip-lead">Chứng chỉ này trang trọng ghi nhận và xác nhận rằng</p>
+              <h2 class="cert-student-name" id="certStudentNameDisplay">Nguyễn Văn Đức</h2>
+              <p class="cert-recip-desc">đã hoàn thành xuất sắc toàn bộ yêu cầu học tập và sát hạch chuyên môn khóa học:</p>
+              <h3 class="cert-course-title" id="certCourseTitleDisplay">Spring Boot Mastery – Từ Zero đến Production</h3>
+              <p class="cert-course-desc" id="certCourseDescDisplay">8 Module kiến trúc Microservices Enterprise, 354 bài giảng micro-learning & 256 câu hỏi sát hạch kỹ sư phần mềm</p>
+            </div>
+
+            <!-- Footer & Signatures -->
+            <div class="cert-footer-area">
+              <div class="cert-sign-box">
+                <div class="cert-signature-draw">Văn Đức IT</div>
+                <div class="cert-sign-rule"></div>
+                <div class="cert-sign-name">Nguyễn Văn Đức</div>
+                <div class="cert-sign-role">Trưởng ban Giảng huấn DevMastery</div>
+              </div>
+
+              <div class="cert-seal-box">
+                <div class="cert-seal-circle">
+                  <div class="cert-seal-stars">★★★★★</div>
+                  <div class="cert-seal-text">VERIFIED<br>HONOR<br>GRADUATE</div>
+                  <div class="cert-seal-year">2026</div>
+                </div>
+              </div>
+
+              <div class="cert-date-box">
+                <div class="cert-date-value" id="certDateDisplay">04/10/2026</div>
+                <div class="cert-sign-rule"></div>
+                <div class="cert-date-label">Ngày cấp chứng chỉ</div>
+                <div class="cert-cert-status">✓ Đã xác thực trên DevMastery</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="cert-modal-actions">
+        <button type="button" class="btn-cert-btn btn-cert-png" id="btnDownloadCertPng">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Tải ảnh chứng chỉ (PNG 2400px)
+        </button>
+        <button type="button" class="btn-cert-btn btn-cert-print" id="btnPrintCert">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          In chứng chỉ / Lưu PDF
+        </button>
+        <button type="button" class="btn-cert-btn btn-cert-copy" id="btnCopyCertCode">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Sao chép mã xác thực
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image & Mermaid Diagram Zoom Lightbox Modal -->
+  <div class="modal-backdrop image-lightbox-modal" id="imageLightboxModal" style="display: none;" role="dialog" aria-modal="true" aria-label="Xem ảnh phóng to">
+    <div class="lightbox-dialog">
+      <div class="lightbox-header">
+        <div class="lightbox-title-wrap">
+          <span class="lightbox-badge">🔍 Phóng to</span>
+          <span class="lightbox-title" id="lightboxTitle">Xem ảnh / Sơ đồ chi tiết</span>
+        </div>
+        <div class="lightbox-toolbar">
+          <button type="button" class="lightbox-btn" id="lightboxZoomOut" title="Thu nhỏ (Phím -)" aria-label="Thu nhỏ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <span class="lightbox-zoom-val" id="lightboxZoomVal">100%</span>
+          <button type="button" class="lightbox-btn" id="lightboxZoomIn" title="Phóng to (Phím +)" aria-label="Phóng to">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </button>
+          <button type="button" class="lightbox-btn" id="lightboxZoomReset" title="Đặt lại kích thước chuẩn 100% (Phím 0)" aria-label="Đặt lại">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span class="lightbox-btn-text">1:1</span>
+          </button>
+          <button type="button" class="lightbox-btn lightbox-btn-close" id="lightboxCloseBtn" title="Đóng (Phím ESC)" aria-label="Đóng">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="lightbox-body" id="lightboxBody">
+        <div class="lightbox-stage" id="lightboxStage">
+          <div class="lightbox-canvas" id="lightboxCanvas"></div>
+        </div>
+      </div>
+      <div class="lightbox-footer-tip">
+        <span>💡 <em>Cuộn chuột</em> để phóng to/thu nhỏ • <em>Giữ chuột và kéo</em> để di chuyển • <em>Double click</em> để phóng to 200% • Phím <kbd>ESC</kbd> để đóng</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Assistant Configuration Modal -->
+  <div class="modal-backdrop" id="aiConfigModal" style="display: none;" role="dialog" aria-modal="true" aria-label="Cấu hình Trợ lý AI GLM">
+    <div class="modal-card ai-config-card">
+      <button type="button" class="modal-close" id="aiConfigCloseBtn" aria-label="Đóng">✕</button>
+      <div class="ai-config-header">
+        <div class="ai-config-icon-badge">🤖</div>
+        <div>
+          <h3 style="margin: 0; font-size: 18px; color: var(--text-1);">Cấu hình Trợ lý AI Giảng Viên (GLM)</h3>
+          <p class="ai-config-subtitle" style="margin: 4px 0 0; font-size: 13px; color: var(--text-3);">Hỏi đáp kỹ thuật theo ngữ cảnh sâu từng bài học</p>
+        </div>
+      </div>
+      <div class="ai-config-body" style="padding: 16px 0;">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 8px; font-size: 13px; color: var(--text-2);"><strong>⚡ Chọn nhanh cấu hình mẫu (Preset):</strong></label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiFlagship" style="font-size: 12px; padding: 6px 12px; border-color: rgba(168,85,247,0.6); color: #c084fc; font-weight: 600;" title="Mô hình Flagship mới nhất GLM-5.3 của Z.AI">
+              🌟 Z.AI GLM-5.3 (Flagship Mới Nhất)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetZaiCoding" style="font-size: 12px; padding: 6px 12px; border-color: rgba(56,189,248,0.5); color: #38bdf8;" title="Mô hình siêu nhanh GLM-4.5 cho Coding Plan">
+              ⚡ Z.AI GLM-4.5 (Siêu Nhanh)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPresetBigmodel" style="font-size: 12px; padding: 6px 12px;" title="Dành cho tài khoản BigModel nội địa Trung Quốc">
+              🇨🇳 BigModel China (open.bigmodel.cn)
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="glmApiKeyInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Token / API Key GLM (Zhipu AI):</strong></label>
+          <div class="input-with-toggle" style="display: flex; gap: 8px;">
+            <input type="password" id="glmApiKeyInput" class="form-control" style="flex: 1; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" placeholder="Dán API Key GLM của bạn tại đây (vd: 123...abc)" autocomplete="off">
+            <button type="button" class="btn btn-ghost" id="btnToggleGlmKey" title="Ẩn/Hiện token" style="padding: 0 12px;">👁️</button>
+          </div>
+          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3); line-height: 1.5;">
+            🔒 Token được lưu trữ bảo mật cục bộ tại trình duyệt (<code>LocalStorage</code>), không gửi qua bất kỳ bên thứ ba nào.<br>
+            👉 Hỗ trợ cả <strong>Z.AI Coding Plan</strong> (<a href="https://z.ai" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">z.ai</a>) lẫn <strong>BigModel China</strong> (<a href="https://open.bigmodel.cn" target="_blank" rel="noopener" style="color: #38bdf8; text-decoration: underline;">open.bigmodel.cn</a>).
+          </small>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="glmModelSelect" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>Mô hình AI (Model):</strong></label>
+          <select id="glmModelSelect" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);">
+            <optgroup label="Z.AI Coding Plan (Khuyên dùng cho tài khoản z.ai)">
+              <option value="glm-5.3" selected>glm-5.3 (Flagship Mới Nhất - Deep Reasoning, Code Chuyên Sâu, Khuyên dùng)</option>
+              <option value="glm-4.5">glm-4.5 (Z.AI Coding Plan - Siêu nhanh, tối ưu lập trình Spring Boot)</option>
+              <option value="glm-5">glm-5 (Z.AI Coding Plan - Suy luận &amp; Tư duy chuyên sâu)</option>
+            </optgroup>
+            <optgroup label="BigModel China (open.bigmodel.cn)">
+              <option value="glm-4-flash">glm-4-flash (BigModel China - Nhanh, Miễn phí 128k context)</option>
+              <option value="glm-4-air">glm-4-air (BigModel China - Cân bằng)</option>
+              <option value="glm-4-plus">glm-4-plus (BigModel China - Năng lực cao)</option>
+              <option value="glm-4">glm-4 (BigModel China - Tiêu chuẩn)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="glmEndpointInput" style="display: block; margin-bottom: 6px; font-size: 13.5px; color: var(--text-2);"><strong>API Endpoint:</strong></label>
+          <input type="text" id="glmEndpointInput" class="form-control" style="width: 100%; padding: 10px 12px; background: var(--bg-1); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-1);" value="https://api.z.ai/api/coding/paas/v4/chat/completions">
+          <small class="form-hint" style="display: block; margin-top: 6px; font-size: 12px; color: var(--text-3); line-height: 1.4;">
+            • Z.AI Coding Plan: <code>https://api.z.ai/api/coding/paas/v4/chat/completions</code><br>
+            • BigModel China: <code>https://open.bigmodel.cn/api/paas/v4/chat/completions</code>
+          </small>
+        </div>
+      </div>
+
+      <div class="ai-config-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid var(--border-soft); padding-top: 16px;">
+        <button type="button" class="btn btn-secondary" id="btnClearGlmKey">Xóa Token</button>
+        <button type="button" class="btn btn-primary" id="btnSaveGlmConfig">Lưu Cấu Hình</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js?v=20261005.02"></script>
 </body>
 </html>
