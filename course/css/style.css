@@ -3857,6 +3857,26 @@ body {
   align-items: center;
   gap: 8px;
 }
+.ud-btn-demo {
+  padding: 8px 11px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: #f59e0b;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ud-btn-demo:hover {
+  background: #f59e0b;
+  color: #000;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
 .ud-btn-preview {
   padding: 9px 10px;
   background: var(--surface);
