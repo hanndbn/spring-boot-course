@@ -796,20 +796,26 @@
   function isCourseEnrolled(courseId) {
     const c = COURSES.find(x => x.id === courseId);
     if (c && c.isAvailable === false) return false;
-    if (!state.currentUser) return false;
     const cId = String(courseId);
-    if (state.enrolledCourses[cId]) return true;
 
-    // Bridge for spring boot track courses
+    // 1. Check local enrollment map (supports both guest & logged in users)
+    if (state.enrolledCourses && state.enrolledCourses[cId]) return true;
+
+    // 2. Bridge for spring boot track courses
     const isSpringTrack = ["spring-boot-foundation", "spring-boot-professional", "spring-boot-architect", "spring-boot-mastery"].includes(cId);
     if (isSpringTrack) {
-      if (state.enrolledCourses["spring-boot-mastery"]) return true;
-      if (Object.keys(state.enrolledModules).length > 0) return true;
-      const c = COURSES.find(x => x.id === cId);
-      if (c && (c.modules || []).some(m => (m.lessons || []).some(l => state.completed[l.id]) || !!state.quizScores[m.id])) {
-        return true;
-      }
+      if (state.enrolledCourses && state.enrolledCourses["spring-boot-mastery"]) return true;
+      if (state.enrolledModules && Object.keys(state.enrolledModules).length > 0) return true;
     }
+
+    // 3. Auto-enrolled if user has completed any lesson or quiz in this course
+    if (c && (c.modules || []).some(m => (m.lessons || []).some(l => state.completed[l.id]) || (state.quizScores && (state.quizScores[m.id] || state.quizScores[`${c.id}-${m.id}`])))) {
+      return true;
+    }
+
+    // 4. If current active course, treat as accessible
+    if (state.activeCourseId === cId) return true;
+
     return false;
   }
 
@@ -820,13 +826,8 @@
   async function enrollCourse(courseId, silent = false) {
     const cId = String(courseId);
     const course = COURSES.find(c => c.id === cId) || { title: cId, shortTitle: cId };
-    if (!state.currentUser) {
-      state.pendingEnrollCourse = cId;
-      openAuthModal("login");
-      toast(`🔑 Vui lòng đăng nhập để ghi danh khóa học <strong>${escapeHtml(course.title || cId)}</strong>!`);
-      return false;
-    }
 
+    // Enroll locally immediately (Guest & Logged-in friendly)
     state.enrolledCourses[cId] = true;
     if (["spring-boot-foundation", "spring-boot-professional", "spring-boot-architect"].includes(cId)) {
       if (course && course.modules) {
@@ -835,20 +836,22 @@
     }
     save();
 
-    supabaseCall("/user_enrollments", "POST", {
-      user_id: state.currentUser.id,
-      module_id: cId
-    }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
+    // If user is authenticated, sync to Supabase Cloud
+    if (state.currentUser) {
+      supabaseCall("/user_enrollments", "POST", {
+        user_id: state.currentUser.id,
+        module_id: cId
+      }, { "Prefer": "resolution=merge-duplicates" }).catch(err => console.warn(err));
+    }
 
     if (!silent) {
-      toast(`🎉 Chúc mừng! Bạn đã ghi danh thành công khóa học <strong>${escapeHtml(course.title)}</strong>!`);
+      toast(`🎉 Chúc mừng! Bạn đã ghi danh thành công khóa học <strong>${escapeHtml(course.title || cId)}</strong>!`);
     }
     enterCourse(cId);
     return true;
   }
 
   async function unenrollCourse(courseId) {
-    if (!state.currentUser) return;
     const cId = String(courseId);
     const course = COURSES.find(c => c.id === cId) || { title: cId };
     if (!confirm(`Bạn có chắc muốn hủy ghi danh khóa học "${course.title}" khỏi danh sách học cá nhân?\n(Lịch sử bài học đã làm vẫn được lưu trữ an toàn)`)) {
@@ -861,12 +864,14 @@
     }
     save();
 
-    await supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + encodeURIComponent(cId), "DELETE")
-      .catch(e => console.warn(e));
+    if (state.currentUser) {
+      await supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + encodeURIComponent(cId), "DELETE")
+        .catch(e => console.warn(e));
 
-    if (cId === "spring-boot-mastery") {
-      for (let i = 0; i <= 7; i++) {
-        supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + i, "DELETE").catch(() => {});
+      if (cId === "spring-boot-mastery") {
+        for (let i = 0; i <= 7; i++) {
+          supabaseCall("/user_enrollments?user_id=eq." + state.currentUser.id + "&module_id=eq." + i, "DELETE").catch(() => {});
+        }
       }
     }
 
@@ -904,6 +909,12 @@
     state.activeCourseId = c.id;
     localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
     updateBrandText(c);
+
+    // Auto-enroll locally if not yet enrolled
+    if (!state.enrolledCourses[c.id]) {
+      state.enrolledCourses[c.id] = true;
+      save();
+    }
 
     const prog = overallProgress(c.id);
     if (forceLesson || prog.done > 0) {
@@ -2297,13 +2308,8 @@
     const continueBtn = $("#continueBtn", view);
     if (continueBtn) {
       continueBtn.addEventListener("click", async () => {
-        if (!state.currentUser) {
-          state.pendingEnrollCourse = activeCourse.id;
-          openAuthModal("login");
-          return;
-        }
         if (!isCourseEnrolled(activeCourse.id)) {
-          await enrollCourse(activeCourse.id);
+          await enrollCourse(activeCourse.id, true);
         }
         for (const m of modules) {
           const nextInMod = (m.lessons || []).find(l => !state.completed[l.id]);
@@ -2312,7 +2318,14 @@
             return;
           }
         }
-        gotoView("user-dashboard");
+        if (modules.length > 0 && modules[0].lessons && modules[0].lessons.length > 0) {
+          const firstL = modules[0].lessons.find(l => l.type !== "quiz") || modules[0].lessons[0];
+          if (firstL) {
+            gotoLesson(firstL.id);
+            return;
+          }
+        }
+        gotoView("curriculum");
       });
     }
   }
@@ -2742,22 +2755,22 @@
                 ${enrolled ? `
                   <div class="ud-card-enrolled-actions">
                     <button class="ud-btn-continue" data-goto-course="${c.id}">
-                      ${isActive ? "▶ Tiếp tục học bài dở" : "🚀 Vào khóa học"}
+                      ${isActive ? "▶ Tiếp tục học" : "🚀 Vào khóa học"}
                     </button>
                     <button class="ud-btn-unenroll" data-unenroll-course="${c.id}" title="Hủy ghi danh">
-                      ✕ Hủy ghi danh
+                      ✕ Hủy
                     </button>
                   </div>
                 ` : `
                   <div class="ud-card-guest-actions">
-                    <button class="ud-btn-demo" data-demo-course="${c.id}" title="Học thử ngay Bài 1.1 hoàn toàn miễn phí không cần đăng nhập">
+                    <button class="ud-btn-continue" data-goto-course="${c.id}" style="background: linear-gradient(135deg, #a435f0, #7928ca); color: #fff; font-weight: 700;">
+                      🚀 Vào học ngay
+                    </button>
+                    <button class="ud-btn-demo" data-demo-course="${c.id}" title="Học thử ngay Bài 1.1 hoàn toàn miễn phí">
                       🎯 Học thử Demo
                     </button>
                     <button class="ud-btn-preview" data-goto-course="${c.id}" title="Xem cấu trúc toàn bộ giáo trình">
                       👁 Giáo trình
-                    </button>
-                    <button class="ud-btn-enroll" data-enroll-course="${c.id}" title="Ghi danh mở khóa trọn bộ khóa học">
-                      📝 Ghi danh
                     </button>
                   </div>
                 `}
@@ -3391,104 +3404,15 @@ ${lesson ? lesson.content : ""}
       localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
     }
 
+    const view = $("#view-lesson");
+    if (!view) return;
+
     const isDemo = isLessonDemo(c, m, lesson);
 
-    // Access check 1: Chưa đăng nhập (Bỏ qua nếu là bài học thử Demo)
-    if (!state.currentUser && !isDemo) {
-      view.innerHTML = `
-        <div class="lesson-header">
-          <div class="breadcrumb">
-            <a data-view="dashboard">Tổng quan</a><span class="sep">›</span>
-            <span>Module ${m.id}: ${escapeHtml(m.title)}</span><span class="sep">›</span>
-            <span>${escapeHtml(lesson.title)}</span>
-          </div>
-        </div>
-        <div class="lesson-gate-container">
-          <div class="lesson-gate-card">
-            <div class="gate-icon-badge">🔒</div>
-            <span class="gate-tag">Yêu cầu tài khoản học viên</span>
-            <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Thuộc khóa <strong>${escapeHtml(c.title)}</strong> · Module ${m.id}: ${escapeHtml(m.title)} · ~${lesson.minutes || 15} phút</p>
-            <div class="gate-divider"></div>
-            <p class="gate-desc">
-              Bạn chưa đăng nhập! Vui lòng đăng nhập hoặc tạo tài khoản miễn phí để ghi danh khóa học <strong>${escapeHtml(c.title)}</strong>, mở khóa toàn bộ ${c.modulesCount} module, thực hành code, lưu tiến độ trên đám mây và thi trắc nghiệm.
-            </p>
-            <div class="gate-features">
-              <div class="gate-feat-item"><span class="feat-icon">${c.icon}</span> Mở khóa trọn bộ ${c.modulesCount} Module và ${c.lessonsCount} bài học ${escapeHtml(c.shortTitle)}</div>
-              <div class="gate-feat-item"><span class="feat-icon">☁️</span> Đồng bộ bài học vĩnh viễn trên Supabase Cloud Database</div>
-              <div class="gate-feat-item"><span class="feat-icon">🏆</span> Thi Quiz trắc nghiệm đánh giá kiến thức sau mỗi module</div>
-            </div>
-            <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnGateLogin">🔑 Đăng nhập để học bài này</button>
-              <button class="btn btn-secondary btn-lg" id="btnGateRegister">📝 Đăng ký tài khoản miễn phí</button>
-            </div>
-            <div class="gate-footer">
-              <button class="btn-link" id="btnGateBack">← Quay lại danh mục khóa học</button>
-            </div>
-          </div>
-        </div>`;
-
-      $("#btnGateLogin", view)?.addEventListener("click", () => {
-        state.pendingTargetLesson = lessonId;
-        state.pendingEnrollCourse = c.id;
-        openAuthModal("login");
-      });
-      $("#btnGateRegister", view)?.addEventListener("click", () => {
-        state.pendingTargetLesson = lessonId;
-        state.pendingEnrollCourse = c.id;
-        openAuthModal("register");
-      });
-      $("#btnGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
-      $$(".breadcrumb [data-view]", view).forEach((b) =>
-        b.addEventListener("click", () => gotoView(b.dataset.view)));
-      return;
-    }
-
-    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học (Bỏ qua nếu là bài học thử Demo)
-    if (!isCourseEnrolled(c.id) && !isDemo) {
-      view.innerHTML = `
-        <div class="lesson-header">
-          <div class="breadcrumb">
-            <a data-view="dashboard">Tổng quan</a><span class="sep">›</span>
-            <span>Module ${m.id}: ${escapeHtml(m.title)}</span><span class="sep">›</span>
-            <span>${escapeHtml(lesson.title)}</span>
-          </div>
-        </div>
-        <div class="lesson-gate-container">
-          <div class="lesson-gate-card">
-            <div class="gate-icon-badge badge-enroll">🎓</div>
-            <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
-            <h2>${escapeHtml(lesson.title)}</h2>
-            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(c.title)}</strong></p>
-            <div class="gate-divider"></div>
-            <p class="gate-desc">
-              Bài học này nằm trong khóa học <strong>${escapeHtml(c.title)}</strong> (${c.modulesCount} Module · ${c.lessonsCount} Bài học · ${c.quizCount} Câu quiz).<br>
-              Bạn chỉ cần ghi danh khóa học <strong>1 lần duy nhất</strong> (hoàn toàn miễn phí) để mở khóa toàn bộ ${c.modulesCount} module cùng ${c.lessonsCount} bài học!
-            </p>
-            <div class="gate-features">
-              <div class="gate-feat-item"><span class="feat-icon">✨</span> Ghi danh 1 lần mở khóa toàn bộ các module (không cần đăng ký lẻ từng bài)</div>
-              <div class="gate-feat-item"><span class="feat-icon">💻</span> Toàn quyền truy cập source code dự án mẫu &amp; sơ đồ kiến trúc</div>
-              <div class="gate-feat-item"><span class="feat-icon">📈</span> Tự động lưu tiến độ vào Dashboard cá nhân trên Supabase Cloud</div>
-            </div>
-            <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnGateEnroll">🚀 Ghi danh khóa ${escapeHtml(c.shortTitle)} (Miễn phí)</button>
-              <button class="btn btn-ghost btn-lg" id="btnGateGoDashboard">📊 Về trang học tập của tôi</button>
-            </div>
-            <div class="gate-footer">
-              <button class="btn-link" id="btnGateBack">← Quay lại danh mục khóa học</button>
-            </div>
-          </div>
-        </div>`;
-
-      $("#btnGateEnroll", view)?.addEventListener("click", async () => {
-        await enrollCourse(c.id);
-        renderLesson(lessonId);
-      });
-      $("#btnGateGoDashboard", view)?.addEventListener("click", () => gotoView("user-dashboard"));
-      $("#btnGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
-      $$(".breadcrumb [data-view]", view).forEach((b) =>
-        b.addEventListener("click", () => gotoView(b.dataset.view)));
-      return;
+    // Auto-enroll course locally so lesson & tracking are immediately accessible
+    if (!state.enrolledCourses[c.id]) {
+      state.enrolledCourses[c.id] = true;
+      save();
     }
 
     const flat = flatIndex(c.id);
@@ -3574,18 +3498,6 @@ ${lesson ? lesson.content : ""}
     }
 
     $("#completeBtn").addEventListener("click", () => {
-      if (!state.currentUser) {
-        toast("⚠️ Vui lòng đăng ký hoặc đăng nhập để lưu tiến độ hoàn thành bài học!");
-        state.pendingTargetLesson = lessonId;
-        state.pendingEnrollCourse = c.id;
-        openAuthModal("login");
-        return;
-      }
-      if (!isCourseEnrolled(c.id)) {
-        toast("⚠️ Vui lòng ghi danh khóa học để bắt đầu theo dõi tiến độ!");
-        enrollCourse(c.id);
-        return;
-      }
       if (state.completed[lessonId]) {
         delete state.completed[lessonId];
         syncUncompleteLessonCloud(lessonId);
@@ -3607,16 +3519,15 @@ ${lesson ? lesson.content : ""}
           if (next) {
             toast(`🎉 <strong>Đã hoàn thành!</strong> Đang chuyển sang bài tiếp theo: <em>${escapeHtml(next.lesson.title)}</em>...`, 2500);
             renderAll();
-            setTimeout(() => {
-              gotoLesson(next.lesson.id);
-            }, 600);
+            setTimeout(() => gotoLesson(next.lesson.id), 700);
           } else {
-            toast("🎉 Đã hoàn thành bài học cuối cùng của khóa học!");
+            toast("🎉 Đã hoàn thành bài học!");
             renderAll();
           }
         }
       }
     });
+
     $$("[data-nav]", view).forEach((b) =>
       b.addEventListener("click", () => gotoLesson(b.dataset.nav)));
     $$(".breadcrumb [data-view]", view).forEach((b) =>
@@ -3737,78 +3648,45 @@ ${lesson ? lesson.content : ""}
     return bestLesson || lessons[0] || null;
   }
 
-  function gotoQuiz(moduleId) {
-    const activeCourse = getActiveCourse();
-    const modules = getActiveModules();
-    const m = modules.find((x) => String(x.id) === String(moduleId));
+  function gotoQuiz(moduleId, courseId) {
+    if (courseId && COURSES.some(c => c.id === courseId)) {
+      state.activeCourseId = courseId;
+      localStorage.setItem(ACTIVE_COURSE_KEY, courseId);
+    }
+    let activeCourse = getActiveCourse();
+    let modules = getActiveModules();
+    let m = modules.find((x) => String(x.id) === String(moduleId));
+    if (!m) {
+      for (const c of COURSES) {
+        const foundM = (c.modules || []).find((x) => String(x.id) === String(moduleId));
+        if (foundM) {
+          state.activeCourseId = c.id;
+          localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
+          activeCourse = c;
+          modules = c.modules || [];
+          m = foundM;
+          break;
+        }
+      }
+    }
     const quiz = m && (m.lessons || []).find((l) => l.type === "quiz");
     if (!quiz) return gotoView("dashboard");
     showView("quiz");
+    setRouteHash("#/quiz/" + encodeURIComponent(moduleId));
+    renderSidebar(quiz.id);
+    renderDashboardStats();
+    window.scrollTo({ top: 0 });
+    closeSidebar();
     const view = $("#view-quiz");
 
     const fullBank = getModuleQuizBank(m);
     const poolSize = fullBank.length;
     const pullCount = Math.min(poolSize, 12);
 
-    // Access check 1: Chưa đăng nhập
-    if (!state.currentUser) {
-      view.innerHTML = `
-        <div class="lesson-gate-container">
-          <div class="lesson-gate-card">
-            <div class="gate-icon-badge">🔒</div>
-            <span class="gate-tag">Yêu cầu đăng nhập</span>
-            <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">${escapeHtml(m.title)} · 12 câu kịch bản (rút từ pool ${poolSize} câu)</p>
-            <div class="gate-divider"></div>
-            <p class="gate-desc">Vui lòng đăng nhập tài khoản học viên để tham gia thi Quiz, ghi nhận điểm số và xếp hạng trên hệ thống!</p>
-            <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnQuizGateLogin">🔑 Đăng nhập ngay</button>
-              <button class="btn btn-secondary btn-lg" id="btnQuizGateRegister">📝 Đăng ký tài khoản</button>
-            </div>
-            <div class="gate-footer">
-              <button class="btn-link" id="btnQuizGateBack">← Về danh mục giáo trình</button>
-            </div>
-          </div>
-        </div>`;
-      $("#btnQuizGateLogin", view)?.addEventListener("click", () => {
-        state.pendingEnrollCourse = activeCourse.id;
-        openAuthModal("login");
-      });
-      $("#btnQuizGateRegister", view)?.addEventListener("click", () => {
-        state.pendingEnrollCourse = activeCourse.id;
-        openAuthModal("register");
-      });
-      $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("dashboard"));
-      return;
-    }
-
-    // Access check 2: Chưa ghi danh khóa học
-    if (!isCourseEnrolled(activeCourse.id)) {
-      view.innerHTML = `
-        <div class="lesson-gate-container">
-          <div class="lesson-gate-card">
-            <div class="gate-icon-badge badge-enroll">🎓</div>
-            <span class="gate-tag tag-enroll">Chưa ghi danh khóa học</span>
-            <h2>Bài thi trắc nghiệm Quiz — Module ${m.id}</h2>
-            <p class="gate-subtitle">Khóa học: <strong>${escapeHtml(activeCourse.title)}</strong> (${poolSize} câu trong ngân hàng)</p>
-            <div class="gate-divider"></div>
-            <p class="gate-desc">Bạn chưa ghi danh khóa học <strong>${escapeHtml(activeCourse.title)}</strong>. Hãy ghi danh ngay để mở khóa toàn bộ bài thi Quiz và bài học trong khóa!</p>
-            <div class="gate-actions">
-              <button class="btn btn-primary btn-lg" id="btnQuizGateEnroll">🚀 Ghi danh khóa ${escapeHtml(activeCourse.shortTitle)} (Miễn phí)</button>
-              <button class="btn btn-ghost btn-lg" id="btnQuizGateBack">📊 Về Dashboard của tôi</button>
-            </div>
-            <div class="gate-footer">
-              <button class="btn-link" id="btnQuizGateHome">← Quay lại danh mục khóa học</button>
-            </div>
-          </div>
-        </div>`;
-      $("#btnQuizGateEnroll", view)?.addEventListener("click", async () => {
-        await enrollCourse(activeCourse.id);
-        gotoQuiz(moduleId);
-      });
-      $("#btnQuizGateBack", view)?.addEventListener("click", () => gotoView("user-dashboard"));
-      $("#btnQuizGateHome", view)?.addEventListener("click", () => gotoView("dashboard"));
-      return;
+    // Auto-enroll active course locally so quiz is immediately accessible
+    if (!state.enrolledCourses[activeCourse.id]) {
+      state.enrolledCourses[activeCourse.id] = true;
+      save();
     }
 
     // Fisher-Yates shuffle to pull 12 random scenario questions from full bank
@@ -4573,7 +4451,141 @@ ${lesson ? lesson.content : ""}
     box.classList.add("open");
   }
 
-  // ---------- Router ----------
+  // ---------- Router & History Hash Navigation ----------
+  let isRoutingFromHash = false;
+
+  function setRouteHash(hash) {
+    if (isRoutingFromHash) return;
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
+    }
+  }
+
+  function handleHashRoute() {
+    const raw = window.location.hash || "";
+    const hash = raw.trim();
+
+    if (!hash || hash === "#" || hash === "#/" || hash.startsWith("#/courses")) {
+      isRoutingFromHash = true;
+      try {
+        showView("courses");
+        renderCoursesCatalog();
+        renderSidebar(null);
+        renderDashboardStats();
+      } finally {
+        isRoutingFromHash = false;
+      }
+      return;
+    }
+
+    if (hash.startsWith("#/lesson/")) {
+      const lessonId = decodeURIComponent(hash.replace("#/lesson/", "").split("?")[0].trim());
+      if (lessonId) {
+        isRoutingFromHash = true;
+        try {
+          gotoLesson(lessonId);
+        } finally {
+          isRoutingFromHash = false;
+        }
+        return;
+      }
+    }
+
+    if (hash.startsWith("#/quiz/")) {
+      const modId = decodeURIComponent(hash.replace("#/quiz/", "").split("?")[0].trim());
+      if (modId) {
+        isRoutingFromHash = true;
+        try {
+          gotoQuiz(modId);
+        } finally {
+          isRoutingFromHash = false;
+        }
+        return;
+      }
+    }
+
+    if (hash.startsWith("#/dashboard")) {
+      const queryIdx = hash.indexOf("?");
+      if (queryIdx !== -1) {
+        const params = new URLSearchParams(hash.slice(queryIdx + 1));
+        const cId = params.get("course");
+        if (cId && COURSES.some(c => c.id === cId)) {
+          state.activeCourseId = cId;
+          localStorage.setItem(ACTIVE_COURSE_KEY, cId);
+        }
+      }
+      isRoutingFromHash = true;
+      try {
+        showView("dashboard");
+        renderDashboard();
+        renderSidebar(null);
+        renderDashboardStats();
+      } finally {
+        isRoutingFromHash = false;
+      }
+      return;
+    }
+
+    if (hash.startsWith("#/curriculum")) {
+      const queryIdx = hash.indexOf("?");
+      if (queryIdx !== -1) {
+        const params = new URLSearchParams(hash.slice(queryIdx + 1));
+        const cId = params.get("course");
+        if (cId && COURSES.some(c => c.id === cId)) {
+          state.activeCourseId = cId;
+          localStorage.setItem(ACTIVE_COURSE_KEY, cId);
+        }
+      }
+      isRoutingFromHash = true;
+      try {
+        showView("curriculum");
+        renderCurriculum();
+        renderSidebar(null);
+        renderDashboardStats();
+      } finally {
+        isRoutingFromHash = false;
+      }
+      return;
+    }
+
+    if (hash.startsWith("#/user-dashboard")) {
+      isRoutingFromHash = true;
+      try {
+        showView("user-dashboard");
+        renderUserDashboard();
+        renderSidebar(null);
+        renderDashboardStats();
+      } finally {
+        isRoutingFromHash = false;
+      }
+      return;
+    }
+
+    // Direct lesson ID fallback (e.g. #0-1-1 or #j0-1-1)
+    const directId = hash.replace(/^#\/?/, "");
+    const found = findLesson(directId);
+    if (found) {
+      isRoutingFromHash = true;
+      try {
+        gotoLesson(directId);
+      } finally {
+        isRoutingFromHash = false;
+      }
+      return;
+    }
+
+    // Fallback to courses
+    isRoutingFromHash = true;
+    try {
+      showView("courses");
+      renderCoursesCatalog();
+      renderSidebar(null);
+      renderDashboardStats();
+    } finally {
+      isRoutingFromHash = false;
+    }
+  }
+
   function showView(name) {
     state.view = name;
     ["dashboard", "lesson", "quiz", "curriculum", "user-dashboard", "courses"].forEach((v) => {
@@ -4597,10 +4609,23 @@ ${lesson ? lesson.content : ""}
 
   function gotoView(name) {
     showView(name);
-    if (name === "dashboard") { renderDashboard(); renderSidebar(null); }
-    else if (name === "courses") { renderCoursesCatalog(); renderSidebar(null); }
-    else if (name === "curriculum") { renderCurriculum(); renderSidebar(null); }
-    else if (name === "user-dashboard") { renderUserDashboard(); renderSidebar(null); }
+    if (name === "dashboard") {
+      renderDashboard();
+      renderSidebar(null);
+      setRouteHash("#/dashboard?course=" + state.activeCourseId);
+    } else if (name === "courses") {
+      renderCoursesCatalog();
+      renderSidebar(null);
+      setRouteHash("#/courses");
+    } else if (name === "curriculum") {
+      renderCurriculum();
+      renderSidebar(null);
+      setRouteHash("#/curriculum?course=" + state.activeCourseId);
+    } else if (name === "user-dashboard") {
+      renderUserDashboard();
+      renderSidebar(null);
+      setRouteHash("#/user-dashboard");
+    }
     renderDashboardStats();
   }
 
@@ -4616,6 +4641,7 @@ ${lesson ? lesson.content : ""}
     renderLesson(id);
     renderSidebar(id);
     renderDashboardStats();
+    setRouteHash("#/lesson/" + encodeURIComponent(id));
   }
 
   function renderDashboardStats() {
@@ -5083,13 +5109,37 @@ ${lesson ? lesson.content : ""}
       }
     });
 
+    // Expose core navigation methods for routing & tests
+    window.gotoLesson = gotoLesson;
+    window.gotoView = gotoView;
+    window.gotoQuiz = gotoQuiz;
+
     updateAuthUI();
     if (state.currentUser) {
       syncLocalAndCloud();
     }
 
-    showView(state.view);
-    renderAll();
+    // Router listeners & initial route dispatch
+    window.addEventListener("hashchange", handleHashRoute);
+    window.addEventListener("popstate", handleHashRoute);
+
+    if (window.location.hash && window.location.hash !== "#" && window.location.hash !== "#/") {
+      handleHashRoute();
+    } else {
+      showView(state.view);
+      renderAll();
+      if (state.view === "lesson" && state.currentLesson) {
+        setRouteHash("#/lesson/" + encodeURIComponent(state.currentLesson));
+      } else if (state.view === "dashboard") {
+        setRouteHash("#/dashboard?course=" + encodeURIComponent(state.activeCourseId));
+      } else if (state.view === "curriculum") {
+        setRouteHash("#/curriculum?course=" + encodeURIComponent(state.activeCourseId));
+      } else if (state.view === "user-dashboard") {
+        setRouteHash("#/user-dashboard");
+      } else {
+        setRouteHash("#/courses");
+      }
+    }
   }
 
   // Boot
