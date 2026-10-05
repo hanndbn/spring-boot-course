@@ -347,7 +347,7 @@
       prerequisites: ["Kiến thức lập trình căn bản"],
       tags: ["Java 21", "Stream API", "Record", "Maven"],
       stats: null,
-      isAvailable: true,
+      isAvailable: false,
       modules: []
     },
     {
@@ -563,7 +563,7 @@
       desc: "Nền tảng vững chắc với Java 21 LTS: OOP, SOLID, Design Patterns, Collection Framework, Concurrency, Virtual Threads & Clean Code.",
       tags: ["Java 21", "OOP", "SOLID", "Collections", "Virtual Threads", "Design Patterns"],
       stats: null,
-      isAvailable: true,
+      isAvailable: false,
       modules: []
     },
     {
@@ -1497,6 +1497,16 @@
     return null;
   }
 
+  function isLessonDemo(c, m, l) {
+    if (!c || !l) return false;
+    if (l.isFreePreview) return true;
+    if (c.modules && c.modules.length > 0 && m && c.modules[0].id === m.id) {
+      const firstLesson = (c.modules[0].lessons || []).find(x => x.type !== "quiz");
+      return firstLesson && firstLesson.id === l.id;
+    }
+    return false;
+  }
+
   function allItems(courseId = state.activeCourseId) {
     const c = COURSES.find(x => x.id === courseId) || getActiveCourse();
     const items = [];
@@ -1936,7 +1946,7 @@
           </div>
           <div class="scs-dropdown" id="scsDropdown" style="display: none;">
             <div class="scs-dropdown-title">CHUYỂN SANG KHÓA HỌC:</div>
-            ${COURSES.map(c => `
+            ${COURSES.filter(c => c.isAvailable !== false).map(c => `
               <div class="scs-item ${c.id === activeCourse.id ? "active" : ""}" data-switch-course="${c.id}">
                 <span class="scs-item-icon">${c.icon}</span>
                 <div class="scs-item-body">
@@ -2012,7 +2022,7 @@
                             <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
                                  data-lesson="${l.id}">
                               <span class="nl-dot"></span>
-                              <span class="nl-title">${escapeHtml(l.title)}</span>
+                              <span class="nl-title">${isLessonDemo(activeCourse, m, l) ? '<span class="demo-tag-pill" style="background:#f59e0b;color:#000;font-size:9.5px;font-weight:800;padding:1px 4px;border-radius:3px;margin-right:4px;">DEMO</span>' : ''}${escapeHtml(l.title)}</span>
                               <span class="nl-mins">${l.minutes}p</span>
                             </div>
                           `).join("")}
@@ -2038,7 +2048,7 @@
                     <div class="nav-lesson ${state.completed[l.id] ? "done" : ""} ${l.id === activeLessonId ? "active" : ""}"
                          data-lesson="${l.id}">
                       <span class="nl-dot"></span>
-                      <span class="nl-title">${l.type === "quiz" ? "🏆 " : ""}${escapeHtml(l.title)}</span>
+                      <span class="nl-title">${l.type === "quiz" ? "🏆 " : isLessonDemo(activeCourse, m, l) ? '<span class="demo-tag-pill" style="background:#f59e0b;color:#000;font-size:9.5px;font-weight:800;padding:1px 4px;border-radius:3px;margin-right:4px;">DEMO</span>' : ""}${escapeHtml(l.title)}</span>
                       <span class="nl-mins">${l.minutes}p</span>
                     </div>`).join("")
                 )}
@@ -2509,6 +2519,7 @@
     if (!view) return;
 
     const filtered = COURSES.filter(c => {
+      if (c.isAvailable === false) return false;
       if (state.catalogCategory !== "all" && c.category !== state.catalogCategory) return false;
       if (state.catalogSearch) {
         const q = state.catalogSearch.toLowerCase();
@@ -2559,16 +2570,16 @@
 
             <div class="cat-filter-tabs">
               <button class="cat-tab ${state.catalogCategory === "all" ? "active" : ""}" data-category="all">
-                Tất cả (${COURSES.length})
+                Tất cả (${COURSES.filter(c => c.isAvailable !== false).length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "backend" ? "active" : ""}" data-category="backend">
-                🍃 Backend &amp; Java (${COURSES.filter(c => c.category === "backend").length})
+                🍃 Backend &amp; Java (${COURSES.filter(c => c.isAvailable !== false && c.category === "backend").length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "frontend" ? "active" : ""}" data-category="frontend">
-                ⚛️ Frontend &amp; Web (${COURSES.filter(c => c.category === "frontend").length})
+                ⚛️ Frontend &amp; Web (${COURSES.filter(c => c.isAvailable !== false && c.category === "frontend").length})
               </button>
               <button class="cat-tab ${state.catalogCategory === "devops" ? "active" : ""}" data-category="devops">
-                ☸️ DevOps &amp; Cloud (${COURSES.filter(c => c.category === "devops").length})
+                ☸️ DevOps &amp; Cloud (${COURSES.filter(c => c.isAvailable !== false && c.category === "devops").length})
               </button>
             </div>
           </div>
@@ -2709,11 +2720,14 @@
                   </div>
                 ` : `
                   <div class="ud-card-guest-actions">
-                    <button class="ud-btn-preview" data-goto-course="${c.id}">
-                      👁 Xem giáo trình
+                    <button class="ud-btn-demo" data-demo-course="${c.id}" title="Học thử ngay Bài 1.1 hoàn toàn miễn phí không cần đăng nhập">
+                      🎯 Học thử Demo
                     </button>
-                    <button class="ud-btn-enroll" data-enroll-course="${c.id}">
-                      📝 Ghi danh miễn phí
+                    <button class="ud-btn-preview" data-goto-course="${c.id}" title="Xem cấu trúc toàn bộ giáo trình">
+                      👁 Giáo trình
+                    </button>
+                    <button class="ud-btn-enroll" data-enroll-course="${c.id}" title="Ghi danh mở khóa trọn bộ khóa học">
+                      📝 Ghi danh
                     </button>
                   </div>
                 `}
@@ -2770,6 +2784,25 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         unenrollCourse(btn.dataset.unenrollCourse);
+      });
+    });
+
+    $$("[data-demo-course]", view).forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const courseId = btn.dataset.demoCourse;
+        const c = COURSES.find(x => x.id === courseId);
+        if (c && c.modules && c.modules.length > 0) {
+          const firstLesson = (c.modules[0].lessons || []).find(l => l.type !== "quiz") || (c.modules[0].lessons && c.modules[0].lessons[0]);
+          if (firstLesson) {
+            state.activeCourseId = c.id;
+            localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
+            gotoLesson(firstLesson.id);
+            toast(`🎁 Đang mở bản học thử Demo: <strong>${escapeHtml(firstLesson.title)}</strong>`);
+            return;
+          }
+        }
+        enterCourse(courseId);
       });
     });
 
@@ -3320,10 +3353,10 @@ ${lesson ? lesson.content : ""}
       localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
     }
 
-    const view = $("#view-lesson");
+    const isDemo = isLessonDemo(c, m, lesson);
 
-    // Access check 1: Chưa đăng nhập
-    if (!state.currentUser) {
+    // Access check 1: Chưa đăng nhập (Bỏ qua nếu là bài học thử Demo)
+    if (!state.currentUser && !isDemo) {
       view.innerHTML = `
         <div class="lesson-header">
           <div class="breadcrumb">
@@ -3373,8 +3406,8 @@ ${lesson ? lesson.content : ""}
       return;
     }
 
-    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học
-    if (!isCourseEnrolled(c.id)) {
+    // Access check 2: Đã đăng nhập nhưng chưa ghi danh khóa học (Bỏ qua nếu là bài học thử Demo)
+    if (!isCourseEnrolled(c.id) && !isDemo) {
       view.innerHTML = `
         <div class="lesson-header">
           <div class="breadcrumb">
@@ -3429,6 +3462,29 @@ ${lesson ? lesson.content : ""}
     const topicId = (lessonId || "").split("-")[1];
     const currentTopic = (m.topics || []).find(t => String(t.id) === topicId);
 
+    const isPreviewGuest = isDemo && (!state.currentUser || !isCourseEnrolled(c.id));
+    const demoBannerHtml = isPreviewGuest ? `
+      <div class="demo-lesson-banner" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(217, 119, 6, 0.22)); border: 1.5px solid rgba(245, 158, 11, 0.55); border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; max-width: 650px;">
+          <span style="font-size: 28px;">🎁</span>
+          <div>
+            <div style="font-weight: 700; color: #f59e0b; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.5px;">Bản Học Thử Miễn Phí (Free Demo Preview)</div>
+            <div style="font-size: 13px; color: var(--text-secondary, #94a3b8); margin-top: 2px;">
+              Bạn đang học thử <strong>${escapeHtml(lesson.title)}</strong> thuộc khóa <strong>${escapeHtml(c.title)}</strong>.<br>
+              Tự do trải nghiệm toàn bộ bài giảng, sơ đồ Mermaid, chạy mã nguồn và thực hành chat cùng Trợ lý AI GLM-5.3!
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          ${!state.currentUser ? `
+            <button class="btn btn-primary btn-sm" id="btnDemoLogin" style="font-weight: 700;">🔑 Đăng ký / Đăng nhập (Mở khóa trọn bộ)</button>
+          ` : `
+            <button class="btn btn-primary btn-sm" id="btnDemoEnroll" style="font-weight: 700;">🚀 Ghi danh miễn phí (Mở khóa ${c.modulesCount} Module)</button>
+          `}
+        </div>
+      </div>
+    ` : '';
+
     view.innerHTML = `
       <div class="lesson-header">
         <div class="breadcrumb">
@@ -3437,7 +3493,10 @@ ${lesson ? lesson.content : ""}
           ${currentTopic ? `<span>Mục ${m.id}.${currentTopic.id}: ${escapeHtml(currentTopic.title)}</span><span class="sep">›</span>` : ""}
           <span>${escapeHtml(lesson.title)}</span>
         </div>
-        <h1 class="lesson-title">${escapeHtml(lesson.title)}</h1>
+        <h1 class="lesson-title">
+          ${isDemo ? '<span class="demo-tag-pill" style="background:#f59e0b;color:#000;font-size:12px;font-weight:800;padding:2px 8px;border-radius:4px;margin-right:8px;vertical-align:middle;">DEMO</span>' : ''}
+          ${escapeHtml(lesson.title)}
+        </h1>
         <div class="lesson-meta">
           <span>📖 ${lessonId}</span>
           <span>⏱ ${lesson.minutes} phút</span>
@@ -3447,6 +3506,7 @@ ${lesson ? lesson.content : ""}
           <button type="button" class="btn-meta-ask-ai" id="btnJumpToAi" title="Cuộn nhanh xuống Trợ lý AI bài này">🤖 Hỏi AI bài này</button>
         </div>
       </div>
+      ${demoBannerHtml}
       <article class="lesson-body">${renderMarkdown(lesson.content)}</article>
       ${renderLessonAiWidget(lessonId, c, m, lesson)}
       <button class="btn-complete ${done ? "done" : ""}" id="completeBtn">
@@ -3463,7 +3523,31 @@ ${lesson ? lesson.content : ""}
           </button>` : `<div></div>`}
       </div>`;
 
+    if (isPreviewGuest) {
+      $("#btnDemoLogin", view)?.addEventListener("click", () => {
+        state.pendingTargetLesson = lessonId;
+        state.pendingEnrollCourse = c.id;
+        openAuthModal("register");
+      });
+      $("#btnDemoEnroll", view)?.addEventListener("click", async () => {
+        await enrollCourse(c.id);
+        renderLesson(lessonId);
+      });
+    }
+
     $("#completeBtn").addEventListener("click", () => {
+      if (!state.currentUser) {
+        toast("⚠️ Vui lòng đăng ký hoặc đăng nhập để lưu tiến độ hoàn thành bài học!");
+        state.pendingTargetLesson = lessonId;
+        state.pendingEnrollCourse = c.id;
+        openAuthModal("login");
+        return;
+      }
+      if (!isCourseEnrolled(c.id)) {
+        toast("⚠️ Vui lòng ghi danh khóa học để bắt đầu theo dõi tiến độ!");
+        enrollCourse(c.id);
+        return;
+      }
       if (state.completed[lessonId]) {
         delete state.completed[lessonId];
         syncUncompleteLessonCloud(lessonId);
@@ -4017,7 +4101,7 @@ ${lesson ? lesson.content : ""}
                         ${tLessons.map(l => `
                           <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
                             <span class="cl-check">✓</span>
-                            <span class="cl-title">${escapeHtml(l.title)}</span>
+                            <span class="cl-title">${isLessonDemo(c, m, l) ? '<span class="demo-tag-pill" style="background:#f59e0b;color:#000;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;">HỌC THỬ</span>' : ''}${escapeHtml(l.title)}</span>
                             <span class="cl-type ${l.type}">${l.type === "theory" ? "Lý thuyết" : l.type === "practice" ? "Thực hành" : l.type === "pitfall" ? "Cạm bẫy" : "Synthesis"}</span>
                             <span class="cl-mins">${l.minutes} phút</span>
                           </div>
@@ -4046,7 +4130,7 @@ ${lesson ? lesson.content : ""}
               (m.lessons || []).map((l) => `
                 <div class="curr-lesson ${state.completed[l.id] ? "done" : ""}" data-lesson="${l.id}">
                   <span class="cl-check">✓</span>
-                  <span class="cl-title">${escapeHtml(l.title)}</span>
+                  <span class="cl-title">${isLessonDemo(c, m, l) ? '<span class="demo-tag-pill" style="background:#f59e0b;color:#000;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-right:6px;">HỌC THỬ</span>' : ''}${escapeHtml(l.title)}</span>
                   <span class="cl-type ${l.type}">${l.type === "quiz" ? "Quiz" : l.minutes >= 100 ? "Project" : "Bài học"}</span>
                   <span class="cl-mins">${l.minutes} phút</span>
                 </div>`).join("")
@@ -4275,14 +4359,14 @@ ${lesson ? lesson.content : ""}
         <div class="ud-catalog-section">
           <div class="ud-section-actions">
             <div>
-              <h3>🌟 Khám phá tất cả khóa học trên nền tảng (${COURSES.length} khóa học)</h3>
+              <h3>🌟 Khám phá tất cả khóa học trên nền tảng (${COURSES.filter(c => c.isAvailable !== false).length} khóa học)</h3>
               <p>Ghi danh các khóa học chuyên sâu từ Backend, Frontend đến DevOps để hoàn thiện bộ kỹ năng Fullstack Enterprise.</p>
             </div>
             <button class="btn btn-secondary btn-sm" data-view="courses">Xem trang Catalog đầy đủ →</button>
           </div>
 
           <div class="ud-catalog-grid">
-            ${COURSES.map((c) => {
+            ${COURSES.filter(c => c.isAvailable !== false).map((c) => {
               const enrolled = isCourseEnrolled(c.id);
               const isActive = c.id === state.activeCourseId;
               return `
