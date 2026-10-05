@@ -1562,12 +1562,23 @@
     return { done: totalDone, total: totalLessons, pct: totalLessons ? Math.round((totalDone / totalLessons) * 100) : 0 };
   }
 
-  function toast(msg) {
+  function toast(msg, duration = 3000) {
     const t = $("#toast");
+    if (!t) return;
     t.innerHTML = msg;
     t.classList.add("show");
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove("show"), 3200);
+    t._timer = setTimeout(() => {
+      t.classList.remove("show");
+    }, duration);
+  }
+
+  function dismissToast() {
+    const t = $("#toast");
+    if (t) {
+      clearTimeout(t._timer);
+      t.classList.remove("show");
+    }
   }
 
   // ---------- Markdown Parser ----------
@@ -3512,16 +3523,16 @@ ${lesson ? lesson.content : ""}
         save();
 
         if (prog.pct === 100) {
-          toast(`🏆 <strong>Chúc mừng! Bạn đã hoàn thành 100% khóa học ${escapeHtml(currentCourse.shortTitle)}!</strong>`, 7000);
+          toast(`🏆 <strong>Chúc mừng! Bạn đã hoàn thành 100% khóa học ${escapeHtml(currentCourse.shortTitle)}!</strong>`, 5000);
           renderAll();
           setTimeout(() => openCertificateModal(currentCourse.id), 800);
         } else {
           if (next) {
-            toast(`🎉 <strong>Đã hoàn thành!</strong> Đang chuyển sang bài tiếp theo: <em>${escapeHtml(next.lesson.title)}</em>...`, 2500);
+            toast("🎉 <strong>Đã hoàn thành!</strong> Đang chuyển sang bài tiếp theo...", 1800);
             renderAll();
-            setTimeout(() => gotoLesson(next.lesson.id), 700);
+            setTimeout(() => gotoLesson(next.lesson.id), 750);
           } else {
-            toast("🎉 Đã hoàn thành bài học!");
+            toast("🎉 Đã hoàn thành bài học!", 2500);
             renderAll();
           }
         }
@@ -4642,6 +4653,10 @@ ${lesson ? lesson.content : ""}
     renderSidebar(id);
     renderDashboardStats();
     setRouteHash("#/lesson/" + encodeURIComponent(id));
+    const t = $("#toast");
+    if (t && t.textContent && t.textContent.includes("bài tiếp theo")) {
+      setTimeout(() => dismissToast(), 600);
+    }
   }
 
   function renderDashboardStats() {
