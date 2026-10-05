@@ -3391,6 +3391,9 @@ ${lesson ? lesson.content : ""}
       localStorage.setItem(ACTIVE_COURSE_KEY, c.id);
     }
 
+    const view = $("#view-lesson");
+    if (!view) return;
+
     const isDemo = isLessonDemo(c, m, lesson);
 
     // Access check 1: Chưa đăng nhập (Bỏ qua nếu là bài học thử Demo)
